@@ -1,0 +1,106 @@
+import { expect, test } from "@playwright/test";
+import { SAMPLE, collectErrors, openReader, selectInBlock } from "./helpers";
+
+test.describe("reader", () => {
+  test("loads a sample with header, numbered blocks, composer and no console errors", async ({ page }) => {
+    const errors = collectErrors(page);
+    await openReader(page);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("On a Piece of Chalk");
+    await expect(page.getByText("Thomas Henry Huxley")).toBeVisible();
+    await expect(page.getByRole("link", { name: /Original/ })).toHaveAttribute("href", /gutenberg/);
+    await expect(page.locator(".blk[data-n]")).toHaveCount(63);
+    await expect(page.locator(".blk[data-type=h2]")).toHaveText("Notes");
+    await expect(page.getByLabel("Ask anything about the whole text")).toBeVisible();
+    await page.waitForTimeout(800);
+    expect(errors.filter((e) => !e.includes("favicon"))).toEqual([]);
+  });
+
+  test("selecting text shows the lens; highlighting persists across reload and shows in the notebook", async ({ page }) => {
+    await openReader(page);
+    await selectInBlock(page, "p2", 0, 40);
+    const lens = page.getByRole("toolbar", { name: "Actions for the selection" });
+    await expect(lens.getByRole("button", { name: "Explain" })).toBeVisible();
+    await lens.getByRole("button", { name: "Highlight", exact: true }).hover();
+    await lens.getByRole("button", { name: "Highlight in green" }).click();
+    await expect(page.locator(".m-hl[data-c=green]")).toHaveText("Not only here, but over the whole county");
+    await page.reload();
+    await expect(page.locator(".m-hl[data-c=green]")).toHaveText("Not only here, but over the whole county");
+    await page.keyboard.press("n");
+    const nb = page.getByRole("complementary", { name: "Notebook" });
+    await expect(nb).toBeVisible();
+    await expect(nb.getByText("Highlight", { exact: true })).toBeVisible();
+    await expect(nb.getByText("Not only here, but over the whole county")).toBeVisible();
+    await nb.getByRole("button", { name: "Remove" }).click({ force: true });
+    await expect(page.locator(".m-hl")).toHaveCount(0);
+  });
+
+  test("underline and note annotations are created, shown in the margin and deletable", async ({ page }) => {
+    await openReader(page);
+    await selectInBlock(page, "p3", 0, 25);
+    await page.getByRole("toolbar").getByRole("button", { name: "Underline" }).click({ force: true });
+    await expect(page.locator(".m-ul")).toHaveCount(1);
+    await selectInBlock(page, "p4", 0, 30);
+    await page.getByRole("toolbar").getByRole("button", { name: "Add a note" }).click({ force: true });
+    await page.getByLabel("Your note on the selected passage").fill("Remember this bit");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".m-note")).toHaveCount(1);
+    const note = page.getByRole("button", { name: /Note on paragraph 4/ });
+    await expect(note).toContainText("Remember this bit");
+    await page.reload();
+    await expect(page.locator(".m-ul")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /Note on paragraph 4/ })).toContainText("Remember this bit");
+    // Edit the note.
+    await page.getByRole("button", { name: /Note on paragraph 4/ }).click();
+    await page.getByRole("button", { name: /Note on paragraph 4/ }).click();
+    await page.getByLabel("Edit note").fill("Edited note");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /Note on paragraph 4/ })).toContainText("Edited note");
+    // The note stays active after editing, so its Delete control is already showing.
+    await page.getByRole("button", { name: "Delete note" }).click();
+    await expect(page.locator(".m-note")).toHaveCount(0);
+  });
+
+  test("asking without a provider key shows an honest error in the margin", async ({ page }) => {
+    await openReader(page);
+    await page.evaluate(() => localStorage.removeItem("gloss:key"));
+    await selectInBlock(page, "p5", 0, 40);
+    await page.getByRole("toolbar").getByRole("button", { name: "Explain" }).click();
+    const card = page.locator("article.gloss.is-active");
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/Together AI key/);
+    await expect(page.locator(".m-gloss")).toHaveCount(1);
+  });
+
+  test("keyboard: J/K move the cursor, ? opens keys, F toggles focus, Esc steps back", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("j");
+    await expect(page.locator(".blk.is-cursor")).toHaveAttribute("data-block", "p1");
+    await page.keyboard.press("j");
+    await expect(page.locator(".blk.is-cursor")).toHaveAttribute("data-block", "p2");
+    await page.keyboard.press("k");
+    await expect(page.locator(".blk.is-cursor")).toHaveAttribute("data-block", "p1");
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
+    await page.keyboard.press("f");
+    await expect(page.locator(".focus-mode")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".focus-mode")).toHaveCount(0);
+  });
+
+  test("appearance: typeface and size apply to the html element", async ({ page }) => {
+    await openReader(page);
+    await page.getByRole("button", { name: "Appearance and answers" }).click();
+    await page.getByRole("radio", { name: "Text" }).click();
+    await page.getByRole("button", { name: /Book/ }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-face", "book");
+    await page.getByRole("button", { name: "Larger text" }).click();
+    await expect(page.locator("html")).toHaveAttribute("style", /--read-size: 21px/);
+  });
+
+  test("unknown slug shows the not-found state", async ({ page }) => {
+    await page.goto("/read/does-not-exist-xyz");
+    await expect(page.getByText("Not on your shelves.")).toBeVisible();
+  });
+});

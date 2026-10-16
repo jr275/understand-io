@@ -133,7 +133,7 @@ export function parseSpokenQuery(raw: string): { topic: string; readAloud: boole
     /^(a|o|as|os)\s+(parte|trecho|parágrafo|paragrafo|seção|secao|passagem|conclusão|conclusao|introdução|introducao)\s+(que|onde|sobre|em que)\s+/i,
     /^(o\s+autor|a\s+autora|o\s+texto|ele|ela)\s+(explica|fala|discute|menciona|diz|argumenta|descreve|compara)\s+(sobre\s+)?/i,
     /^(fala|falam|trata|tratam|discute|explica|menciona)\s+(sobre|de|da|do)\s+/i,
-    /^(about|on|sobre|de|da|do|the|a|o)\s+/i,
+    /^(about|on|sobre|de|da|do|das|dos|the|a|o|as|os)\s+/i,
   ];
   let changed = true;
   let guard = 0;

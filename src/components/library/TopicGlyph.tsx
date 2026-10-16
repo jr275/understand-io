@@ -26,18 +26,21 @@ export function TopicGlyph({ topic, size = 18, className = "" }: { topic: string
 /** Decorative art for topic cards and covers: layered strokes in the topic colour. */
 export function TopicArt({ topic, seed = 0 }: { topic: string; seed?: number }) {
   const t = topicInfo(topic);
+  // Integer-only LCG so server and client agree bit for bit (Math.sin differs across engines).
   const rnd = (i: number) => {
-    const x = Math.sin((seed + 1) * 9301 + i * 49297) * 233280;
-    return x - Math.floor(x);
+    let x = (seed * 7919 + i * 104729 + 12345) >>> 0;
+    x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
+    return (x % 10000) / 10000;
   };
-  const shapes = Array.from({ length: 9 }, (_, i) => ({ x: 10 + rnd(i) * 80, y: 10 + rnd(i + 20) * 80, r: 6 + rnd(i + 40) * 22, o: 0.25 + rnd(i + 60) * 0.5 }));
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+  const shapes = Array.from({ length: 9 }, (_, i) => ({ x: r3(10 + rnd(i) * 80), y: r3(10 + rnd(i + 20) * 80), r: r3(6 + rnd(i + 40) * 22), o: r3(0.25 + rnd(i + 60) * 0.5) }));
   return (
     <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
       <rect width="100" height="100" fill={`color-mix(in oklab, ${t.color} 12%, #f6efdf)`} />
       {shapes.map((s, i) => (
         <circle key={i} cx={s.x} cy={s.y} r={s.r} fill="none" stroke={t.deep} strokeWidth={0.6} opacity={s.o} />
       ))}
-      <path d={`M0 ${70 + rnd(99) * 20} Q 30 ${40 + rnd(98) * 30} 60 ${60 + rnd(97) * 20} T 100 ${50 + rnd(96) * 30}`} fill="none" stroke={t.color} strokeWidth={1.2} opacity={0.6} />
+      <path d={`M0 ${r3(70 + rnd(99) * 20)} Q 30 ${r3(40 + rnd(98) * 30)} 60 ${r3(60 + rnd(97) * 20)} T 100 ${r3(50 + rnd(96) * 30)}`} fill="none" stroke={t.color} strokeWidth={1.2} opacity={0.6} />
       <text x="50" y="58" textAnchor="middle" fontSize="30" fill={t.deep} opacity="0.55" fontFamily="var(--font-serif)">
         {GLYPHS[t.id]}
       </text>

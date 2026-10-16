@@ -18,10 +18,10 @@ function runsFromNode(node: Node, inherit: Partial<Run> = {}): Run[] {
     const el = c as Element;
     const tag = el.tagName;
     if (tag === "BR") {
-      out.push({ ...inherit, text: " " });
+      out.push({ ...inherit, text: "\n" });
       return;
     }
-    if (tag === "SCRIPT" || tag === "STYLE" || tag === "SUP" && /^\[?\d+\]?$/.test(el.textContent?.trim() ?? "x") === false && false) return;
+    if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT" || tag === "IFRAME" || tag === "SVG") return;
     const next = { ...inherit };
     if (tag === "EM" || tag === "I" || tag === "CITE") next.em = true;
     if (tag === "STRONG" || tag === "B") next.strong = true;
@@ -30,7 +30,13 @@ function runsFromNode(node: Node, inherit: Partial<Run> = {}): Run[] {
       const href = el.getAttribute("href");
       if (href && /^https?:/.test(href)) next.href = href;
     }
-    out.push(...runsFromNode(el, next));
+    const inner = runsFromNode(el, next);
+    // Block-level children inside an inline container act as paragraph breaks.
+    if (BLOCK_TAGS.has(tag) || tag === "DIV" || tag === "SECTION" || tag === "TR") {
+      out.push({ ...inherit, text: "\n\n" });
+      out.push(...inner);
+      out.push({ ...inherit, text: "\n\n" });
+    } else out.push(...inner);
   });
   return mergeRuns(out);
 }
@@ -42,62 +48,76 @@ function mergeRuns(runs: Run[]): Run[] {
     if (prev && prev.em === r.em && prev.strong === r.strong && prev.code === r.code && prev.href === r.href) prev.text += r.text;
     else out.push({ ...r });
   }
-  return out.map((r) => ({ ...r, text: r.text }));
+  return out;
+}
+
+/** Split runs on blank lines into paragraphs, trimming each. */
+function splitRuns(runs: Run[]): Run[][] {
+  const paras: Run[][] = [[]];
+  for (const r of runs) {
+    const parts = r.text.split(/\n\s*\n/);
+    parts.forEach((part, i) => {
+      if (i > 0) paras.push([]);
+      const t = part.replace(/\n/g, " ");
+      if (t) paras[paras.length - 1].push({ ...r, text: t });
+    });
+  }
+  return paras.map(trimRuns).filter((p) => p.some((r) => r.text.trim()));
 }
 
 function trimRuns(runs: Run[]): Run[] {
-  if (!runs.length) return runs;
-  runs[0].text = runs[0].text.replace(/^\s+/, "");
-  runs[runs.length - 1].text = runs[runs.length - 1].text.replace(/\s+$/, "");
-  return runs.filter((r) => r.text.length);
+  const out = runs.map((r) => ({ ...r, text: r.text.replace(/\s+/g, " ") }));
+  if (!out.length) return out;
+  out[0].text = out[0].text.replace(/^\s+/, "");
+  out[out.length - 1].text = out[out.length - 1].text.replace(/\s+$/, "");
+  return out.filter((r) => r.text.length);
+}
+
+function hasBlockDescendant(el: Element) {
+  return !!el.querySelector("p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,figure,table,div,section,article");
 }
 
 /** Walk a Readability article and emit reading blocks. */
 export function blocksFromArticleHtml(html: string, baseUrl?: string): Block[] {
   const { document } = parseHTML(`<!doctype html><html><body>${html}</body></html>`);
   const raw: Omit<Block, "n" | "text" | "id">[] = [];
-  const push = (type: Block["type"], el: Element, extra: Partial<Block> = {}) => {
-    const runs = trimRuns(runsFromNode(el));
-    const text = runs.map((r) => r.text).join("").trim();
-    if (!text && type !== "figure") return;
-    raw.push({ type, runs, ...extra });
+  const pushRuns = (type: Block["type"], runs: Run[], extra: Partial<Block> = {}) => {
+    for (const part of splitRuns(runs)) raw.push({ type, runs: part, ...extra });
   };
+  const push = (type: Block["type"], el: Element, extra: Partial<Block> = {}) => pushRuns(type, runsFromNode(el), extra);
   const walk = (node: Element) => {
     for (const el of Array.from(node.children)) {
       const tag = el.tagName;
-      if (tag === "FIGURE" || tag === "IMG") {
+      if (tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") continue;
+      if (tag === "FIGURE" || tag === "IMG" || tag === "PICTURE") {
         const img = tag === "IMG" ? el : el.querySelector("img");
-        const src = img?.getAttribute("src");
-        if (src) {
+        const src = img?.getAttribute("src") || img?.getAttribute("data-src");
+        if (src && !/^data:/.test(src)) {
           const cap = el.querySelector("figcaption");
           const runs = cap ? trimRuns(runsFromNode(cap)) : [];
           raw.push({ type: "figure", runs, src: absolute(src, baseUrl), alt: img?.getAttribute("alt") ?? undefined });
         }
         continue;
       }
-      if (BLOCK_TAGS.has(tag)) {
-        if (tag === "H1" || tag === "H2") push("h2", el);
-        else if (/^H[3-6]$/.test(tag)) push("h3", el);
-        else if (tag === "LI") push("li", el);
-        else if (tag === "BLOCKQUOTE") {
-          // A quote may contain several paragraphs.
-          const ps = el.querySelectorAll("p");
-          if (ps.length) ps.forEach((p) => push("quote", p));
-          else push("quote", el);
-        } else if (tag === "PRE") push("pre", el);
-        else if (tag === "TABLE") {
-          const rows = Array.from(el.querySelectorAll("tr")).map((tr) =>
-            Array.from(tr.querySelectorAll("th,td"))
-              .map((c) => c.textContent?.trim() ?? "")
-              .join(" · "),
-          );
-          raw.push({ type: "pre", runs: [{ text: rows.join("\n") }] });
-        } else push("p", el);
-        continue;
-      }
-      if (el.children.length && !["A", "SPAN", "EM", "STRONG", "B", "I", "CODE"].includes(tag)) walk(el);
-      else if (tag === "DIV" || tag === "SECTION" || tag === "ARTICLE") push("p", el);
-      else if ((el.textContent ?? "").trim().length > 40) push("p", el);
+      if (tag === "H1" || tag === "H2") push("h2", el);
+      else if (/^H[3-6]$/.test(tag)) push("h3", el);
+      else if (tag === "UL" || tag === "OL") Array.from(el.children).forEach((li) => (hasBlockDescendant(li) ? walk(li) : push("li", li)));
+      else if (tag === "LI") push("li", el);
+      else if (tag === "BLOCKQUOTE") {
+        const ps = el.querySelectorAll("p");
+        if (ps.length) ps.forEach((p) => push("quote", p));
+        else push("quote", el);
+      } else if (tag === "PRE") raw.push({ type: "pre", runs: [{ text: (el.textContent ?? "").replace(/^\n+|\s+$/g, "") }] });
+      else if (tag === "TABLE") {
+        const rows = Array.from(el.querySelectorAll("tr")).map((tr) =>
+          Array.from(tr.querySelectorAll("th,td"))
+            .map((c) => c.textContent?.trim() ?? "")
+            .join(" · "),
+        );
+        if (rows.join("").trim()) raw.push({ type: "pre", runs: [{ text: rows.join("\n") }] });
+      } else if (tag === "P") push("p", el);
+      else if (hasBlockDescendant(el)) walk(el);
+      else push("p", el);
     }
   };
   walk(document.body);
@@ -130,7 +150,8 @@ export function extractArticle(html: string, url: string): Extracted {
   const article = reader.parse();
   if (!article || !article.content) throw new Error("Could not find a readable article on that page.");
   const blocks = blocksFromArticleHtml(article.content, url);
-  if (!blocks.length) throw new Error("The page had no readable paragraphs.");
+  const chars = blocks.reduce((n, b) => n + b.text.length, 0);
+  if (!blocks.length || chars < 200) throw new Error("The page had no readable paragraphs.");
   return {
     title: (article.title || new URL(url).hostname).trim(),
     author: article.byline?.replace(/^by\s+/i, "").trim() || null,

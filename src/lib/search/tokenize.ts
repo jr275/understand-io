@@ -22,11 +22,10 @@ export function tokenize(text: string, keepStop = false): string[] {
 
 export function stem(t: string): string {
   if (t.length <= 4) return t;
-  return t
-    .replace(/(ations?|ively|ingly|ements?|nesses?)$/, "")
-    .replace(/(ing|edly|ed|ies|es|ly|s)$/, (m) => (m === "ies" ? "y" : ""))
-    .replace(/(ções|ção|mente|ismo|istas?|idades?)$/, "")
-    .replace(/(ores|ais|eis|ões|ens|as|os|es)$/, "");
+  // Portuguese/Spanish endings first (input is already accent-stripped), then English.
+  const pt = t.replace(/(coes|cao|mente|ismo|istas?|idades?)$/, "").replace(/(ores|ais|eis|oes|ens)$/, "");
+  if (pt !== t) return pt;
+  return t.replace(/(ations?|ively|ingly|ements?|nesses?)$/, "").replace(/(ing|edly|ed|ies|es|ly|s)$/, (m) => (m === "ies" ? "y" : ""));
 }
 
 /** Split a block's text into sentences with offsets. */

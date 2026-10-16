@@ -83,6 +83,10 @@ const LEFT = 28;
 const TOP_PAD = 36;
 
 /** Place spines left to right, grouped by topic when sorting by topic. */
+function topicLabel(id: string) {
+  return topicInfo(id).label;
+}
+
 export function layoutShelf(docs: Omit<GlossDocument, "blocks">[], sort: Sort, progress: Record<string, { ratio: number; updatedAt: number; finished?: boolean }>): Layout {
   const sorted = [...docs];
   const byUpdated = (d: Omit<GlossDocument, "blocks">) => {
@@ -120,6 +124,13 @@ export function layoutShelf(docs: Omit<GlossDocument, "blocks">[], sort: Sort, p
     groupCount++;
   });
   closeGroup();
+  // Spread plank labels so they never overlap (estimate width from the label text).
+  let lastEnd = 0;
+  for (const l of labels) {
+    const w = Math.round(topicLabel(l.topic).length * 6.8 + 46);
+    l.x = Math.max(l.x, lastEnd);
+    lastEnd = l.x + w + 10;
+  }
   const bookendX = x + 2;
   const shelfY = TOP_PAD + maxH;
   return { width: Math.max(bookendX + 40, 900), height: shelfY + 48, shelfY, books, labels, bookendX };

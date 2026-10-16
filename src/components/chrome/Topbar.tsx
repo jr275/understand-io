@@ -17,10 +17,14 @@ interface Props {
   tools?: ReactNode;
   /** Centre slot (reader title). */
   center?: ReactNode;
+  /** Tools placed after the key button (reader: Notebook). */
+  after?: ReactNode;
+  /** 0..1 reading progress drawn as a rubric line along the bottom edge (reader). */
+  progress?: number;
   className?: string;
 }
 
-export function Topbar({ variant = "landing", tools, center, className = "" }: Props) {
+export function Topbar({ variant = "landing", tools, center, after, progress, className = "" }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState<"aa" | "key" | null>(null);
   const aaRef = useRef<HTMLButtonElement>(null);
@@ -77,6 +81,7 @@ export function Topbar({ variant = "landing", tools, center, className = "" }: P
             <KeyPanel onDone={() => setOpen(null)} />
           </Pop>
         </div>
+        {after}
       </nav>
     </>
   );
@@ -85,6 +90,7 @@ export function Topbar({ variant = "landing", tools, center, className = "" }: P
     return (
       <header className={`fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-transparent transition-[transform,background-color,border-color] duration-300 ease-[var(--ease-out)] ${className}`}>
         <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4 sm:px-6">{inner}</div>
+        {progress !== undefined ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[var(--rubric)] opacity-80 transition-transform duration-150" style={{ transform: `scaleX(${progress})` }} /> : null}
       </header>
     );
   }

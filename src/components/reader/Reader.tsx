@@ -12,6 +12,7 @@ import { useSettings } from "@/lib/store/settings";
 import { addAnnotation, persistGloss, rememberDocument, removeAnnotation, removeGloss, setProgress, syncDocumentData, updateAnnotation, upsertGloss, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
 import { streamGloss, type GlossMeta } from "@/lib/client/glossStream";
+import { useMounted } from "@/lib/client/useMounted";
 import { Topbar } from "@/components/chrome/Topbar";
 import { Toasts } from "@/components/chrome/Toasts";
 import { KeysDialog } from "@/components/chrome/KeysDialog";
@@ -54,6 +55,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const [resizeTick, setResizeTick] = useState(0);
   const [serverInfo, setServerInfo] = useState<{ serverKey: boolean; model: string } | null>(null);
   const abortRef = useRef<Map<string, AbortController>>(new Map());
+  const mounted = useMounted();
 
   /* ---------- speech ---------- */
   const speech = useMemo(() => new SpeechController(), []);
@@ -537,10 +539,18 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const rootClass = ["relative z-[1]", settings.numbers ? "" : "hide-nums", settings.focus ? "focus-mode" : "", nbOpen ? "nb-open" : ""].filter(Boolean).join(" ");
 
   return (
-    <div className={rootClass} data-lens-docked={pending ? "" : undefined}>
+    <div className={rootClass} data-lens-docked={pending ? "" : undefined} data-reader-ready={mounted ? "" : undefined}>
       <Topbar
         variant="reader"
         className={scrolled ? "border-rule bg-[color-mix(in_oklab,var(--bg)_86%,transparent)] backdrop-blur-md" : ""}
+        progress={ratio}
+        after={
+          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} aria-label="Notebook" data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={() => setNbOpen((v) => !v)}>
+            <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span className="hidden sm:inline">Notebook</span>
+            {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white">{annotations.length + glosses.length}</span> : null}
+          </IconButton>
+        }
         center={
           <div className={`flex min-w-0 flex-1 justify-center transition-opacity duration-300 ${scrolled ? "opacity-100" : "pointer-events-none opacity-0"}`}>
             <div className="hidden h-9 min-w-0 max-w-[560px] items-center gap-2 text-[13.5px] md:flex">
@@ -572,20 +582,6 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           </>
         }
       />
-      {/* Notebook button + progress bar live in the fixed header; rendered here so the Topbar stays generic. */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-[41] h-[var(--topbar-h)]">
-        <div className="mx-auto flex h-full max-w-[1440px] items-center justify-end px-4 sm:px-6">
-          <span className="pointer-events-auto mr-[82px] sm:mr-[82px]">
-            <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} aria-label="Notebook" data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={() => setNbOpen((v) => !v)}>
-              <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
-              <span className="hidden sm:inline">Notebook</span>
-              {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white">{annotations.length + glosses.length}</span> : null}
-            </IconButton>
-          </span>
-        </div>
-        <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[var(--rubric)] opacity-80 transition-transform duration-150" style={{ transform: `scaleX(${ratio})` }} />
-      </div>
-
       <main ref={rootRef} className="relative z-[1] px-4 pb-10 pt-[calc(var(--topbar-h)+64px)] sm:px-6">
         <div className="reader-grid">
           <div className="rg-rail relative">

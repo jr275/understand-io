@@ -66,6 +66,8 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
     return () => document.removeEventListener("keydown", onKey);
   }, [mode, marker, onHighlight, onUnderline]);
 
+  // Open the More menu downward when there is no room above the lens.
+  const menuBelow = pos.below || pos.top < 340;
   const arrow = (
     <span aria-hidden="true" className="absolute size-2.5 rotate-45 bg-lens" style={{ left: Math.max(11, Math.min(pos.width - 20, rect.left + rect.width / 2 - pos.left - 5)), [pos.below ? "top" : "bottom"]: -4 }} />
   );
@@ -92,7 +94,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
                 <Ellipsis size={16} aria-hidden="true" />
               </button>
               {menu ? (
-                <div role="menu" aria-label="More actions" className={`lens-menu absolute right-0 w-[264px] rounded-[14px] bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 ${pos.below ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"}`}>
+                <div role="menu" aria-label="More actions" className={`lens-menu absolute right-0 w-[264px] rounded-[14px] bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 ${menuBelow ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"}`} style={{ transformOrigin: menuBelow ? "100% 0" : "100% 100%" }}>
                   {(
                     [
                       ["define", BookOpenText, "Define", "The word, as this author uses it"],

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
+import { useMounted } from "@/lib/client/useMounted";
 import type { GlossDocument } from "@/lib/content/types";
 import { getLocalDocument, useLibrary } from "@/lib/store/library";
 import { Topbar } from "@/components/chrome/Topbar";
@@ -10,11 +11,7 @@ import { Reader } from "./Reader";
 /** Server-provided document, or a local-only one from this browser, or a not-found state. */
 export function ReaderLoader({ slug, initial }: { slug: string; initial: GlossDocument | null }) {
   const lib = useLibrary();
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
+  const mounted = useMounted();
   // lib.docs is read so a document imported in this tab appears without a reload.
   const localDoc = mounted ? (lib.docs[slug]?.blocks.length ? lib.docs[slug] : getLocalDocument(slug)) : null;
   const doc = useMemo<GlossDocument | null>(() => initial ?? localDoc, [initial, localDoc]);

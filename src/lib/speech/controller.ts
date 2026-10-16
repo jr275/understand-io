@@ -165,8 +165,24 @@ export class SpeechController {
       if (myToken !== this.token) return;
       window.speechSynthesis.speak(u);
       this.armKeepAlive();
+      this.armWatchdog(myToken, seg.text);
     }, 30);
   }
+
+  /** Engines sometimes never fire `end` (muted output, broken voice). Surface that instead of hanging. */
+  private armWatchdog(token: number, text: string) {
+    window.clearTimeout(this.watchdog);
+    const words = text.split(/\s+/).length;
+    const budget = (words * 700) / Math.max(0.5, this.snap.rate) + 8000;
+    this.watchdog = window.setTimeout(() => {
+      if (token !== this.token || this.snap.state !== "playing") return;
+      this.clearKeepAlive();
+      window.speechSynthesis.cancel();
+      this.token++;
+      this.emit({ state: "error", error: "The speech engine did not finish this sentence. Try another voice, or check that audio is not muted." });
+    }, budget);
+  }
+  private watchdog: number | undefined;
 
   /** Chrome pauses long sessions after ~15s of continuous speech unless nudged. */
   private armKeepAlive() {
@@ -183,6 +199,7 @@ export class SpeechController {
   private clearKeepAlive() {
     if (this.keepAlive) window.clearInterval(this.keepAlive);
     this.keepAlive = undefined;
+    window.clearTimeout(this.watchdog);
   }
 
   private next() {
@@ -204,6 +221,7 @@ export class SpeechController {
 
   pause() {
     if (this.snap.state !== "playing") return;
+    window.clearTimeout(this.watchdog);
     window.speechSynthesis.pause();
     this.emit({ state: "paused" });
   }
@@ -212,8 +230,11 @@ export class SpeechController {
     if (this.snap.state !== "paused") return;
     // Some engines cannot resume reliably; restart the current sentence instead.
     this.emit({ state: "playing" });
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    else this.speakCurrent();
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+      const seg = this.segs[this.idx];
+      if (seg) this.armWatchdog(this.token, seg.text);
+    } else this.speakCurrent();
   }
 
   toggle() {

@@ -211,9 +211,11 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   <span className="lib-emoji">✅</span> Finished <span className="lib-n">{finished}</span>
                 </button>
               ) : null}
-              <button type="button" aria-pressed={filter === "short"} className="lib-chip" onClick={() => setFilter(filter === "short" ? "all" : "short")}>
-                <span className="lib-emoji">⚡</span> Under 10 min <span className="lib-n">{shortCount}</span>
-              </button>
+              {shortCount ? (
+                <button type="button" aria-pressed={filter === "short"} className="lib-chip" onClick={() => setFilter(filter === "short" ? "all" : "short")}>
+                  <span className="lib-emoji">⚡</span> Under 10 min <span className="lib-n">{shortCount}</span>
+                </button>
+              ) : null}
             </div>
             <button type="button" className="lib-chip-page is-l" aria-label="Scroll filters left" tabIndex={-1} onClick={() => chipsRef.current?.scrollBy({ left: -240, behavior: "smooth" })}>
               <ChevronLeft size={15} aria-hidden="true" />

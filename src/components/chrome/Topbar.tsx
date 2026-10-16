@@ -1,0 +1,96 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useRef, useState, type ReactNode } from "react";
+import { KeyRound, Library } from "lucide-react";
+import { GlossMark, PartnerMark } from "./marks";
+import { IconButton } from "@/components/ui/IconButton";
+import { Pop } from "@/components/ui/Pop";
+import { AppearancePanel } from "./AppearancePanel";
+import { KeyPanel } from "./KeyPanel";
+
+interface Props {
+  /** Reader pages render a fixed bar with their own tools. */
+  variant?: "landing" | "library" | "reader";
+  /** Extra tools placed before the Appearance button (reader). */
+  tools?: ReactNode;
+  /** Centre slot (reader title). */
+  center?: ReactNode;
+  className?: string;
+}
+
+export function Topbar({ variant = "landing", tools, center, className = "" }: Props) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState<"aa" | "key" | null>(null);
+  const aaRef = useRef<HTMLButtonElement>(null);
+  const keyRef = useRef<HTMLButtonElement>(null);
+  const reader = variant === "reader";
+
+  const inner = (
+    <>
+      <div className="flex h-9 items-center gap-3.5 max-[380px]:gap-2.5">
+        <Link aria-label="Gloss, back to your library" className="rounded-md" href="/">
+          <span className="flex h-9 items-center gap-[7px] text-ink">
+            <GlossMark />
+            <span className="block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36]">Gloss</span>
+          </span>
+        </Link>
+        <span aria-hidden="true" className="h-[18px] w-px bg-rule-strong" />
+        <a
+          href="https://www.together.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Together AI"
+          data-tip="Models served by Together AI"
+          className="flex h-9 shrink-0 items-center rounded-sm text-ink opacity-75 transition-opacity duration-200 hover:opacity-100"
+        >
+          <PartnerMark />
+        </a>
+      </div>
+      {reader ? <div className="flex min-w-0 flex-1 justify-center">{center}</div> : null}
+      <nav aria-label={reader ? "Reader tools" : "Main"} className="flex items-center gap-1 max-[380px]:gap-0">
+        {!reader && (
+          <Link
+            aria-current={pathname === "/library" ? "page" : undefined}
+            className="mr-1 inline-flex h-9 items-center gap-2 rounded-full px-3 text-[14px] font-medium text-ink-2 transition-colors hover:bg-sunk hover:text-ink aria-[current=page]:bg-sunk aria-[current=page]:text-ink max-sm:w-9 max-sm:justify-center max-sm:px-0"
+            href="/library"
+          >
+            <Library size={17} aria-hidden="true" />
+            <span className="max-sm:hidden">Library</span>
+          </Link>
+        )}
+        {tools}
+        <div className="relative">
+          <IconButton ref={aaRef} aria-label="Appearance and answers" data-tip="Appearance" aria-expanded={open === "aa"} aria-haspopup="dialog" onClick={() => setOpen(open === "aa" ? null : "aa")}>
+            <span className="block translate-y-[0.5px] font-serif text-[18px] leading-none">Aa</span>
+          </IconButton>
+          <Pop open={open === "aa"} onClose={() => setOpen(null)} label="Appearance and answers" anchorRef={aaRef}>
+            <AppearancePanel reader={reader} />
+          </Pop>
+        </div>
+        <div className="relative">
+          <IconButton ref={keyRef} aria-label="Together API key" data-tip="Add your Together key" aria-expanded={open === "key"} aria-haspopup="dialog" onClick={() => setOpen(open === "key" ? null : "key")}>
+            <KeyRound size={15} aria-hidden="true" />
+          </IconButton>
+          <Pop open={open === "key"} onClose={() => setOpen(null)} label="Together API key" width={320} anchorRef={keyRef}>
+            <KeyPanel onDone={() => setOpen(null)} />
+          </Pop>
+        </div>
+      </nav>
+    </>
+  );
+
+  if (reader) {
+    return (
+      <header className={`fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-transparent transition-[transform,background-color,border-color] duration-300 ease-[var(--ease-out)] ${className}`}>
+        <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4 sm:px-6">{inner}</div>
+      </header>
+    );
+  }
+  return (
+    <header className={`relative z-20 mx-auto flex h-[var(--topbar-h)] w-full max-w-[1400px] shrink-0 items-center justify-between px-5 max-[380px]:px-4 sm:px-8 ${className}`}>
+      {inner}
+    </header>
+  );
+}

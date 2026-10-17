@@ -20,6 +20,7 @@ interface Props {
   onRemoveAnnotation: (id: string) => void;
   onDeleteGloss: (id: string) => void;
   onCite: (n: number) => void;
+  citeSet?: (g: Gloss) => Set<number> | null;
   persisted: boolean | null;
 }
 
@@ -101,7 +102,7 @@ export function Notebook(p: Props) {
             {items.map((it, i) =>
               it.kind === "gloss" ? (
                 <li key={it.g.id} className="rise" style={{ animationDuration: ".45s", animationDelay: `${i * 35}ms` }}>
-                  <GlossItem g={it.g} n={nOf(it.anchor)} onOpen={() => p.onOpenGloss(it.g.id)} onDelete={() => p.onDeleteGloss(it.g.id)} onCite={p.onCite} />
+                  <GlossItem g={it.g} n={nOf(it.anchor)} onOpen={() => p.onOpenGloss(it.g.id)} onDelete={() => p.onDeleteGloss(it.g.id)} onCite={p.onCite} valid={p.citeSet?.(it.g) ?? null} />
                 </li>
               ) : (
                 <li key={it.a.id} className="rise" style={{ animationDuration: ".45s", animationDelay: `${i * 35}ms` }}>
@@ -139,7 +140,7 @@ export function Notebook(p: Props) {
   );
 }
 
-function GlossItem({ g, n, onOpen, onDelete, onCite }: { g: Gloss; n?: number; onOpen: () => void; onDelete: () => void; onCite: (n: number) => void }) {
+function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: number; onOpen: () => void; onDelete: () => void; onCite: (n: number) => void; valid: Set<number> | null }) {
   const [full, setFull] = useState(false);
   const q = g.turns.find((t) => t.role === "user")?.content ?? "What does this mean here?";
   const a = g.turns.filter((t) => t.role === "assistant").slice(-1)[0]?.content ?? "";
@@ -163,7 +164,7 @@ function GlossItem({ g, n, onOpen, onDelete, onCite }: { g: Gloss; n?: number; o
           <div className="mt-2 grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-ink-4">A</span>
             <div className="min-w-0">
-              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{g.error}</p> : renderGlossBody(a, onCite)}</div>
+              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{g.error}</p> : renderGlossBody(a, onCite, false, valid)}</div>
               {!full && a.length > 240 ? (
                 <button type="button" className="mt-1.5 text-[12.5px] font-medium text-ink-3 transition-colors hover:text-ink" onClick={() => setFull(true)}>
                   Read the whole answer

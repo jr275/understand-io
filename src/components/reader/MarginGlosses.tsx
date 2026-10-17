@@ -31,6 +31,8 @@ interface Props {
   onRetry: (id: string) => void;
   onFollowUp: (id: string, q: string) => void;
   onCite: (n: number) => void;
+  /** Paragraph numbers a gloss's model was given (null when unknown): citations to others are shown as unverified. */
+  citeSet?: (g: Gloss) => Set<number> | null;
   onEditNote: (id: string, text: string) => void;
   onDeleteNote: (id: string) => void;
   /** Below 1080px the active item is shown as a bottom sheet instead. */
@@ -277,7 +279,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
         {g.error ? (
           <p className="text-rubric-text">{g.error}</p>
         ) : answer ? (
-          renderGlossBody(answer, p.onCite, streaming)
+          renderGlossBody(answer, p.onCite, streaming, p.citeSet?.(g) ?? null)
         ) : streaming ? (
           <div className="writing" aria-label="Writing">
             <span style={{ width: "92%" }} />
@@ -286,6 +288,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
           </div>
         ) : null}
       </div>
+      {g.result?.kind === "stream" && g.status === "done" && (g.action === "overview" || g.action === "whole" || !g.anchor) && g.result.coverage.note ? <p className="mt-2.5 text-[12px] leading-snug text-ink-3" data-coverage>{g.result.coverage.note}</p> : null}
       <footer className="mt-3 flex items-center gap-0.5 text-ink-3">
         <span className="min-w-0 flex-1 truncate text-[11.5px] tabular-nums text-ink-4">
           {g.model ? (

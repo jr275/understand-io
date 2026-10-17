@@ -18,6 +18,8 @@ export function systemPrompt(length: string) {
     "Ground every claim in the text supplied. Cite the paragraphs you draw on with their number in the form ¶12 (use the ¶ sign and the number, nothing else).",
     "Start with the single most useful sentence and wrap that sentence in ==double equals== so it can be marked. Only one such sentence.",
     "Write plainly, in the reader's language (match the language of the question if there is one, otherwise the text). No headings. Use markdown only for *emphasis*, **bold**, `code` and short bullet lists.",
+    "Mark exactly where you leave the text: begin a sentence with \"My reading:\" when it is your own interpretation, with \"Outside the text:\" when it relies on knowledge from beyond the paragraphs supplied, and with \"The text does not say:\" when the paragraphs cannot confirm something. Every sentence without such a label must be supported by the paragraphs and carry a ¶ citation.",
+    "You only see the paragraphs supplied. Never claim to have read the rest of the text; if the question needs more than they show, say so.",
     "If the text does not support an answer, say so plainly instead of inventing one.",
     LENGTH[length] ?? LENGTH.normal,
   ].join(" ");

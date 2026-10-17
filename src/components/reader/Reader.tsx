@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, ArrowUpRight, Headphones, Keyboard, NotebookPen } from "lucide-react";
-import type { Anchor, Annotation, Gloss, GlossAction, GlossDocument, HighlightColor } from "@/lib/content/types";
+import { ArrowRight, ArrowUpRight, BookOpenCheck, Headphones, Keyboard, NotebookPen } from "lucide-react";
+import type { Anchor, Annotation, Evidence, Gloss, GlossAction, GlossDocument, HighlightColor, SummaryVariant } from "@/lib/content/types";
+import { isInsight } from "@/lib/ai/results";
 import { decideAnnotate, marksOnRange } from "@/lib/anchors/annotate";
 import { anchorBlockIds, anchorFromSelection, blockIndex, clampNote, makeAnchor, rangeForAnchor, resolveAll, resolveCached, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
@@ -13,7 +14,8 @@ import { guessLang } from "@/lib/content/lang";
 import { useSettings } from "@/lib/store/settings";
 import { addAnnotation, persistGloss, rememberDocument, removeAnnotation, removeGloss, setProgress, syncDocumentData, updateAnnotation, upsertGloss, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
-import { streamGloss, type GlossMeta } from "@/lib/client/glossStream";
+import { hasAnyKey, streamGloss, type GlossMeta } from "@/lib/client/glossStream";
+import { blocksAround, callAiOp, documentBlocks, type AiOpRequest } from "@/lib/client/aiOps";
 import { useMounted } from "@/lib/client/useMounted";
 import { Topbar } from "@/components/chrome/Topbar";
 import { Toasts } from "@/components/chrome/Toasts";
@@ -25,6 +27,7 @@ import { MarginGlosses, type MarginItem } from "./MarginGlosses";
 import { Composer } from "./Composer";
 import { Rail } from "./Rail";
 import { Notebook } from "./Notebook";
+import { InsightsPanel } from "./InsightsPanel";
 import { ListenBar } from "./ListenBar";
 import { VoiceSearch } from "./VoiceSearch";
 import { QuickAdd } from "./QuickAdd";
@@ -38,7 +41,10 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const [settings, setSettings] = useSettings();
   const lib = useLibrary();
   const annotations = lib.annotations[documentId] ?? EMPTY_A;
-  const glosses = lib.glosses[documentId] ?? EMPTY_G;
+  const allGlosses = lib.glosses[documentId] ?? EMPTY_G;
+  // Margin answers and structured results (summaries, translations...) are different things: only the first kind lives in the margin.
+  const glosses = useMemo(() => allGlosses.filter((g) => !isInsight(g)), [allGlosses]);
+  const insights = useMemo(() => allGlosses.filter(isInsight).sort((a, b) => b.createdAt - a.createdAt), [allGlosses]);
   // Every anchor is resolved once (cached per anchor): painting, clicking marks, margin cards, the rail and the notebook all use this result.
   const blockIdx = useMemo(() => blockIndex(blocks), [blocks]);
   const resolvedAnn = useMemo(() => resolveAll(blocks, annotations, blockIdx), [blocks, annotations, blockIdx]);
@@ -53,6 +59,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [hit, setHit] = useState<Anchor | null>(null);
   const [nbOpen, setNbOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -367,8 +374,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       const history = g.turns.slice(0, question ? -2 : -1).filter((t) => t.content);
       let current: Gloss = { ...g, status: "streaming", error: undefined };
       upsertGloss(current);
+      const context = contextFor(g.anchor, question, g.action);
       const meta: GlossMeta = await streamGloss(
-        { title: doc.title, author: doc.author, action: g.action, question, anchor: g.anchor, context: contextFor(g.anchor, question, g.action), length: settings.length, history: history.length ? history : undefined },
+        { title: doc.title, author: doc.author, action: g.action, question, anchor: g.anchor, context, length: settings.length, history: history.length ? history : undefined },
         (full) => {
           current = { ...current, turns: [...current.turns.slice(0, -1), { role: "assistant", content: full }] };
           upsertGloss(current);
@@ -383,11 +391,29 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         if (/key/i.test(meta.error)) toast("Answers need a Together AI key. Add yours with the key button in the top bar.", { ttl: 7000 });
         return;
       }
-      current = { ...current, status: "done", model: meta.model ?? current.model, usage: meta.usage ?? current.usage };
+      // Remember which paragraphs the model was given: its ¶ citations are checked against them, and an overview says how much it read.
+      const total = blocks.filter((b) => b.n).length;
+      const used = context.filter((c) => c.n).length;
+      const nums = context.map((c) => c.n).filter((n): n is number => typeof n === "number");
+      const complete = used >= total;
+      const result = {
+        kind: "stream" as const,
+        context: context.map((c) => c.id),
+        coverage: { used, total, from: nums.length ? Math.min(...nums) : 0, to: nums.length ? Math.max(...nums) : 0, complete, note: complete ? undefined : `Based on ${used} of ${total} paragraphs: the ones closest to the question plus a sample spread across the text. The rest was not read.` },
+      };
+      current = { ...current, status: "done", model: meta.model ?? current.model, usage: meta.usage ?? current.usage, result };
       upsertGloss(current);
       persistGloss(current);
     },
-    [doc.title, doc.author, contextFor, settings.length],
+    [doc.title, doc.author, contextFor, settings.length, blocks],
+  );
+
+  const citeSetFor = useCallback(
+    (g: Gloss) => {
+      if (g.result?.kind !== "stream") return null;
+      return new Set(g.result.context.map((id) => blocks.find((b) => b.id === id)?.n).filter((n): n is number => typeof n === "number"));
+    },
+    [blocks],
   );
 
   const createGloss = useCallback(
@@ -408,6 +434,113 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     },
     [documentId, clearSelection, runGloss],
   );
+
+  /* ---------- structured results: summaries, concepts, questions, translation ---------- */
+  const targetLang = settings.targetLang || (docLang === "pt" ? "en" : "pt");
+  const insightJobs = useRef<Map<string, AiOpRequest>>(new Map());
+  const runInsight = useCallback(
+    async (g: Gloss) => {
+      const req = insightJobs.current.get(g.id);
+      if (!req) return;
+      const ctrl = new AbortController();
+      abortRef.current.get(g.id)?.abort();
+      abortRef.current.set(g.id, ctrl);
+      upsertGloss({ ...g, status: "streaming", error: undefined });
+      const out = await callAiOp(req, ctrl.signal);
+      if (abortRef.current.get(g.id) === ctrl) abortRef.current.delete(g.id);
+      if (ctrl.signal.aborted) return; // cancelled or deleted: leave the store alone
+      if (out.error || !out.result) {
+        upsertGloss({ ...g, status: "error", error: out.error ?? "That did not work." });
+        if (out.needsKey) toast("This needs a Together AI key. Add yours with the key button in the top bar.", { ttl: 7000 });
+        return;
+      }
+      const done: Gloss = { ...g, status: "done", error: undefined, result: out.result, model: out.model, usage: out.usage ?? null };
+      upsertGloss(done);
+      persistGloss(done);
+    },
+    [],
+  );
+  const startInsight = useCallback(
+    (action: "summarize" | "translate" | "concepts" | "questions", req: AiOpRequest, anchor: Anchor | null) => {
+      const g: Gloss = { id: newId(), documentId, action, anchor, turns: [], createdAt: Date.now(), status: "streaming" };
+      insightJobs.current.set(g.id, req);
+      upsertGloss(g);
+      setInsightsOpen(true);
+      setNbOpen(false);
+      void runInsight(g);
+    },
+    [documentId, runInsight],
+  );
+  const runDocumentOp = useCallback(
+    (op: "summarize" | "concepts" | "questions", variant?: SummaryVariant, startIndex = 0) => {
+      const { blocks: bs, totalParagraphs } = documentBlocks(doc, startIndex);
+      if (!bs.length) return void toast("There is no text to read.", { ttl: 3000 });
+      startInsight(op, { op, variant, title: doc.title, author: doc.author, blocks: bs, totalParagraphs, outputLang: settings.outLang || undefined }, null);
+    },
+    [doc, startInsight, settings.outLang],
+  );
+  const runPassageOp = useCallback(
+    (kind: "translate" | "summarize", anchor: Anchor) => {
+      if (anchor.quote.length > 6000) return void toast("That selection is too long for this. Select up to about 6,000 characters.", { ttl: 4500 });
+      const ids = anchorBlockIds(blocks, anchor);
+      const totalParagraphs = blocks.filter((b) => b.n).length;
+      if (kind === "translate") startInsight("translate", { op: "translate", title: doc.title, author: doc.author, blocks: blocksAround(blocks, ids, 0), totalParagraphs, selection: anchor.quote, targetLang }, anchor);
+      else startInsight("summarize", { op: "summarize", variant: "passage", title: doc.title, author: doc.author, blocks: blocksAround(blocks, ids, 0), totalParagraphs, selection: anchor.quote, outputLang: settings.outLang || undefined }, anchor);
+    },
+    [blocks, doc.title, doc.author, startInsight, targetLang, settings.outLang],
+  );
+  const cancelInsight = useCallback(
+    (id: string) => {
+      abortRef.current.get(id)?.abort();
+      abortRef.current.delete(id);
+      insightJobs.current.delete(id);
+      removeGloss(documentId, id);
+    },
+    [documentId],
+  );
+  const retryInsight = useCallback(
+    (id: string) => {
+      const g = allGlosses.find((x) => x.id === id);
+      if (!g) return;
+      if (!insightJobs.current.has(id)) {
+        // After a reload the request is gone: say so and clear the failed card instead of pretending to retry.
+        toast("That request cannot be repeated after a reload. Start it again from the panel.", { ttl: 4500 });
+        return void cancelInsight(id);
+      }
+      void runInsight(g);
+    },
+    [allGlosses, runInsight, cancelInsight],
+  );
+  const continueSummary = useCallback(
+    (g: Gloss) => {
+      const r = g.result;
+      if (!r || r.kind !== "summary") return;
+      const next = blocks.findIndex((b) => b.n === r.coverage.to + 1);
+      if (next < 0) return;
+      runDocumentOp("summarize", r.variant === "passage" ? "quick" : r.variant, next);
+    },
+    [blocks, runDocumentOp],
+  );
+  const jumpToEvidence = useCallback(
+    (e: Evidence) => {
+      const b = blocks.find((x) => x.id === e.blockId);
+      if (!b || b.text.slice(e.start, e.end) !== e.quote) return void toast("That quote is no longer where it was in the text.", { ttl: 3500 });
+      const a = makeAnchor(blocks, { b: e.blockId, o: e.start }, { b: e.blockId, o: e.end }, blockIdx);
+      jumpToAnchor(a);
+      setHit(a);
+      if (sheet) setInsightsOpen(false);
+    },
+    [blocks, blockIdx, jumpToAnchor, sheet],
+  );
+  // One side panel at a time.
+  const toggleNotebook = useCallback(() => {
+    if (!nbOpen) setInsightsOpen(false);
+    setNbOpen(!nbOpen);
+  }, [nbOpen]);
+  const toggleInsights = useCallback(() => {
+    if (!insightsOpen) setNbOpen(false);
+    setInsightsOpen(!insightsOpen);
+  }, [insightsOpen]);
 
   const deleteGloss = useCallback(
     (id: string) => {
@@ -495,6 +628,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         if (voiceOpen) return setVoiceOpen(false);
         if (keysOpen) return setKeysOpen(false);
         if (activeId) return setActiveId(null);
+        if (insightsOpen) return setInsightsOpen(false);
         if (nbOpen) return setNbOpen(false);
         if (settings.focus) return setSettings({ focus: false });
         return;
@@ -555,7 +689,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           break;
         case "n":
         case "N":
-          setNbOpen((v) => !v);
+          toggleNotebook();
+          break;
+        case "i":
+        case "I":
+          toggleInsights();
           break;
         case "f":
         case "F":
@@ -584,7 +722,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, settings.keys, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
+  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, insightsOpen, toggleNotebook, toggleInsights, settings.focus, settings.keys, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
 
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
@@ -679,7 +817,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
 
   const listening = snap.state === "playing" || snap.state === "paused";
   const firstN = blocks.find((b) => b.n)?.id;
-  const rootClass = ["relative z-[1]", settings.numbers ? "" : "hide-nums", settings.focus ? "focus-mode" : "", nbOpen ? "nb-open" : ""].filter(Boolean).join(" ");
+  const rootClass = ["relative z-[1]", settings.numbers ? "" : "hide-nums", settings.focus ? "focus-mode" : "", nbOpen || insightsOpen ? "nb-open" : ""].filter(Boolean).join(" ");
 
   return (
     <div className={rootClass} data-lens-docked={pending ? "" : undefined} data-reader-ready={mounted ? "" : undefined}>
@@ -688,11 +826,18 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         className={scrolled ? "border-rule bg-[color-mix(in_oklab,var(--bg)_86%,transparent)] backdrop-blur-md" : ""}
         progress={ratio}
         after={
-          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} aria-label="Notebook" data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={() => setNbOpen((v) => !v)}>
+          <>
+          <IconButton className="!px-3" aria-pressed={insightsOpen} active={insightsOpen} aria-label="Understand" data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
+            <BookOpenCheck size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span className="hidden sm:inline">Understand</span>
+            {insights.length ? <span className="min-w-[18px] rounded-full bg-sunk px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-ink-2">{insights.length}</span> : null}
+          </IconButton>
+          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} aria-label="Notebook" data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
             <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">Notebook</span>
             {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white">{annotations.length + glosses.length}</span> : null}
           </IconButton>
+          </>
         }
         center={
           <div className={`flex min-w-0 flex-1 justify-center transition-opacity duration-300 ${scrolled ? "opacity-100" : "pointer-events-none opacity-0"}`}>
@@ -831,7 +976,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 Read-aloud uses this browser’s voices.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
-                <button type="button" className="h-9 rounded-full border border-rule px-4 text-[13px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" onClick={() => setNbOpen(true)}>
+                <button type="button" className="h-9 rounded-full border border-rule px-4 text-[13px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" onClick={() => { setInsightsOpen(false); setNbOpen(true); }}>
                   Open your notebook
                 </button>
                 <Link className="inline-flex h-9 items-center rounded-full border border-rule px-4 text-[13px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" href="/library">
@@ -859,6 +1004,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 onRetry={retry}
                 onFollowUp={followUp}
                 onCite={onCite}
+                citeSet={citeSetFor}
                 onEditNote={(id, t) => updateAnnotation(documentId, id, { note: t })}
                 onDeleteNote={(id) => {
                   removeAnnotation(documentId, id);
@@ -873,7 +1019,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       </main>
 
       {sheet ? (
-        <MarginGlosses items={marginItems} blocks={blocks} rootRef={rootRef} activeId={activeId} hoverId={hoverId} layoutKey={layoutKey} onActivate={setActiveId} onHover={setHoverId} onDeleteGloss={deleteGloss} onRetry={retry} onFollowUp={followUp} onCite={onCite} onEditNote={(id, t) => updateAnnotation(documentId, id, { note: t })} onDeleteNote={(id) => { removeAnnotation(documentId, id); setActiveId(null); }} sheet />
+        <MarginGlosses items={marginItems} blocks={blocks} rootRef={rootRef} activeId={activeId} hoverId={hoverId} layoutKey={layoutKey} onActivate={setActiveId} onHover={setHoverId} onDeleteGloss={deleteGloss} onRetry={retry} onFollowUp={followUp} onCite={onCite} citeSet={citeSetFor} onEditNote={(id, t) => updateAnnotation(documentId, id, { note: t })} onDeleteNote={(id) => { removeAnnotation(documentId, id); setActiveId(null); }} sheet />
       ) : null}
 
       {pending ? (
@@ -905,11 +1051,36 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             readPassage(pending.anchor.start, pending.anchor.end);
             clearSelection();
           }}
+          onTranslate={() => {
+            runPassageOp("translate", pending.anchor);
+            clearSelection();
+          }}
+          onSummarize={() => {
+            runPassageOp("summarize", pending.anchor);
+            clearSelection();
+          }}
           onClose={clearSelection}
         />
         </aside>
       ) : null}
 
+      <InsightsPanel
+        open={insightsOpen}
+        onClose={() => setInsightsOpen(false)}
+        doc={doc}
+        insights={insights}
+        hasKey={hasAnyKey(!!serverInfo?.serverKey)}
+        outputLang={settings.outLang}
+        onOutputLang={(c) => setSettings({ outLang: c })}
+        targetLang={targetLang}
+        onTargetLang={(c) => setSettings({ targetLang: c })}
+        onRun={(op, v) => runDocumentOp(op, v)}
+        onContinue={continueSummary}
+        onJumpEvidence={jumpToEvidence}
+        onDelete={cancelInsight}
+        onRetry={retryInsight}
+        onCancel={cancelInsight}
+      />
       <Notebook
         open={nbOpen}
         onClose={() => setNbOpen(false)}
@@ -930,6 +1101,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         onRemoveAnnotation={(id) => removeAnnotation(documentId, id)}
         onDeleteGloss={deleteGloss}
         onCite={onCite}
+        citeSet={citeSetFor}
         persisted={lib.persisted}
       />
       <ListenBar snap={snap} voices={speech.getVoices()} onToggle={() => speech.toggle()} onStop={stopFromBar} onRestart={() => speech.restart()} onSkip={(d) => {

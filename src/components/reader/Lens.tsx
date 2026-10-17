@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, BookOpenText, Copy, Ellipsis, Feather, Headphones, Eraser, Highlighter, Lightbulb, Link2, PenLine, ScanSearch, ShieldCheck, Underline } from "lucide-react";
+import { AlignLeft, ArrowUp, BookOpenText, Copy, Ellipsis, Feather, Headphones, Eraser, Highlighter, Languages, Lightbulb, Link2, PenLine, ScanSearch, ShieldCheck, Underline } from "lucide-react";
 import { NOTE_MAX_LENGTH, type GlossAction, type HighlightColor } from "@/lib/content/types";
 import { clampNote } from "@/lib/anchors";
 
@@ -18,6 +18,8 @@ export interface LensProps {
   onCopy: () => void;
   onListen: () => void;
   onClose: () => void;
+  onTranslate?: () => void;
+  onSummarize?: () => void;
   /** Typing a letter starts a question and Shift+H / Shift+U mark the selection. Off when the reader switched single-key shortcuts off. */
   keyShortcuts?: boolean;
 }
@@ -30,7 +32,7 @@ const COLORS: { id: HighlightColor; label: string; c: string }[] = [
 ];
 
 /** Selection toolbar ("lens"). Appears above the selection; morphs into an input for Ask / notes. */
-export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existing = [], onRemove, onNote, onCopy, onListen, onClose, keyShortcuts = true }: LensProps) {
+export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existing = [], onRemove, onNote, onCopy, onListen, onClose, onTranslate, onSummarize, keyShortcuts = true }: LensProps) {
   const [mode, setMode] = useState<"bar" | "ask" | "note">("bar");
   const [menu, setMenu] = useState(false);
   const [text, setText] = useState("");
@@ -97,6 +99,18 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
               <Feather size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
               Simplify
             </button>
+            {onTranslate ? (
+              <button type="button" data-tip="Translate" data-tip-hint="Keeps the original beside it" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={onTranslate}>
+                <Languages size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
+                Translate
+              </button>
+            ) : null}
+            {onSummarize ? (
+              <button type="button" data-tip="Summarize" data-tip-hint="Only this passage" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={onSummarize}>
+                <AlignLeft size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
+                Summarize
+              </button>
+            ) : null}
             <div className="relative">
               <button type="button" aria-label="More actions" aria-expanded={menu} data-tip="More" data-tip-hint="Define, fact-check, counterpoint, copy" data-tip-side="top" className="lens-btn w-8 justify-center" onClick={() => setMenu((m) => !m)}>
                 <Ellipsis size={16} aria-hidden="true" />
@@ -164,6 +178,9 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
                 </button>
               ) : null;
             })}
+            <button type="button" aria-label="Copy quote" data-tip="Copy quote" data-tip-hint="With the title and paragraph number" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={onCopy}>
+              <Copy size={15} aria-hidden="true" />
+            </button>
             <button type="button" aria-label="Add a note" data-tip="Add a note" data-tip-hint="In your own words" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => setMode("note")}>
               <PenLine size={15} aria-hidden="true" />
             </button>

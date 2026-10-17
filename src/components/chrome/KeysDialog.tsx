@@ -12,6 +12,7 @@ const ROWS: { keys: string[] | null; text: string; what: string }[] = [
   { keys: ["[", "]"], text: "", what: "Previous and next gloss" },
   { keys: ["B"], text: "", what: "Gloss this text" },
   { keys: ["N"], text: "", what: "Notebook" },
+  { keys: ["I"], text: "", what: "Understand: summaries, concepts, questions, translation" },
   { keys: ["F"], text: "", what: "Focus mode" },
   { keys: ["L"], text: "", what: "Listen: read aloud from here" },
   { keys: ["Space"], text: "", what: "Pause or resume reading aloud" },

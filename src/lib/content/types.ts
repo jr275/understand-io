@@ -70,6 +70,12 @@ export interface Annotation {
   anchor: Anchor;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Client-only sync marker: the `updatedAt` of the newest version the server has confirmed. A synced item
+   * that later vanishes from the server was deleted on another device (and is dropped), unless it was edited
+   * since (`updatedAt > syncedAt`). Never sent to the server; absent on data stored before this field existed.
+   */
+  syncedAt?: number;
 }
 
 export type GlossAction =
@@ -97,6 +103,8 @@ export interface Gloss {
   model?: string;
   usage?: { input: number; output: number; cost?: number } | null;
   createdAt: number;
+  /** Client-only: set when the server confirmed this version of the gloss (see Annotation.syncedAt). */
+  syncedAt?: number;
   status?: "streaming" | "done" | "error";
   error?: string;
 }

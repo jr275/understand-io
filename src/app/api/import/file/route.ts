@@ -18,7 +18,9 @@ export async function POST(req: Request) {
       doc = await documentFromPdf(new Uint8Array(await file.arrayBuffer()), file.name);
     } else {
       const text = await file.text();
-      doc = documentFromText(text, file.name.replace(/\.(txt|md|markdown)$/i, ""));
+      // A leading heading in the file names the text; otherwise the file name does.
+      const fromHeading = documentFromText(text);
+      doc = /^\s*#\s+\S/.test(text) ? fromHeading : documentFromText(text, file.name.replace(/\.(txt|md|markdown)$/i, ""));
       doc.sourceLabel = file.name;
     }
     if (!doc.blocks.length) return Response.json({ error: "Nothing readable in that file." }, { status: 422 });

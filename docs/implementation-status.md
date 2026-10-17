@@ -5,8 +5,9 @@ Statuses: **NOT IMPLEMENTED** · **IMPLEMENTED, NOT VERIFIED** · **PARTIALLY IM
 in this repository, or a recorded manual check in the Browser pane noted below, exercised it.
 Untested code is never counted as working.
 
-_Last updated: 2026-10-16 (final audit pass). Test evidence: `pnpm test` (35 unit tests, all passing)
-and `pnpm test:e2e` (27 end-to-end tests across desktop and mobile projects, all passing). Screenshots
+_Last updated: 2026-10-17 (follow-up pass: real-browser read-aloud, blocked-link imports, more ways in,
+Google sign-in). Test evidence: `pnpm test` (42 unit tests, all passing)
+and `pnpm test:e2e` (32 end-to-end tests across desktop and mobile projects, all passing). Screenshots
 for visual QA are in `docs/qa/` (`ref-*` = reference, same viewports). The audit itself, the defects it
 found and the fixes are in `docs/final-qa-report.md`. The product is branded **Understand.io**; the
 code folder and package keep the name `gloss`._
@@ -33,12 +34,14 @@ code folder and package keep the name `gloss`._
 | "Continue *title* N%" line after reading | `/` | IMPLEMENTED, NOT VERIFIED | Renders from stored progress; no test drives progress then returns |
 | "Your latest highlights" desk + `?hl=` deep link | `/` → `/read/[slug]?hl=` | PARTIALLY IMPLEMENTED | Desk renders from annotations (manual check); deep-link scroll implemented, not tested |
 | Library shelf, stats, filters, sort, search, open book, topics grid, starter cards | `/library` | VERIFIED WORKING | `library.spec.ts`; `docs/qa/library-*.png` |
-| Add panel: manual links (multi), import-export file, bookmarklets | `/library` | PARTIALLY IMPLEMENTED | Panel + validation verified; saving links exercised manually through the API (`/api/import` with paulgraham.com and Wikipedia); bookmarklet entry `/?url=` implemented, not tested |
+| Add panel: manual links (multi), import-export file, bookmarklets, PDF/text file, paste text | `/library`, top bar everywhere | VERIFIED WORKING | `library.spec.ts`, `reader.spec.ts` "more ways in"; capture bookmarklet verified on a live Atlantic article in Chrome (`docs/final-qa-report.md` §11). Previously: PARTIALLY IMPLEMENTED; saving links exercised manually through the API (`/api/import` with paulgraham.com and Wikipedia); bookmarklet entry `/?url=` implemented, not tested |
 | Add panel: "Connect an agent" (MCP) | `/library` | NOT IMPLEMENTED | Honest placeholder copy; no MCP server in this build |
 | Reader: header, numbered blocks, drop cap, footer, composer | `/read/[slug]` | VERIFIED WORKING | `reader.spec.ts` (63 numbered blocks, Notes h2) |
 | Not-found state for unknown slugs | `/read/[slug]` | VERIFIED WORKING | `reader.spec.ts` |
 | Imported documents (URL, PDF, pasted text) open in the reader | `/read/[slug]` | VERIFIED WORKING | `landing.spec.ts` (paste), `api.spec.ts` (text); PDF verified manually with arXiv 1706.03762 (62 blocks) |
-| Sign in / accounts | — | NOT IMPLEMENTED | Reference uses Clerk. This build uses an anonymous signed cookie per browser; no cross-device sync |
+| Sign in / accounts | `/api/auth/*` | IMPLEMENTED, NOT VERIFIED | Google OAuth (PKCE) behind `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`; `accounts` table; anonymous library merged into the account on sign-in. Unconfigured path verified (`landing.spec.ts`, `api.spec.ts`); the real round-trip has not run (no credentials). Reference uses Clerk |
+| Blocked publishers (403 to servers): clear message + browser-capture bookmarklet | `/api/import`, `/api/import/page`, `/?capture=` | VERIFIED WORKING | `importStatus.test.ts`, `api.spec.ts`, `landing.spec.ts`; live Atlantic article captured in Chrome |
+| More ways in: top-bar Add, drop anywhere, ⌘V on library/reader (reader asks first), end-of-text "Read something else" | all pages | VERIFIED WORKING | `reader.spec.ts` "more ways in"; Chrome check |
 | Painted covers | — | NOT IMPLEMENTED | Toggle present, labelled "Not available in this build" |
 | Deleting a gloss while it streams, deletes surviving a reload (tombstones), cross-device document removal | `/read/[slug]`, `/library` | VERIFIED WORKING | `reader.spec.ts` regression test; store merge by `updatedAt` (added in the final audit) |
 | Web search inside answers ("Fact-check … Searches the web") | — | NOT IMPLEMENTED | Toggle kept for fidelity; answers are grounded in the text only |
@@ -62,13 +65,13 @@ code folder and package keep the name `gloss`._
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| Play, pause, resume, stop, restart | VERIFIED WORKING (mock engine) | `search-and-speech.spec.ts` |
-| Whole text or selected passage (then continue) | VERIFIED WORKING (mock) | same |
-| Sentence highlight synchronised with speech | VERIFIED WORKING (mock) | `.m-speak` follows the utterance; word boundaries exposed via `charIndex` when the engine reports them |
+| Play, pause, resume, stop, restart | VERIFIED WORKING (real engine, Chrome 155 + mock) | `search-and-speech.spec.ts`; `docs/final-qa-report.md` §11 |
+| Whole text or selected passage (then continue) | VERIFIED WORKING (real engine + mock) | same; counter now continues in whole-text terms (`speech-controller.test.ts`) |
+| Sentence highlight synchronised with speech | VERIFIED WORKING (real engine + mock) | `.m-speak` follows the utterance; word boundaries exposed via `charIndex` when the engine reports them |
 | Resume from the correct position | PARTIALLY IMPLEMENTED | Pause/resume keeps the sentence; after a reload playback starts from the current paragraph, not mid-sentence |
-| Speed | VERIFIED WORKING (mock) | 0.75×–2× select |
-| Voices and languages | IMPLEMENTED, NOT VERIFIED with real voices | Voice list sorted by document language; Browser pane reported 180 voices but produced no audio events |
-| Long documents, interruptions, errors | VERIFIED WORKING (mock) | One utterance per sentence, keep-alive nudge, watchdog that surfaces a stalled engine and lets the user restart (`speech-controller.test.ts`) |
+| Speed | VERIFIED WORKING (real engine + mock) | 0.75×–2× select; 1.5× restarted the sentence at `rate 1.5` in Chrome |
+| Voices and languages | VERIFIED WORKING (real voices) | 199 voices in Chrome 155, 40+ listed for English; switching to Daniel (en-GB) took effect immediately. Earlier note: the Browser pane reported 180 voices but produced no audio events |
+| Long documents, interruptions, errors | VERIFIED WORKING (real engine: 2-minute run, 20 utterances, no stall; + mock) | One utterance per sentence, keep-alive nudge, watchdog that surfaces a stalled engine and lets the user restart (`speech-controller.test.ts`) |
 | Skip / seek while paused, resume at the new sentence | VERIFIED WORKING (mock) | `speech-controller.test.ts` |
 | No overlapping sessions | VERIFIED WORKING (mock) | cancel-before-speak + token guard (`speech-controller.test.ts`, e2e) |
 | Server-side TTS | NOT IMPLEMENTED (evaluated) | Browser engine chosen first per brief; a provider voice would need a key and audio streaming |
@@ -113,7 +116,8 @@ code folder and package keep the name `gloss`._
 
 ## Known deviations from the reference
 
-- No accounts (Clerk) and no MCP agent connection; "Sign in" affordances are omitted rather than shown dead.
+- Accounts use a self-contained Google OAuth flow instead of Clerk, and only when credentials are configured; otherwise the Sign in button explains that it is off. No MCP agent connection.
+- A "+" Add button in the top bar, drop-anywhere and an end-of-text "Read something else" strip are additions requested by the user, not reference features.
 - Topic icons, cover illustrations and topic-card art are procedural SVG, not the reference's painted
   images (which are generated assets). Shelf colours, spine styles and layout rules follow the reference.
 - The partner mark is rendered as a three-disc glyph plus the text "together.ai" instead of the
@@ -127,7 +131,7 @@ code folder and package keep the name `gloss`._
 ```
 pnpm typecheck   → clean
 pnpm lint        → clean
-pnpm test        → 5 files, 35 tests passed
-pnpm test:e2e    → 27 tests passed (desktop 25, mobile 2)  — PLAYWRIGHT_PORT=3100 against `next dev` started in this folder
-pnpm build       → compiled, 18 routes
+pnpm test        → 7 files, 42 tests passed
+pnpm test:e2e    → 32 tests passed (desktop 30, mobile 2)  — PLAYWRIGHT_PORT=3100 against `next dev` started in this folder
+pnpm build       → compiled, 23 routes
 ```

@@ -25,6 +25,7 @@ import { Rail } from "./Rail";
 import { Notebook } from "./Notebook";
 import { ListenBar } from "./ListenBar";
 import { VoiceSearch } from "./VoiceSearch";
+import { QuickAdd } from "./QuickAdd";
 
 const EMPTY_A: Annotation[] = [];
 const EMPTY_G: Gloss[] = [];
@@ -732,6 +733,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                   Back to the library
                 </Link>
               </div>
+              <QuickAdd />
             </footer>
 
             <Composer ref={composerRef} onAsk={(q) => createGloss("whole", null, q)} web={settings.search} onWebToggle={() => setSettings({ search: !settings.search })} onVoice={() => setVoiceOpen(true)} />

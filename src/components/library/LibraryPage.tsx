@@ -110,7 +110,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
   return (
     <div className="library relative z-[1] min-h-dvh transition-[opacity,filter] duration-300">
       <div className="lib-top">
-        <Topbar variant="library" />
+        <Topbar variant="library" onAdd={() => setAdding(true)} />
       </div>
       <main className="mx-auto w-full max-w-[1180px] px-4 pb-32 sm:px-8">
         <section className="lib-hero">

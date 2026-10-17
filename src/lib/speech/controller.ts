@@ -9,6 +9,9 @@ export interface SpeechSnapshot {
   state: SpeechState;
   index: number;
   total: number;
+  /** Position of `segs[0]` within the whole text and the whole text's sentence count, for the counter. */
+  offset: number;
+  grand: number;
   segment: SpeechSegment | null;
   /** Character offset within the current segment (from boundary events, when the engine reports them). */
   charIndex: number;
@@ -51,6 +54,8 @@ export class SpeechController {
       state: supported ? "idle" : "unsupported",
       index: 0,
       total: 0,
+      offset: 0,
+      grand: 0,
       segment: null,
       charIndex: 0,
       rate: 1,
@@ -112,6 +117,7 @@ export class SpeechController {
     const from = blockId ? { b: blockId, o: offset } : undefined;
     this.segs = speechSegments(this.blocks, from);
     this.resumeAfter = null;
+    this.resumeOffset = from ? this.positionOf(from) : null;
     this.start(0, false);
   }
 
@@ -123,15 +129,31 @@ export class SpeechController {
     if (resume) {
       this.resumeAfter = speechSegments(this.blocks, end);
       this.resumeIndex = 0;
+      // Counter continues from the passage's place in the whole text instead of restarting at 1.
+      this.resumeOffset = this.positionOf(end);
     } else this.resumeAfter = null;
     this.segs = passage;
     this.start(0, true);
   }
 
+  private resumeOffset: { offset: number; grand: number } | null = null;
+
+  /** Index, within the whole text's sentences, of the first sentence that reaches past `at`. */
+  private positionOf(at: { b: string; o: number }) {
+    const whole = speechSegments(this.blocks);
+    const order = new Map(this.blocks.map((b, i) => [b.id, i]));
+    const atOrder = order.get(at.b) ?? Infinity;
+    let base = whole.findIndex((s) => (order.get(s.blockId) ?? 0) > atOrder || (s.blockId === at.b && s.end > at.o));
+    if (base < 0) base = whole.length;
+    return { offset: base, grand: whole.length };
+  }
+
   private start(index: number, passage: boolean) {
     window.speechSynthesis.cancel();
     this.idx = index;
-    this.emit({ state: "playing", index, total: this.segs.length, segment: this.segs[index] ?? null, charIndex: 0, error: null, passage });
+    const pos = !passage && this.resumeOffset ? this.resumeOffset : { offset: 0, grand: this.segs.length };
+    if (!passage) this.resumeOffset = null;
+    this.emit({ state: "playing", index, total: this.segs.length, offset: pos.offset, grand: pos.grand, segment: this.segs[index] ?? null, charIndex: 0, error: null, passage });
     this.speakCurrent();
   }
 

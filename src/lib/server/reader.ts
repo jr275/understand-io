@@ -14,6 +14,40 @@ function sign(id: string) {
   return createHmac("sha256", secret()).update(id).digest("base64url").slice(0, 22);
 }
 
+/** `value.signature` for other cookies (session, OAuth state); `kind` keeps the signatures apart. */
+export function signToken(kind: string, value: string) {
+  return `${value}.${sign(`${kind}:${value}`)}`;
+}
+
+export function verifyToken(kind: string, raw: string | undefined): string | null {
+  if (!raw) return null;
+  const i = raw.lastIndexOf(".");
+  if (i <= 0) return null;
+  const value = raw.slice(0, i);
+  const sig = raw.slice(i + 1);
+  const expected = sign(`${kind}:${value}`);
+  if (expected.length !== sig.length) return null;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(sig)) ? value : null;
+}
+
+const COOKIE_OPTS = {
+  httpOnly: true,
+  sameSite: "lax" as const,
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365 * 2,
+};
+
+/** Point this browser at a specific reader id (used when an account signs in). */
+export async function setReaderCookie(id: string) {
+  const jar = await cookies();
+  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
+}
+
+export function newReaderId() {
+  return `r_${randomBytes(9).toString("base64url")}`;
+}
+
 export function verifyReaderCookie(value: string | undefined): string | null {
   if (!value) return null;
   const [id, sig] = value.split(".");
@@ -34,13 +68,7 @@ export async function ensureReaderId(): Promise<string> {
   const jar = await cookies();
   const existing = verifyReaderCookie(jar.get(READER_COOKIE)?.value);
   if (existing) return existing;
-  const id = `r_${randomBytes(9).toString("base64url")}`;
-  jar.set(READER_COOKIE, `${id}.${sign(id)}`, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365 * 2,
-  });
+  const id = newReaderId();
+  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
   return id;
 }

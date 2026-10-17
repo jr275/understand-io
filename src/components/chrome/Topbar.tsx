@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
-import { KeyRound, Library } from "lucide-react";
+import { KeyRound, Library, Plus } from "lucide-react";
+import { AddPanel } from "@/components/library/AddPanel";
+import { syncRemoteLibrary } from "@/lib/store/library";
+import { toast } from "@/lib/store/toast";
 import { GlossMark, PartnerMark } from "./marks";
 import { IconButton } from "@/components/ui/IconButton";
 import { Pop } from "@/components/ui/Pop";
 import { AppearancePanel } from "./AppearancePanel";
 import { KeyPanel } from "./KeyPanel";
+import { AccountControl } from "./AccountControl";
 
 interface Props {
   /** Reader pages render a fixed bar with their own tools. */
@@ -21,12 +25,16 @@ interface Props {
   after?: ReactNode;
   /** 0..1 reading progress drawn as a rubric line along the bottom edge (reader). */
   progress?: number;
+  /** Pages that own an Add panel (the library) pass their opener; otherwise the bar shows its own. */
+  onAdd?: () => void;
   className?: string;
 }
 
-export function Topbar({ variant = "landing", tools, center, after, progress, className = "" }: Props) {
+export function Topbar({ variant = "landing", tools, center, after, progress, onAdd, className = "" }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState<"aa" | "key" | null>(null);
+  const [adding, setAdding] = useState(false);
   const aaRef = useRef<HTMLButtonElement>(null);
   const keyRef = useRef<HTMLButtonElement>(null);
   const reader = variant === "reader";
@@ -64,6 +72,9 @@ export function Topbar({ variant = "landing", tools, center, after, progress, cl
             <span className="max-sm:hidden">Library</span>
           </Link>
         )}
+        <IconButton aria-label="Add a link, PDF or text" data-tip="Add to your library" aria-haspopup="dialog" aria-expanded={onAdd ? undefined : adding} onClick={() => (onAdd ? onAdd() : setAdding(true))}>
+          <Plus size={17} strokeWidth={2.1} aria-hidden="true" />
+        </IconButton>
         {tools}
         <div className="relative">
           <IconButton ref={aaRef} aria-label="Appearance and answers" data-tip="Appearance" aria-expanded={open === "aa"} aria-haspopup="dialog" onClick={() => setOpen(open === "aa" ? null : "aa")}>
@@ -82,7 +93,17 @@ export function Topbar({ variant = "landing", tools, center, after, progress, cl
           </Pop>
         </div>
         {after}
+        <AccountControl compact={reader} />
       </nav>
+      {adding && !onAdd ? (
+        <AddPanel
+          onClose={() => setAdding(false)}
+          onSaved={(n) => {
+            if (n) toast(`${n} article${n === 1 ? "" : "s"} shelved.`, { action: { label: "Library", onClick: () => router.push("/library") } });
+            void syncRemoteLibrary();
+          }}
+        />
+      ) : null}
     </>
   );
 

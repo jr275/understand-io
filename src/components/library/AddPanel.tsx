@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, BookmarkPlus, Check, Copy, Link2, X } from "lucide-react";
+import { BookOpen, BookmarkPlus, Check, Copy, FileUp, Link2, TextCursorInput, X } from "lucide-react";
 import { TopicGlyph } from "./TopicGlyph";
 import { rememberDocument } from "@/lib/store/library";
+import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
+import { PasteDialog } from "@/components/landing/PasteDialog";
 
 type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string };
 
@@ -12,19 +14,22 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [text, setText] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const [origin, setOrigin] = useState("");
+  const imp = useImport("read");
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !pasteOpen) {
         e.stopPropagation();
         onClose();
       }
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
+  }, [onClose, pasteOpen]);
 
   const urls = text
     .split(/\s+/)
@@ -61,7 +66,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
     setText([...new Set(found)].slice(0, 50).join("\n"));
   };
 
-  const bm = (kind: "read" | "save") => `javascript:void(window.open('${origin}/?${kind === "read" ? "url" : "save"}='+encodeURIComponent(location.href)))`;
+  const bm = (kind: "read" | "save") => bookmarklet(origin, kind);
 
   return (
     <div className="fixed inset-0 z-[85]">
@@ -86,7 +91,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
               <TopicGlyph topic="ai" size={46} />
               <div>
                 <p className="font-serif text-[19px] leading-tight text-ink">Let your agent shelve for you</p>
-                <p className="mt-1 text-[13px] leading-[1.5] text-ink-3">The reference product exposes an MCP server so an agent can save articles into your library. This build does not include an MCP server or accounts yet, so there is nothing to connect here.</p>
+                <p className="mt-1 text-[13px] leading-[1.5] text-ink-3">The reference product exposes an MCP server so an agent can save articles into your library. This build does not include an MCP server yet, so there is nothing to connect here.</p>
               </div>
             </div>
             <p className="mt-4 text-[13.5px] text-ink-2">Until then, the bookmarklets under “Save links manually” do the same job from any page.</p>
@@ -115,14 +120,34 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                   <li key={r.url} data-state={r.state}>
                     <span className="add-dot">{r.state === "saved" ? <Check size={12} aria-hidden="true" /> : r.state === "failed" ? <X size={12} aria-hidden="true" /> : <span className="size-2 animate-pulse rounded-full bg-current" />}</span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{r.title ?? r.url}</span>
-                    {r.error ? <span className="truncate text-[12px] text-rubric-text">{r.error}</span> : null}
+                    {r.error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{r.error}</span> : null}
                   </li>
                 ))}
               </ul>
             ) : null}
+            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13.5px] text-ink-3">
+              <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => docRef.current?.click()}>
+                <FileUp size={15} aria-hidden="true" /> Open a PDF or text file
+              </button>
+              <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => setPasteOpen(true)}>
+                <TextCursorInput size={15} aria-hidden="true" /> Paste text
+              </button>
+            </div>
+            <input
+              ref={docRef}
+              type="file"
+              accept={ACCEPT}
+              className="hidden"
+              aria-label="Open a PDF or text file"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void imp.importFile(f);
+                e.target.value = "";
+              }}
+            />
             <div className="mt-6 border-t border-rule pt-5">
               <p className="lib-label">From any page</p>
-              <p className="mt-1 text-[13px] text-ink-3">Drag one to your bookmarks bar, then click it on any article.</p>
+              <p className="mt-1 text-[13px] text-ink-3">Drag one to your bookmarks bar, then click it on any article. The page is read from your own browser tab, so it works on sites that block servers, and on anything you are signed in to.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <a data-tip="Drag me to your bookmarks bar" className="inline-flex cursor-grab items-center gap-1.5 rounded-full border border-rule-strong bg-bg px-3 py-1.5 text-[13px] font-medium text-ink shadow-[var(--shadow-card)] active:cursor-grabbing" href={bm("read")} onClick={(e) => e.preventDefault()}>
                   <BookOpen size={14} aria-hidden="true" className="text-ink-3" /> Read in Understand
@@ -145,17 +170,27 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                         Copy
                       </button>
                     </div>
-                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-sunk px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-2">{bm("save")}</pre>
+                    <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-sunk px-2.5 py-2 text-[11.5px] leading-relaxed text-ink-2">{bm("save")}</pre>
                   </div>
                 </div>
               </details>
             </div>
-            <p className="mt-4 flex items-center gap-1.5 text-[12px] text-ink-4">
-              <Link2 size={12} aria-hidden="true" /> Pages are fetched by this server, read with Readability, and kept {`${""}`}in your library.
+            <p className="mt-4 flex items-start gap-1.5 text-[12px] leading-snug text-ink-4">
+              <Link2 size={12} aria-hidden="true" className="mt-0.5 shrink-0" /> Links pasted here are fetched by this server and read with Readability. Some publishers refuse server requests; for those, use the bookmarklet or paste the text.
             </p>
           </div>
         )}
       </section>
+      {pasteOpen ? (
+        <PasteDialog
+          busy={!!imp.busy}
+          onClose={() => setPasteOpen(false)}
+          onRead={(t) => {
+            setPasteOpen(false);
+            void imp.importText(t);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

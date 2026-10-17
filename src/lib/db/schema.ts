@@ -99,3 +99,22 @@ export const settings = pgTable("settings", {
   data: jsonb("data").$type<Record<string, unknown>>().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** Signed-in identities. An account owns exactly one reader id; signing in on another browser swaps that browser's reader cookie to it. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").$type<"google">().notNull(),
+    subject: text("subject").notNull(),
+    email: text("email"),
+    name: text("name"),
+    picture: text("picture"),
+    readerId: text("reader_id")
+      .notNull()
+      .references(() => readers.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("accounts_provider_subject_idx").on(t.provider, t.subject), index("accounts_reader_idx").on(t.readerId)],
+);

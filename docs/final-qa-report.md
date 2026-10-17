@@ -57,10 +57,15 @@ first frame in screenshots. Playwright screenshots in `docs/qa/` show the fully 
 - Automated: play/pause/resume/stop/restart, whole text, selected passage then continue, sentence
   highlight, speed, voice list, no overlap, skip-while-paused, restart from error — **VERIFIED with a
   fake engine** (Vitest + Playwright).
-- **Real audio was NOT heard in this environment.** The pane reported 180 voices but never fired
-  `end`/`boundary`; the watchdog now reports that state instead of hanging. Needs a check in a normal
-  browser with sound.
+- **Real engine, VERIFIED in the user's Chrome 155 (macOS) on 2026-10-17** through the Claude in Chrome
+  extension (see §11 for the evidence): `start`, `boundary` and `end` events fired on every utterance,
+  sentence tint and counter advanced, pause/resume/skip/speed/voice/stop all behaved, a selected passage
+  was read and then reading continued, and a 2-minute unattended run produced 20 utterances with no
+  error, no stall and gaps under 100 ms. What this environment cannot attest is the loudspeaker itself:
+  the engine produced audio events, but nobody in the loop *heard* it. The user's own ear is the last check.
 - Resume after reload: starts at the saved paragraph, not mid-sentence (PARTIALLY IMPLEMENTED).
+- Fixed in this pass: after a passage, or when resuming from the saved position, the counter kept
+  restarting at `1/<remaining>`; it now counts in whole-text terms (`3/276`).
 
 ### B. Voice passage search
 - Implemented in `VoiceSearch.tsx` + `src/lib/search/bm25.ts` (+ optional embedding re-rank through
@@ -119,7 +124,9 @@ no accounts; no MCP server; "Painted covers" and web search are placeholders.
 | Together AI (OpenAI-compatible, via `ai` + `@ai-sdk/openai-compatible`) | margin glosses, whole-text answers | — | **Yes** | **No** | **No** | Pay per token (DeepSeek-V3.1 list price ≈ $0.60 in / $1.70 out per 1M; shown as an estimate in the UI) | 402 "needs a key"; UI explains |
 | Together AI embeddings (`BAAI/bge-base-en-v1.5`) | semantic re-rank of search hits | — | Yes | No | No | Small per-call cost, not measured | Lexical search only, labelled "words only" |
 | Together AI Whisper (`openai/whisper-large-v3`) | server transcription fallback | — | Yes | No | No | Per audio minute, not measured | Browser recognition only; otherwise type |
-| Browser Speech Synthesis (Web Speech API) | read-aloud | Yes (browser) | No | n/a | **Not heard here** (pane) | None | Watchdog error with guidance |
+| Browser Speech Synthesis (Web Speech API) | read-aloud | Yes (browser) | No | n/a | **Yes** — Chrome 155 via the Chrome extension: engine events on 20+ utterances, 199 voices listed, voice switch took effect (not heard by a human in this loop) | None | Watchdog error with guidance |
+| Google OAuth 2.0 (sign-in, optional) | accounts; library follows the reader across browsers | — | **Yes** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) | **No** | **No** | Free (Google Cloud OAuth client) | "Sign in" button opens an explanation; anonymous cookie keeps working |
+| Publisher sites (The Atlantic, Medium, NYT…) | URL import | — | — | — | Yes: all three answer **403 to any non-browser client**, even with full Chrome headers (TLS fingerprinting) | — | Clear message + bookmarklet that captures the page from the reader's own tab |
 | Browser Speech Recognition (Web Speech API) | voice search | Chrome/Edge/Safari | No | n/a | **No** (pane blocks mic) | None (Chrome sends audio to Google) | Server fallback or typing |
 | Google Fonts via `next/font` (Newsreader, Literata, Schibsted Grotesk, Atkinson Hyperlegible Next) | typography | Yes (self-hosted at build) | No | n/a | Yes | None | n/a |
 | Readability + linkedom, unpdf | import | Yes | No | n/a | Yes (paulgraham.com, Wikipedia, arXiv PDF) | None | Clear error messages |
@@ -134,7 +141,7 @@ No new paid service was added. Together AI is the only recurring cost and is opt
 | Typography | Match | Same families, weights, optical sizes; typographic quotes now match |
 | Spacing | Match | Hero, import bar, desk, library hero, reader header spacing identical |
 | Colours and contrast | Match | Token values copied from the reference stylesheet; five themes × four pens |
-| Navigation components | Partial | No "Sign in" (no accounts); partner mark is text + three discs instead of the logo artwork |
+| Navigation components | Partial | "Sign in" present (Google, env-gated; explains itself when not configured) plus an "Add" button the reference does not have; partner mark is text + three discs instead of the logo artwork |
 | Reader hierarchy | Match | Kicker, title, dek, byline, "Gloss this text", drop cap, numbers, composer; margin hint added |
 | Menus, panels, dialogs | Match | Appearance, Keys, Notebook, Lens, open book, add panel reproduced; "Connect an agent" is an honest placeholder |
 | Themes | Match | Verified by test |
@@ -149,7 +156,7 @@ No new paid service was added. Together AI is the only recurring cost and is opt
 | Landing e biblioteca | VERIFIED WORKING | `landing.spec.ts`, `library.spec.ts`, pane checks, `docs/qa` | none | Painted imagery replaced by procedural art; no accounts |
 | Leitor e importação | VERIFIED WORKING | `reader.spec.ts`, `api.spec.ts`, manual URL/PDF imports | Readability, unpdf | Figures without captions render empty text block |
 | Persistência PostgreSQL | VERIFIED WORKING | reload tests, `psql` row counts, cookie ownership test | PostgreSQL | Pending-write replay is best-effort (no retry while offline) |
-| Leitura em voz alta | PARTIALLY IMPLEMENTED | 5 unit + 3 e2e tests with a fake engine | browser speech engine | Real audio not heard in this environment; resume is per paragraph |
+| Leitura em voz alta | VERIFIED WORKING (real engine, Chrome 155) | 6 unit + 3 e2e tests with a fake engine; §11 real-browser run with engine events | browser speech engine | Loudspeaker output not attested by a human in this loop; resume is per paragraph |
 | Busca textual | VERIFIED WORKING | `search.test.ts`, 3 e2e tests | none | — |
 | Busca semântica | IMPLEMENTED, NOT VERIFIED | code path + 402 test | Together key | No key available; falls back to lexical, labelled |
 | Microfone e transcrição real | IMPLEMENTED, NOT VERIFIED | code review, error copy | browser mic / Together key | Pane blocks the microphone |
@@ -158,8 +165,11 @@ No new paid service was added. Together AI is the only recurring cost and is opt
 | Integração entre recursos | VERIFIED WORKING (mock) | voice hit → jump + read aloud; lens → read passage then continue; delete gloss regression | fake speech engine | Real-audio path unverified |
 | Responsividade | VERIFIED WORKING | `mobile.spec.ts`, ref vs impl mobile screenshots | none | Gloss bottom-sheet not screenshot-compared |
 | Fidelidade visual | PARTIALLY IMPLEMENTED | `docs/qa/ref-*` vs `docs/qa/*` | none | Imagery, partner logo, Sign in |
+| Importação de links bloqueados (bookmarklet de captura) | VERIFIED WORKING | `api.spec.ts` (page import), `landing.spec.ts` (handshake), real Atlantic article captured in Chrome (§11) | reader's own browser tab | Paywalled pages yield only what the browser shows |
+| Mais entradas (botão Add na barra, soltar ficheiro/link em qualquer página, ⌘V fora da landing, faixa "Read something else" no fim do texto) | VERIFIED WORKING | `reader.spec.ts` "more ways in"; Chrome check of the Add panel from the top bar | none | Dropping a link from another window not exercised by a test (only a file drop) |
+| Sign in (Google) | IMPLEMENTED, NOT VERIFIED | `auth.test.ts` (tokens, PKCE), `api.spec.ts`/`landing.spec.ts` (unconfigured path), `accounts` table migrated | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | No credentials on this machine; the OAuth round-trip and the anonymous→account library merge have not run |
 | Build de produção | VERIFIED WORKING | `pnpm build` | none | — |
-| Testes automatizados | VERIFIED WORKING | 35 unit + 27 e2e passing | Playwright Chromium | Live-provider and microphone paths untested |
+| Testes automatizados | VERIFIED WORKING | 42 unit + 32 e2e passing | Playwright Chromium | Live-provider, microphone and real OAuth paths untested |
 
 ## 9. Percentages (denominators stated; unverified items are not counted as working)
 
@@ -167,8 +177,8 @@ No new paid service was added. Together AI is the only recurring cost and is opt
 | --- | --- | --- | --- |
 | Route coverage | 6 public routes/entries | 4 verified (`/`, `/library`, `/read/[slug]`, `?hl=` by test), 2 implemented not verified (`/?url=`, `/?save=`) | 67% (100% implemented) |
 | Visual fidelity | 11 areas in §7 | 7 match, 2 partial, 1 mostly, 1 different (imagery) | 64% full match (82% match or mostly) |
-| Original functionality | 28 observed interactions | 22 verified, 4 implemented not verified, 2 not implemented (sign-in, MCP) | 79% |
-| Read-aloud | 9 requirements | 7 verified with a mock engine, 0 with real audio | 78% (mock) · 0% real audio |
+| Original functionality | 28 observed interactions | 23 verified (bookmarklets now verified for real), 4 implemented not verified (incl. sign-in, pending credentials), 1 not implemented (MCP) | 82% |
+| Read-aloud | 9 requirements | 8 verified with the real Chrome engine (play/pause/resume/stop/restart, whole text, passage-then-continue, sentence tint, speed, voices, long run without stall, no overlap); 1 partial (mid-sentence resume after reload) | 89% real engine |
 | Voice search | 10 requirements | 7 verified, 2 not verified (mic, server STT), 1 partial (semantic) | 70% |
 | Annotations | 9 requirements | 8 verified, 1 not verified (touch) | 89% |
 | Test coverage | 13 areas in the brief | 11 covered | 85% |
@@ -179,9 +189,84 @@ No new paid service was added. Together AI is the only recurring cost and is opt
 - **Local URL:** http://localhost:3100
 - **Start command:** `cd ~/gloss-reconstruction/gloss && pnpm dev --port 3100` (first time: `pnpm install`; database: `pnpm db:migrate` with `DATABASE_URL` set)
 - **Database:** local PostgreSQL 16, database `gloss`, migrated, reachable; no destructive changes made.
-- **Tests:** typecheck ✓ · lint ✓ · 35 unit ✓ · 27 e2e ✓ · build ✓
-- **Verified for real:** landing, library, reader, import (URL/PDF/text), highlights/underlines/notes with persistence, typed voice search, themes, responsive layout, API ownership and no-key behaviour.
-- **Not yet verified:** audible read-aloud, microphone recognition, server transcription, model answers (glosses / whole-text / overview), semantic re-rank, touch selection, bookmarklet entry points.
-- **Credentials needed (names only):** `TOGETHER_API_KEY` for answers, embeddings and transcription; `DATABASE_URL` and `GLOSS_COOKIE_SECRET` are set.
-- **Costs:** none today; Together AI usage is pay-per-token/minute when a key is added (not yet measured).
-- **Next actions:** (1) open http://localhost:3100/read/on-a-piece-of-chalk in Chrome or Safari, press `L`, and confirm audio + highlight; (2) press `V`, allow the microphone, say "find the part about the sea floor"; (3) add a Together key in the key panel and run Explain, a whole-text question and `B`; (4) decide on accounts (Clerk or other) if cross-device sync is wanted; (5) optionally rename the `gloss` folder/package to match Understand.io.
+- **Tests:** typecheck ✓ · lint ✓ · 42 unit ✓ · 32 e2e ✓ · build ✓
+- **Verified for real:** landing, library, reader, import (URL/PDF/text, and bot-blocked sites through the capture bookmarklet), highlights/underlines/notes with persistence, typed voice search, themes, responsive layout, API ownership and no-key behaviour, read-aloud with the real Chrome speech engine (§11).
+- **Not yet verified:** a human hearing the read-aloud audio, microphone recognition, server transcription, model answers (glosses / whole-text / overview), semantic re-rank, touch selection, Google sign-in round-trip and library merge.
+- **Credentials needed (names only):** `TOGETHER_API_KEY` for answers, embeddings and transcription; `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` for sign-in (free OAuth client; redirect URI `http://localhost:3100/api/auth/google/callback` locally). `DATABASE_URL` and `GLOSS_COOKIE_SECRET` are set.
+- **Costs:** none today; Together AI usage is pay-per-token/minute when a key is added (not yet measured); Google OAuth is free.
+- **Next actions:** (1) press `L` on any text in Chrome and confirm you *hear* it; (2) press `V`, allow the microphone, say "find the part about the sea floor"; (3) add a Together key in the key panel and run Explain, a whole-text question and `B`; (4) create a Google OAuth client, fill the two env vars, restart, click Sign in, then sign in on a second browser and confirm the library follows; (5) optionally rename the `gloss` folder/package to match Understand.io.
+
+## 11. Follow-up pass (2026-10-17): real-browser read-aloud, blocked imports, more ways in, sign-in
+
+Trigger: the user tried to save a link and got "That page answered 403.", noted there was no login,
+and asked for three more places to add links/PDFs. They also asked for the read-aloud script to be run.
+
+### Read-aloud in the user's Chrome (via the Claude in Chrome extension)
+
+Browser: Chrome 155, macOS, `speechSynthesis.getVoices()` = 199 voices. `speechSynthesis.speak` was
+wrapped in the page to log each utterance's `start`/`boundary`/`end`/`error` events.
+
+| Step | Observed |
+| --- | --- |
+| Click, press `L` | Pill "Reading · 1/276 · 0%", first sentence tinted; utterance 1 fired `start` after 408 ms and 44 word boundaries before `end` at 15.3 s; utterance 2 started 55 ms later |
+| `Space` | `speechSynthesis.paused = true`, button label → "Resume", counter 2/276 · 1% |
+| `Space` again | Boundaries resumed (48 → 61), `paused = false` |
+| Forward / back arrows | 5/276 → 4/276; the interrupted utterance reported `error: interrupted` (expected) and the new sentence started within ~10 ms |
+| Speed 1.5× | Current sentence restarted with `rate: 1.5` |
+| Voice list | 40+ en voices listed (System default, Albert, Daniel en-GB, Google UK/US "online", Samantha…); picking Daniel restarted the sentence with `voice: Daniel` immediately |
+| Stop | `speaking = false`, pill and tint gone |
+| Select sentence in ¶2 → … → Read aloud | "Passage · 1/1 · 100%", then "Reading · 1/274" and the next sentence ("Northward, the chalk…") — this exposed the counter restart, fixed in this pass (now `3/276`) |
+| 2-minute unattended run | 20 utterances, 0 errors, 0 unfinished, max gap between sentences 81 ms, page auto-scrolled (scrollY 2345), no stall message, no console errors |
+
+Not verifiable from here: whether sound came out of the speakers. Everything the engine reports says it did.
+
+### Link import: root cause and fix
+
+- Reproduced with `curl`: theatlantic.com, medium.com and nytimes.com answer **403** to the server's
+  fetch *and* to a full Chrome header set (UA, sec-ch-ua, accept-language…), while paulgraham.com,
+  Wikipedia, BBC, Substack and The New Yorker answer 200. The block is TLS-fingerprint bot protection,
+  not our user agent; no server-side fetch can pass it.
+- Fix 1 (`src/lib/server/importStatus.ts`, `api/import/route.ts`): 401/403/429/451 now return 422 with
+  "That site blocks readers like this one. Open the page in your browser and use the “Read in
+  Understand” bookmarklet, or paste its text." (unit-tested). The server fetch also sends a browser-like
+  UA and `accept-language`.
+- Fix 2 (`api/import/page/route.ts`, `lib/client/bookmarklet.ts`, `ImportBar.tsx` capture mode): the
+  bookmarklets now open `/?capture=read|save` and hand the page's `outerHTML` to that tab through
+  `postMessage` (origin- and source-checked handshake); the server runs Readability over the HTML it is
+  given and never contacts the site. Falls back to the server fetch after 6 s if no page arrives.
+  **Verified for real**: the bookmarklet code was run on a live Atlantic article in Chrome and the
+  reader opened with the article (6 paragraphs — the paywalled page exposes only that much). Also
+  covered by `api.spec.ts` and a two-tab handshake test in `landing.spec.ts`.
+
+### Three more ways in (plus one)
+
+1. **Top bar "+" button** on landing, library and reader → the Add panel (links, Pocket/Raindrop export,
+   bookmarklets, and now "Open a PDF or text file" and "Paste text").
+2. **Drop anywhere**: a PDF / text / markdown file or a dragged link on any page shows "Drop to read" and
+   imports it (`GlobalImport.tsx`; drags that start inside the page are ignored).
+3. **"Read something else" strip** at the end of every text: link field, Open a PDF, Paste text.
+4. **⌘V on library and reader pages** (the landing already had it); in the reader it asks first so a stray
+   paste never navigates away mid-read.
+
+### Sign-in (Google, env-gated) — IMPLEMENTED, NOT VERIFIED
+
+The reference uses Clerk; this build adds a self-contained Google OAuth 2.0 (PKCE) flow with no new
+paid service: `accounts` table (migration `0001`), `/api/auth/google` → Google → `/api/auth/google/callback`,
+`/api/auth/me`, `/api/auth/signout`. An account owns one reader id; signing in swaps the browser's reader
+cookie to it and merges that browser's anonymous library (documents, annotations, glosses, progress,
+settings) into the account in one transaction. Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` the
+Sign in button opens a popover saying sign-in is not set up and what is needed (verified in Chrome and
+by test). The real round-trip and the merge have **not** run: no Google credentials exist on this machine.
+Setup: Google Cloud Console → Credentials → OAuth client (Web application) → redirect URI
+`http://localhost:3100/api/auth/google/callback` → put both values in `.env.local`, restart.
+
+### Commands in this pass
+
+| Command | Result |
+| --- | --- |
+| `pnpm typecheck` | clean |
+| `pnpm lint` | clean |
+| `pnpm test` | 42 passed (7 files; new: `importStatus.test.ts`, `auth.test.ts`, counter test in `speech-controller.test.ts`) |
+| `pnpm test:e2e` | 32 passed (desktop 30, mobile 2; new: page import, capture handshake, sign-in honesty, more-ways-in) |
+| `pnpm db:generate && pnpm db:migrate` | `0001_heavy_the_order.sql` applied; `accounts` table present; ledger has 2 entries |
+| `pnpm build` | OK — compiled, 23 routes (5 new: `/api/import/page`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/me`, `/api/auth/signout`) |

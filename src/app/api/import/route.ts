@@ -3,6 +3,7 @@ import { documentFromExtracted, extractArticle } from "@/lib/content/extract";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
 import { UnsafeUrlError, fetchPublic } from "@/lib/server/safeFetch";
+import { describeFetchStatus } from "@/lib/server/importStatus";
 
 export const maxDuration = 45;
 
@@ -15,7 +16,10 @@ export async function POST(req: Request) {
   try {
     const readerId = await ensureReaderId();
     const { res, body, finalUrl } = await fetchPublic(url);
-    if (!res.ok) return Response.json({ error: `That page answered ${res.status}.` }, { status: 502 });
+    if (!res.ok) {
+      const d = describeFetchStatus(res.status);
+      return Response.json({ error: d.error, blocked: d.blocked, upstream: res.status }, { status: d.status });
+    }
     const type = res.headers.get("content-type") ?? "";
     if (type.includes("pdf")) {
       const { documentFromPdf } = await import("@/lib/content/pdf");

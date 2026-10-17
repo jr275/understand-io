@@ -113,6 +113,24 @@ describe("SpeechController", () => {
     expect(c.snapshot().passage).toBe(false);
   });
 
+  it("keeps the counter in whole-text terms after a passage and when resuming mid-text", () => {
+    const c = new SpeechController();
+    c.setBlocks(blocks);
+    // Whole text has five sentences; the passage is sentence 2 ("Two.").
+    c.playRange({ b: "p1", o: 5 }, { b: "p1", o: 9 }, true);
+    vi.advanceTimersByTime(40);
+    expect(c.snapshot()).toMatchObject({ passage: true, index: 0, total: 1 });
+    current!.onend!({});
+    vi.advanceTimersByTime(40);
+    // Continues with "Three.", which is sentence 3 of 5.
+    expect(c.snapshot()).toMatchObject({ passage: false, index: 0, offset: 2, grand: 5 });
+    c.stop();
+    c.playFrom("p2");
+    vi.advanceTimersByTime(40);
+    expect(spoken.at(-1)).toBe("Four.");
+    expect(c.snapshot()).toMatchObject({ offset: 3, grand: 5, total: 2 });
+  });
+
   it("surfaces a stalled engine through the watchdog and can restart from the error", () => {
     const c = new SpeechController();
     c.setBlocks(blocks);

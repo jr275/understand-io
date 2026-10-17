@@ -30,7 +30,8 @@ export function ListenBar({ snap, voices, onToggle, onStop, onRestart, onSkip, o
   }, [voicesOpen]);
 
   if (snap.state === "idle" || snap.state === "unsupported") return null;
-  const pct = snap.total ? Math.round(((snap.index + 1) / snap.total) * 100) : 0;
+  const shown = snap.passage ? { i: snap.index + 1, n: snap.total } : { i: snap.offset + snap.index + 1, n: snap.grand || snap.total };
+  const pct = shown.n ? Math.round((shown.i / shown.n) * 100) : 0;
   const voice = voices.find((v) => v.voiceURI === snap.voiceURI) ?? null;
   const sorted = [...voices].sort((a, b) => Number((b.lang || "").startsWith((docLang || "en").slice(0, 2))) - Number((a.lang || "").startsWith((docLang || "en").slice(0, 2))) || a.name.localeCompare(b.name));
 
@@ -46,7 +47,7 @@ export function ListenBar({ snap, voices, onToggle, onStop, onRestart, onSkip, o
         <SkipForward size={14} aria-hidden="true" />
       </button>
       <span className="max-w-[min(260px,40vw)] truncate px-2 text-[12.5px] tabular-nums text-lens-mute" title={snap.segment?.text}>
-        {snap.state === "error" ? <span className="text-lens-fg">{snap.error}</span> : <>{snap.passage ? "Passage" : "Reading"} · {snap.index + 1}/{snap.total} · {pct}%</>}
+        {snap.state === "error" ? <span className="text-lens-fg">{snap.error}</span> : <>{snap.passage ? "Passage" : "Reading"} · {shown.i}/{shown.n} · {pct}%</>}
       </span>
       <select aria-label="Speed" value={String(snap.rate)} onChange={(e) => onRate(Number(e.target.value))} className="h-8 cursor-pointer appearance-none rounded-full bg-transparent px-2 text-[12.5px] font-medium tabular-nums text-lens-fg hover:bg-lens-hover">
         {RATES.map((r) => (

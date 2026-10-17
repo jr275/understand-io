@@ -126,4 +126,37 @@ test.describe("reader", () => {
     await page.goto("/read/does-not-exist-xyz");
     await expect(page.getByText("Not on your shelves.")).toBeVisible();
   });
+
+  test("more ways in: top-bar Add opens the panel, the end-of-text strip imports a pasted text, drop imports a file", async ({ page }) => {
+    await openReader(page);
+    await page.getByRole("button", { name: "Add a link, PDF or text" }).click();
+    const dialog = page.getByRole("dialog", { name: "Add to the library" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Open a PDF or text file" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    const strip = page.getByRole("region", { name: "Read something else" });
+    await strip.scrollIntoViewIfNeeded();
+    await strip.getByRole("button", { name: "Paste text" }).click();
+    await page.getByRole("dialog", { name: "Paste text" }).getByLabel("Text to read").fill("# From the footer\n\nOne more paragraph to read.\n\nAnd a second one.");
+    await page.getByRole("dialog", { name: "Paste text" }).getByRole("button", { name: "Read" }).click();
+    await expect(page).toHaveURL(/\/read\/from-the-footer-/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("From the footer");
+
+    // Drop a markdown file anywhere on the page.
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(["# Dropped\n\nA dropped file becomes a text.\n\nSecond paragraph."], "dropped.md", { type: "text/markdown" }));
+      window.dispatchEvent(new DragEvent("dragenter", { dataTransfer: dt, bubbles: true }));
+    });
+    await expect(page.getByText("Drop to read")).toBeVisible();
+    await page.evaluate(() => {
+      const dt = new DataTransfer();
+      dt.items.add(new File(["# Dropped\n\nA dropped file becomes a text.\n\nSecond paragraph."], "dropped.md", { type: "text/markdown" }));
+      window.dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+    });
+    await expect(page).toHaveURL(/\/read\/dropped-/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Dropped");
+  });
 });

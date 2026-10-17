@@ -74,6 +74,18 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
+/** Forget everything kept in this browser (used on sign-out so the next reader starts clean). */
+export function resetLocalLibrary() {
+  state = EMPTY;
+  loaded = true;
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch {
+    /* ignore */
+  }
+  listeners.forEach((l) => l());
+}
+
 export function getLibrary() {
   ensure();
   return state;

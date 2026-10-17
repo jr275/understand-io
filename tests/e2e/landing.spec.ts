@@ -46,4 +46,38 @@ test.describe("landing", () => {
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "sepia");
   });
+
+  test("bookmarklet capture: the opener tab posts its HTML and the reader opens", async ({ page, context }) => {
+    await page.goto("/library");
+    // Simulate the article tab: run the bookmarklet's logic against this origin.
+    const popupPromise = context.waitForEvent("page");
+    await page.evaluate(() => {
+      const o = location.origin;
+      const w = window.open(o + "/?capture=read&url=" + encodeURIComponent("https://blocked.example/essay"));
+      addEventListener("message", (e) => {
+        if (e.source !== w || e.data !== "understand:ready") return;
+        const html = `<!doctype html><html><head><title>Handed over</title></head><body><article><h1>Handed over</h1>${"<p>The page was captured in the browser and handed to Understand through a message, so no server fetch was needed.</p>".repeat(3)}</article></body></html>`;
+        w!.postMessage({ type: "understand:page", url: "https://blocked.example/essay", title: "Handed over", html }, o);
+      });
+    });
+    const popup = await popupPromise;
+    await expect(popup).toHaveURL(/\/read\/handed-over/, { timeout: 15000 });
+    await expect(popup.getByRole("heading", { level: 1 })).toHaveText("Handed over");
+    await expect(popup.locator(".blk[data-n]")).toHaveCount(3);
+  });
+
+  test("the Sign in control never pretends: unconfigured servers explain what is missing", async ({ page, request }) => {
+    const { configured } = await (await request.get("/api/auth/me")).json();
+    await page.goto("/");
+    if (configured) {
+      await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", /\/api\/auth\/google/);
+      return;
+    }
+    await page.getByRole("button", { name: "Sign in" }).click();
+    const pop = page.getByRole("dialog", { name: "Sign in" });
+    await expect(pop).toContainText("not set up on this server");
+    await expect(pop).toContainText("GOOGLE_CLIENT_ID");
+    await page.keyboard.press("Escape");
+    await expect(pop).toHaveCount(0);
+  });
 });

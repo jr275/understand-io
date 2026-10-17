@@ -1,26 +1,74 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, FileUp, Link2, TextCursorInput, X } from "lucide-react";
-import { looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { ArrowRight, FileUp, Link2, TextCursorInput } from "lucide-react";
+import { ACCEPT, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { toast } from "@/lib/store/toast";
+import { PasteDialog } from "./PasteDialog";
 
-export const ACCEPT = ".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown";
+export { ACCEPT };
 
-export function ImportBar({ initialUrl }: { initialUrl?: string }) {
+interface Props {
+  /** Bookmarklet entry `/?url=…`: fetch this page on the server right away. */
+  initialUrl?: string;
+  /** Bookmarklet entry `/?capture=read|save`: wait for the opener tab to post the page HTML. */
+  capture?: "read" | "save";
+}
+
+const CAPTURE_WAIT_MS = 6000;
+
+export function ImportBar({ initialUrl, capture }: Props) {
   const [url, setUrl] = useState(initialUrl ?? "");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState("");
+  const [waiting, setWaiting] = useState(!!capture);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { busy, importUrl, importText, importFile } = useImport();
+  const { busy, importUrl, importText, importFile, importPage } = useImport();
   const started = useRef(false);
 
-  // Bookmarklet entry: /?url=…
+  // Bookmarklet entry: /?url=… (server fetch) or /?capture=… (HTML posted by the opener tab).
+  // The capture effect is re-runnable (StrictMode runs effects twice in development): the listener
+  // and the fallback timer are re-registered on every run, and `started` only guards the import itself.
   useEffect(() => {
-    if (initialUrl && !started.current) {
-      started.current = true;
-      void importUrl(normaliseUrl(initialUrl));
+    if (!capture) {
+      if (initialUrl && !started.current) {
+        started.current = true;
+        void importUrl(normaliseUrl(initialUrl));
+      }
+      return;
     }
-  }, [initialUrl, importUrl]);
+    const after = capture === "save" ? "library" : "read";
+    const onMessage = (e: MessageEvent) => {
+      if (started.current || !window.opener || e.source !== window.opener) return;
+      const d = e.data as { type?: string; url?: string; html?: string; title?: string } | null;
+      if (!d || d.type !== "understand:page" || typeof d.html !== "string" || typeof d.url !== "string") return;
+      started.current = true;
+      window.clearTimeout(timer);
+      setUrl(d.url);
+      setWaiting(false);
+      void importPage({ url: d.url, html: d.html, title: d.title }, after);
+    };
+    window.addEventListener("message", onMessage);
+    // Tell the opener we are listening; it answers with the page.
+    try {
+      window.opener?.postMessage("understand:ready", "*");
+    } catch {
+      /* no opener */
+    }
+    const timer = window.setTimeout(() => {
+      if (started.current) return;
+      started.current = true;
+      setWaiting(false);
+      if (initialUrl) {
+        toast("The page did not hand over its content; fetching it from here instead.", { ttl: 5000 });
+        void importUrl(normaliseUrl(initialUrl), after);
+      } else toast("The page did not hand over its content. Click the bookmarklet again on the article.", { ttl: 8000 });
+    }, CAPTURE_WAIT_MS);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timer);
+    };
+  }, [capture, initialUrl, importPage, importUrl]);
 
   // ⌘V / Ctrl+V anywhere: a URL opens it, longer text becomes a document.
   useEffect(() => {
@@ -50,13 +98,14 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
     return () => document.removeEventListener("paste", onPaste);
   }, [importFile, importText, importUrl]);
 
-  const canRead = looksLikeUrl(url) && !busy;
+  const canRead = looksLikeUrl(url) && !busy && !waiting;
+  const working = !!busy || waiting;
 
   return (
     <div className="mt-10 w-full max-w-[600px] text-left sm:mt-12">
       <form
         className={`import-bar relative flex items-center gap-2 overflow-hidden rounded-[18px] border bg-raised p-1.5 pl-[18px] shadow-card transition-[border-color,box-shadow] duration-300 focus-within:border-rule-strong focus-within:shadow-pop ${
-          busy === "url" ? "border-rule-strong" : "border-rule"
+          working ? "border-rule-strong" : "border-rule"
         }`}
         onSubmit={(e) => {
           e.preventDefault();
@@ -67,12 +116,12 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a link to any article"
+          placeholder={waiting ? "Waiting for the page…" : "Paste a link to any article"}
           aria-label="Article link"
           inputMode="url"
           autoComplete="off"
           spellCheck={false}
-          disabled={busy === "url"}
+          disabled={busy === "url" || busy === "page" || waiting}
           className="h-12 min-w-0 flex-1 bg-transparent text-[16px] text-ink outline-none placeholder:text-ink-3 focus-visible:outline-none disabled:text-ink-2"
         />
         <button
@@ -81,9 +130,9 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
           aria-label="Read"
           className="inline-flex h-12 shrink-0 items-center gap-2 rounded-[13px] bg-ink px-4 text-[14.5px] font-medium text-bg transition-[opacity,transform] focus-visible:outline-offset-[-4px] focus-visible:outline-bg active:scale-[0.97] disabled:opacity-30 sm:px-5"
         >
-          <span className="hidden sm:inline">{busy === "url" ? "Reading…" : "Read"}</span> <ArrowRight size={16} aria-hidden="true" />
+          <span className="hidden sm:inline">{busy === "url" || busy === "page" || waiting ? "Reading…" : "Read"}</span> <ArrowRight size={16} aria-hidden="true" />
         </button>
-        {busy ? <span className="import-progress" aria-hidden="true" /> : null}
+        {working ? <span className="import-progress" aria-hidden="true" /> : null}
       </form>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13.5px] text-ink-3">
         <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => fileRef.current?.click()}>
@@ -94,7 +143,7 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
         </button>
         <span className="hidden items-center gap-1.5 text-ink-4 sm:inline-flex">
           or press <kbd>⌘</kbd>
-          <kbd>V</kbd> anywhere
+          <kbd>V</kbd> anywhere, or drop a file
         </span>
       </div>
       <input
@@ -110,48 +159,15 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
         }}
       />
       {pasteOpen ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center p-4">
-          <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" onPointerDown={() => setPasteOpen(false)} />
-          <form
-            role="dialog"
-            aria-modal="true"
-            aria-label="Paste text"
-            className="pop relative w-full max-w-[560px] p-5"
-            style={{ ["--origin" as string]: "center" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (pasted.trim().length) {
-                setPasteOpen(false);
-                void importText(pasted);
-              }
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-serif text-[19px] leading-tight text-ink">Paste text</p>
-                <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Understand.io will set it like an article.</p>
-              </div>
-              <button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink" onClick={() => setPasteOpen(false)}>
-                <X size={17} aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              autoFocus
-              value={pasted}
-              onChange={(e) => setPasted(e.target.value)}
-              rows={9}
-              placeholder="Paste anything…"
-              aria-label="Text to read"
-              className="add-text font-serif text-[15px]"
-            />
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-[12.5px] text-ink-4">{pasted.trim() ? `${pasted.trim().split(/\s+/).length} words` : ""}</span>
-              <button type="submit" disabled={!pasted.trim() || !!busy} className="add-btn">
-                Read <ArrowRight size={15} aria-hidden="true" />
-              </button>
-            </div>
-          </form>
-        </div>
+        <PasteDialog
+          initial={pasted}
+          busy={!!busy}
+          onClose={() => setPasteOpen(false)}
+          onRead={(text) => {
+            setPasteOpen(false);
+            void importText(text);
+          }}
+        />
       ) : null}
     </div>
   );

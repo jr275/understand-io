@@ -103,6 +103,7 @@ test.describe("read aloud (mock speech engine)", () => {
     const spoken = await page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken);
     expect(spoken[0]).toBe("Not only here, but over the whole county");
     expect(spoken[1]).toMatch(/^of Norfolk, the well-sinker/);
-    await expect(region).toContainText(/Reading · \d+\/275/);
+    // After the passage, the counter keeps whole-text numbering (276 sentences) instead of restarting over the remainder.
+    await expect(region).toContainText(/Reading · \d+\/276/);
   });
 });

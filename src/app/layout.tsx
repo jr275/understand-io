@@ -3,6 +3,7 @@ import { Atkinson_Hyperlegible_Next, Literata, Newsreader, Schibsted_Grotesk } f
 import "./globals.css";
 import { THEME_BOOT_SCRIPT } from "@/lib/store/settings";
 import { TipLayer } from "@/components/ui/Tip";
+import { GlobalImport } from "@/components/chrome/GlobalImport";
 
 const newsreader = Newsreader({
   subsets: ["latin", "latin-ext"],
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <TipLayer />
+        <GlobalImport />
       </body>
     </html>
   );

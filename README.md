@@ -23,7 +23,9 @@ are built in, and highlights, notes, glosses and settings are kept in the browse
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL persistence (documents you import, annotations, glosses, progress), keyed by an anonymous reader cookie. Without it the app runs local-only. |
 | `TOGETHER_API_KEY` | Margin glosses and whole-text answers (OpenAI-compatible endpoint, DeepSeek by default), embedding re-ranking for semantic search, and server-side transcription. Readers can also paste their own key in the app; it is sent per request and never stored. |
-| `GLOSS_COOKIE_SECRET` | Signs the reader cookie. |
+| `GLOSS_COOKIE_SECRET` | Signs the reader, session and OAuth-state cookies. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in (optional). An account owns one reader id; signing in on another browser swaps that browser's reader cookie to it and merges anything read anonymously there into the account. Needs `DATABASE_URL`. Redirect URI: `<origin>/api/auth/google/callback`. |
+| `APP_URL` | Public origin for the OAuth redirect when the app runs behind a proxy (defaults to the request origin). |
 
 Read-aloud uses the browser's own speech engine and needs no key. Voice search uses the browser's
 speech recognition where available (Chrome, Edge, Safari) and falls back to server transcription

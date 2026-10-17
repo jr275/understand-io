@@ -61,6 +61,7 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
 }
 
 const MAX_BYTES = 10 * 1024 * 1024;
+export const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
 
 /** Fetch with manual redirects (each hop re-validated) and a byte cap on the body. */
 export async function fetchPublic(raw: string, init: { timeoutMs?: number; accept?: string } = {}): Promise<{ res: Response; body: Uint8Array; finalUrl: string }> {
@@ -68,7 +69,12 @@ export async function fetchPublic(raw: string, init: { timeoutMs?: number; accep
   const signal = AbortSignal.timeout(init.timeoutMs ?? 20000);
   for (let hop = 0; hop < 5; hop++) {
     const res = await fetch(url, {
-      headers: { "user-agent": "Mozilla/5.0 (compatible; UnderstandReader/0.1)", accept: init.accept ?? "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8" },
+      headers: {
+        // A browser-like agent: many publishers answer 403 to anything that announces itself as a bot.
+        "user-agent": BROWSER_UA,
+        accept: init.accept ?? "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9,pt-BR;q=0.8",
+      },
       redirect: "manual",
       signal,
     });

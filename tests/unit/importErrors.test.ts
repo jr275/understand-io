@@ -68,14 +68,15 @@ describe.skipIf(!db)("a real database failure while importing text", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      // jsonb cannot store U+0000, so PostgreSQL itself rejects this insert (22P05).
-      const text = `# sectest-sec11-${Date.now()}\n\nSECRET-DOCUMENT-TEXT\u0000 and more words so that the paragraph is a paragraph.`;
+      // jsonb cannot store a lone UTF-16 surrogate, so PostgreSQL itself rejects this insert. (U+0000 used to be the trigger;
+      // the route now refuses it earlier, with a 400, before the database is involved.)
+      const text = `# sectest-sec11-${Date.now()}\n\nSECRET-DOCUMENT-TEXT\ud800 and more words so that the paragraph is a paragraph.`;
       const res = await POST(new Request("http://localhost/api/import/text", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) }));
       const body = await res.text();
       expect(res.status).toBe(422);
       expect(JSON.parse(body).error).toBe("Could not save that to your library.");
       const logged = JSON.stringify([...err.mock.calls, ...warn.mock.calls].map((c) => c.map((x) => (x instanceof Error ? `${x.name}: ${x.message}` : String(x)))));
-      expect(logged).toMatch(/saving a document failed \(code 22P05\)/);
+      expect(logged).toMatch(/saving a document failed \(code 22P02\)/);
       expect(logged).not.toMatch(/SECRET-DOCUMENT-TEXT|insert into|params|\$1/i);
       expect(err.mock.calls.flat().some((x) => x instanceof Error)).toBe(false); // no error object (it carries the statement) was logged
     } finally {

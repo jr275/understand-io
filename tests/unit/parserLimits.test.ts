@@ -1,6 +1,6 @@
 // SEC-5: untrusted pages and PDFs must be refused quickly and cleanly instead of blocking (or crashing) the server process.
 // Measured before the limits existed (same machine, Node 24): a 25 KB page nested 5,000 deep ran for more than 60 s;
-// 10 MB of <p> took 18 s and 10 MB of <a><br> 44 s inside extractArticle; a 30,000-page PDF of 0.4 MB ran the process out of heap.
+// 10 MB of <p> took 18 s and 10 MB of <a><br> 44 s inside extractArticle; a 30,000-page PDF (10 MB of one-line pages) ran the process out of heap.
 import { afterEach, describe, expect, it } from "vitest";
 import { extractArticle } from "@/lib/content/extract";
 import { ReadError } from "@/lib/content/errors";

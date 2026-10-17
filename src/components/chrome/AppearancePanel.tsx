@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlignJustify, AlignLeft, Focus, Headphones, Map, Minus, Paintbrush, Pilcrow, Plus } from "lucide-react";
+import { AlignJustify, AlignLeft, Focus, Headphones, Keyboard, Map, Minus, Paintbrush, Pilcrow, Plus } from "lucide-react";
 import { Segmented } from "@/components/ui/Segmented";
 import { SwitchButton, Toggle } from "@/components/ui/Switch";
 import { useSettings, type Face, type Pen, type Theme } from "@/lib/store/settings";
@@ -167,6 +167,12 @@ export function AppearancePanel({ reader = false }: { reader?: boolean }) {
               ) : null}
             </div>
           )}
+
+          <div className="border-t border-rule pt-3.5">
+            <SwitchButton checked={s.keys} onChange={(v) => set({ keys: v })}>
+              <Keyboard size={14} aria-hidden="true" /> Single-key shortcuts
+            </SwitchButton>
+          </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-rule pt-3.5">
             <div className="min-w-0">

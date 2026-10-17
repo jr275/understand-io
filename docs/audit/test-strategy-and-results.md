@@ -9,11 +9,11 @@ _Final run on 2026-10-17 against the working tree at the commit that follows 098
 | `pnpm typecheck` | 0 | clean |
 | `pnpm lint` | 0 | clean, no warnings |
 | `pnpm test` (Vitest) | 0 | 32 files, **668 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
-| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **110 passed** (108 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
+| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **112 passed** (110 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
 | `pnpm build` | 0 | compiled; one warning: no fallback font metrics for Atkinson Hyperlegible Next (BUILD-1) |
 | `pnpm audit --prod` | 0 | no known vulnerabilities |
 
-At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by this audit: 626 unit and 78 end-to-end.
+At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by this audit: 626 unit and 80 end-to-end.
 
 No test was skipped, deleted, loosened or marked flaky to obtain these results. Where a test was wrong it was fixed and the reason recorded in the commit (for example a security test that depended on a NUL byte reaching the database now uses a lone surrogate, because NUL is refused earlier).
 
@@ -40,7 +40,7 @@ No test was skipped, deleted, loosened or marked flaky to obtain these results. 
 
 ### Regression discipline
 
-Each fix in the review set came with a test that was run against the old code and failed there (the commit messages say how many). In this final stretch the same check was done by disabling the fix: the four dialog-focus tests, the two Stop-focus tests, the document-route outage test, the typed-over-spoken voice test and the randomised anchor test (by breaking resolution) all fail without their fixes.
+Each fix in the review set came with a test that was run against the old code and failed there (the commit messages say how many). In this final stretch the same check was done by disabling the fix: the four dialog-focus tests, the two Stop-focus tests, the document-route outage test, the two shortcut-setting tests, the typed-over-spoken voice test and the randomised anchor test (by breaking resolution) all fail without their fixes.
 
 ## Test inventory
 
@@ -62,9 +62,9 @@ Each fix in the review set came with a test that was run against the old code an
 | content, pdf-paragraphs | 10, 8 | extraction, PDF paragraph gaps (real PDF fixture), merging of figure fragments |
 | db-outage, theme-boot | 5, 4 | outage with the real driver, no React script-tag error |
 
-### End to end (110 runs)
+### End to end (112 runs)
 
-a11y 27, annotations 8, annotations-api 6, api 6, import-and-isolation 3, landing 10, library 3, mobile 2, reader 9, search-and-speech 27, security 9.
+a11y 27, annotations 8, annotations-api 6, api 6, import-and-isolation 3, landing 10, library 3, mobile 2, reader 11, search-and-speech 27, security 9.
 
 ## Known weaknesses of the test suite
 

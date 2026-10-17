@@ -160,3 +160,44 @@ test.describe("reader", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Dropped");
   });
 });
+
+test.describe("single-key shortcuts can be switched off (WCAG 2.1.4)", () => {
+  test("with the setting on, N opens the notebook and a letter after selecting starts a question", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("n");
+    await expect(page.getByRole("complementary", { name: "Notebook" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await selectInBlock(page, "p2", 0, 30);
+    await page.keyboard.press("x");
+    await expect(page.getByLabel("Your question about the selected passage")).toHaveValue("x");
+  });
+
+  test("with the setting off, single letters do nothing, Escape and buttons still work, and the switch is in Appearance", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("gloss:settings", JSON.stringify({ keys: false })));
+    await openReader(page);
+    for (const k of ["n", "l", "v", "j", "f", "?"]) await page.keyboard.press(k);
+    await expect(page.getByRole("complementary", { name: "Notebook" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Reading aloud" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Ask by voice" })).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
+    await expect(page.locator("html.focus-mode, .focus-mode").first()).toHaveCount(0);
+    await selectInBlock(page, "p2", 0, 30);
+    await page.keyboard.press("x");
+    const lens = page.getByRole("toolbar", { name: "Actions for the selection" });
+    await expect(lens).toBeVisible();
+    await expect(lens.getByRole("button", { name: "Explain" })).toBeVisible(); // still on the bar: no question started by the letter
+    await expect(page.getByLabel("Your question about the selected passage")).toHaveCount(0);
+    await page.getByRole("button", { name: "Keyboard shortcuts" }).click(); // the button still opens the list
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Appearance and answers" }).click();
+    const sw = page.getByRole("switch", { name: /Single-key shortcuts/ });
+    await expect(sw).not.toBeChecked();
+    await sw.click();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await page.locator("body").click({ position: { x: 5, y: 300 } });
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible(); // back on
+  });
+});

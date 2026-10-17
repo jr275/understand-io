@@ -18,6 +18,8 @@ export interface LensProps {
   onCopy: () => void;
   onListen: () => void;
   onClose: () => void;
+  /** Typing a letter starts a question and Shift+H / Shift+U mark the selection. Off when the reader switched single-key shortcuts off. */
+  keyShortcuts?: boolean;
 }
 
 const COLORS: { id: HighlightColor; label: string; c: string }[] = [
@@ -28,7 +30,7 @@ const COLORS: { id: HighlightColor; label: string; c: string }[] = [
 ];
 
 /** Selection toolbar ("lens"). Appears above the selection; morphs into an input for Ask / notes. */
-export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existing = [], onRemove, onNote, onCopy, onListen, onClose }: LensProps) {
+export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existing = [], onRemove, onNote, onCopy, onListen, onClose, keyShortcuts = true }: LensProps) {
   const [mode, setMode] = useState<"bar" | "ask" | "note">("bar");
   const [menu, setMenu] = useState(false);
   const [text, setText] = useState("");
@@ -54,7 +56,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
 
   // Typing while the bar is showing starts a question (reference: "Or just start typing").
   useEffect(() => {
-    if (mode !== "bar") return;
+    if (mode !== "bar" || !keyShortcuts) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
@@ -70,7 +72,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [mode, marker, onHighlight, onUnderline]);
+  }, [mode, marker, onHighlight, onUnderline, keyShortcuts]);
 
   // Open the More menu downward when there is no room above the lens.
   const menuBelow = pos.below || pos.top < 340;

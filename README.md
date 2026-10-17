@@ -84,6 +84,8 @@ when a key is configured.
 `[` `]` previous/next gloss · `B` gloss this text · `N` notebook · `F` focus · `L` listen ·
 `Space` pause/resume · `V` ask by voice · `⇧H` highlight · `⇧U` underline · `?` all keys
 
+Single-key shortcuts can be switched off in Appearance ("Single-key shortcuts") for people who use speech input or an unsteady keyboard.
+
 ## Browser limitations
 
 - Read-aloud uses the browser's own speech engine. Chrome, Edge and Safari have it; if yours does not, the app says so. Voices differ per

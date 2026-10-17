@@ -8,6 +8,7 @@ import { TOPICS, topicInfo } from "@/lib/content/types";
 import { SAMPLES } from "@/lib/content/samples";
 import { hideSample, rememberDocument, removeDocument, syncRemoteLibrary, updateDocumentMeta, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
+import { getSettings } from "@/lib/store/settings";
 import { Topbar } from "@/components/chrome/Topbar";
 import { Toasts } from "@/components/chrome/Toasts";
 import { Spine } from "./Spine";
@@ -45,7 +46,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
     const t = window.setTimeout(() => setEntering(false), 1200);
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (e.key === "/" && !(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))) {
+      if (e.key === "/" && getSettings().keys && !(el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))) {
         e.preventDefault();
         searchRef.current?.focus();
       }

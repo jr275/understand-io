@@ -505,6 +505,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         if (e.key === "?" && keysOpen) setKeysOpen(false);
         return;
       }
+      // Single-key shortcuts switched off (Appearance): only Enter on a focused paragraph, Escape and the buttons still work.
+      if (!settings.keys && e.key !== "Enter") return;
       const numbered = blocks.filter((b) => b.n);
       const ci = numbered.findIndex((b) => b.id === cursor);
       switch (e.key) {
@@ -582,7 +584,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
+  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, settings.keys, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
 
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
@@ -879,6 +881,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         <Lens
           rect={pending.rect}
           marker={settings.marker}
+          keyShortcuts={settings.keys}
           onAction={(a, q) => createGloss(a, pending.anchor, q)}
           onHighlight={(c) => {
             setSettings({ marker: c });

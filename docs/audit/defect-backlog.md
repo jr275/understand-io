@@ -32,7 +32,7 @@ Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17
 | TTS-9 | P2 | `L` and the top-bar button started from different places; stop point not remembered | Partial | one start rule (e2e). Where reading stopped is not remembered between presses or reloads |
 | TTS-10 | P2 | Space hijacked from focused controls | Fixed | e2e. Needs browser |
 | TTS-11 | P2 | unsupported path silent; Listen setting did not gate everything | Partial | message and hidden controls (unit, e2e). The Listen setting still only controls the top-bar button; `L`, the lens action and voice-search "read" ignore it. Intended meaning is undecided |
-| TTS-12 | P2 | voice menu ARIA, keyboard, announcements; focus lost when the bar closes | Partial | menu semantics, arrows, Escape, live region, Try again (e2e). **Focus after Stop fixed in the final stretch** (2 e2e). Remaining: no way to turn off the single-key `L` shortcut (WCAG 2.1.4); axe does not run with the voice menu open; "Finished reading" announcement not asserted |
+| TTS-12 | P2 | voice menu ARIA, keyboard, announcements; focus lost when the bar closes | Partial | menu semantics, arrows, Escape, live region, Try again (e2e). **Focus after Stop fixed in the final stretch** (2 e2e), and a new Appearance switch turns off all single-key shortcuts (WCAG 2.1.4; 2 e2e in `reader.spec.ts`). Remaining: axe does not run with the voice menu open; "Finished reading" announcement not asserted |
 | TTS-13 | P2 | utterance not referenced after `speak()` (Chrome GC drops `onend`) | Fixed | unit asserts the reference; GC behaviour needs browser |
 | TTS-14 | P3 | rate or voice change while paused not applied | Fixed | unit |
 | TTS-15 | P3 | `start()` cancelled before invalidating | Fixed | unit |

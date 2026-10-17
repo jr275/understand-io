@@ -25,6 +25,8 @@ export interface Settings {
   numbers: boolean;
   rail: boolean;
   listen: boolean;
+  /** Single-key shortcuts (J, K, L, N, ...). Off lets people who use speech input or a one-handed keyboard avoid accidental triggers (WCAG 2.1.4). */
+  keys: boolean;
   focus: boolean;
   covers: boolean;
   /** Text-to-speech */
@@ -47,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   numbers: false,
   rail: true,
   listen: false,
+  keys: true,
   focus: false,
   covers: false,
   rate: 1,

@@ -6,7 +6,7 @@ _Written 2026-10-17. Everything here comes from commands run and files read in t
 
 **Verdict: functionally usable with known limitations.** It is not a release candidate, and it is not production-ready.
 
-What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 668 unit tests, 110 end-to-end tests, the production build and the dependency audit all pass.
+What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 668 unit tests, 112 end-to-end tests, the production build and the dependency audit all pass.
 
 What is not proven, and why it matters to you:
 
@@ -18,7 +18,7 @@ What is not proven, and why it matters to you:
 
 Not "production-ready": there is no CI, no monitoring, the rate limiter is per process, the server has never run behind real TLS or a real host, and the items above are unverified. A passing build is not a readiness claim.
 
-Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 668 and 110.
+Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 668 and 112.
 
 ## B. Verified environment
 
@@ -48,7 +48,7 @@ All run on 2026-10-17 in this folder; exit codes are real.
 | `pnpm typecheck` | exit 0 | clean | none | n/a | none |
 | `pnpm lint` | exit 0 | clean, 0 warnings | `test-results/` and scratch outputs are ignored | n/a | none |
 | `pnpm test` | exit 0 | 32 files, 668 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
-| `pnpm test:e2e` | exit 0 | 110 passed (108 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
+| `pnpm test:e2e` | exit 0 | 112 passed (110 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
 | `pnpm build` | exit 0 | compiled; warning: no fallback font metrics for Atkinson Hyperlegible Next | none | n/a | production server behaviour (`next start`, TLS, CDN) not exercised |
 | `pnpm audit --prod` | exit 0 | no known vulnerabilities | dev dependencies not audited | n/a | reflects the advisory database at run time |
 | `pnpm exec tsx scripts/eval-retrieval.mts` | exit 0 | top-1 57.7 %, top-3 69.2 % on 26 sample-document queries; absent concepts showing hits 1 of 7; 215 of 215 offsets exact | meaning re-rank not evaluated | none | 41 hand-written queries: a regression signal, not an accuracy claim |
@@ -148,7 +148,6 @@ Partial or by design:
 - Resume after a reload starts from the paragraph on screen, not mid-sentence; where reading stopped is not remembered.
 - `/?url=` and `/?save=` fill the field and wait for Read (security change from the reference).
 - Existing marks are not keyboard-focusable; the lens does not take focus.
-- No way to switch off single-key shortcuts such as `L`.
 - The development database is shared with the test suite.
 - Not built, by specification: Painted covers, web search in answers, MCP agent connection, server-side TTS.
 
@@ -196,7 +195,7 @@ Across all 71 requirements: 47 verified working, 6 partially implemented, 7 impl
 **Optional improvements**
 1. Decide what to do with the remaining figure and table fragments in PDFs (IMP-5), for example a font-size signal from pdf.js.
 2. Calibrate the retrieval cutoff on a larger labelled set; add an inverted index if documents get very large (RETR-10).
-3. Remember where reading stopped (TTS-9); add a setting to turn off single-key shortcuts.
+3. Remember where reading stopped (TTS-9).
 4. Run `prettier --write` as one repository-wide commit with a `.prettierignore`, then add a check script (HYG-1).
 
 ## J. Final commands

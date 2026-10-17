@@ -425,6 +425,14 @@
 .blk.is-speaking > .pnum {
   color: var(--rubric-text);
 }
+/* Windows High Contrast removes backgrounds and shadows: keep the spoken sentence visible. */
+@media (forced-colors: active) {
+  .m-speak {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
 .blk.is-flash .blk-text {
   animation: flash 1.8s var(--ease-out);
   border-radius: 4px;

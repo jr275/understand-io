@@ -12,7 +12,8 @@ test.describe("mobile", () => {
     // Paragraph numbers are hidden below 720px; the composer is present.
     await expect(page.locator(".pnum").first()).toBeHidden();
     await expect(page.getByLabel("Ask anything about the whole text")).toBeVisible();
-    await expect(page.getByRole("status")).toContainText(/Select any passage/);
+    // The toast, not the screen-reader-only live region that announces read-aloud state (also role=status).
+    await expect(page.locator('[role="status"]:not(.sr-only)')).toContainText(/Select any passage/);
   });
 
   test("library shelf scrolls horizontally instead of overflowing the page", async ({ page }) => {

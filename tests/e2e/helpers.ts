@@ -56,14 +56,31 @@ export function collectErrors(page: Page) {
   return errors;
 }
 
-/** Replace the browser speech engine with a deterministic fake (mock-based tests only). */
-export async function installFakeSpeech(page: Page) {
-  await page.addInitScript(() => {
+export interface FakeSpeechOptions {
+  /** Real Chrome sometimes keeps `speechSynthesis.paused` after cancel(); enable to reproduce that. */
+  cancelKeepsPaused?: boolean;
+  /** How long one utterance "plays" before its end event. */
+  msPerUtterance?: number;
+  voices?: { voiceURI: string; name: string; lang: string; localService: boolean; default: boolean }[];
+}
+
+export interface SpeakCall {
+  text: string;
+  rate: number;
+  lang: string;
+  voice: string | null;
+  /** The engine's `paused` flag when speak() was called: true means the utterance would be queued silently. */
+  pausedAtSpeak: boolean;
+}
+
+/** Replace the browser speech engine with a deterministic fake (mock-based tests only). Everything spoken is logged in `window.__spoken` (text) and `window.__speakCalls`. */
+export async function installFakeSpeech(page: Page, options: FakeSpeechOptions = {}) {
+  await page.addInitScript((opts) => {
     type Handler = ((e: unknown) => void) | null;
     class FakeUtterance {
       text: string;
       rate = 1;
-      voice: unknown = null;
+      voice: { voiceURI: string; lang: string } | null = null;
       lang = "";
       onend: Handler = null;
       onerror: Handler = null;
@@ -72,31 +89,39 @@ export async function installFakeSpeech(page: Page) {
         this.text = text;
       }
     }
+    const ms = opts.msPerUtterance ?? 300;
     const log: string[] = [];
+    const calls: unknown[] = [];
     let current: FakeUtterance | null = null;
     let timer: number | undefined;
+    const voices = opts.voices ?? [{ voiceURI: "fake-en", name: "Fake English", lang: "en-US", localService: true, default: true }];
+    const finishLater = (u: FakeUtterance) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (current === u && !synth.paused) {
+          synth.speaking = false;
+          u.onend?.({});
+        }
+      }, ms);
+    };
     const synth = {
       speaking: false,
       paused: false,
       pending: false,
-      getVoices: () => [{ voiceURI: "fake-en", name: "Fake English", lang: "en-US", localService: true, default: true }],
+      getVoices: () => voices,
       addEventListener: () => {},
+      removeEventListener: () => {},
       speak(u: FakeUtterance) {
         current = u;
         synth.speaking = true;
         log.push(u.text);
-        window.clearTimeout(timer);
-        timer = window.setTimeout(() => {
-          if (current === u && !synth.paused) {
-            synth.speaking = false;
-            u.onend?.({});
-          }
-        }, 300);
+        calls.push({ text: u.text, rate: u.rate, lang: u.lang, voice: u.voice?.voiceURI ?? null, pausedAtSpeak: synth.paused });
+        finishLater(u);
       },
       cancel() {
         current = null;
         synth.speaking = false;
-        synth.paused = false;
+        if (!opts.cancelKeepsPaused) synth.paused = false;
         window.clearTimeout(timer);
       },
       pause() {
@@ -104,19 +129,15 @@ export async function installFakeSpeech(page: Page) {
       },
       resume() {
         synth.paused = false;
-        if (current) {
-          const u = current;
-          timer = window.setTimeout(() => {
-            if (current === u) {
-              synth.speaking = false;
-              u.onend?.({});
-            }
-          }, 300);
-        }
+        if (current) finishLater(current);
       },
     };
     Object.defineProperty(window, "speechSynthesis", { value: synth, configurable: true });
     Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
     (window as unknown as { __spoken: string[] }).__spoken = log;
-  });
+    (window as unknown as { __speakCalls: unknown[] }).__speakCalls = calls;
+  }, options);
 }
+
+export const spokenText = (page: Page) => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.slice());
+export const speakCalls = (page: Page) => page.evaluate(() => (window as unknown as { __speakCalls: SpeakCall[] }).__speakCalls.slice());

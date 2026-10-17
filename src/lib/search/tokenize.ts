@@ -28,25 +28,95 @@ export function stem(t: string): string {
   return t.replace(/(ations?|ively|ingly|ements?|nesses?)$/, "").replace(/(ing|edly|ed|ies|es|ly|s)$/, (m) => (m === "ies" ? "y" : ""));
 }
 
-/** Split a block's text into sentences with offsets. */
+const ABBREVIATIONS = new Set(["mr", "mrs", "ms", "dr", "st", "prof", "sr", "jr", "vs", "fig", "figs", "cf", "viz", "co", "inc", "ltd", "bart", "gen", "col", "capt", "sgt", "lt", "rev", "hon", "esq", "mt", "ft", "approx", "dept", "est", "ave"]);
+/** Abbreviations that only take a full stop when a number follows ("No. 5", "p. 45"). */
+const NUMBERED = new Set(["no", "nos", "p", "pp", "vol", "art", "sec", "ch", "fig"]);
+const TERMINATOR = /[.!?…]/;
+const CLOSER = /["'”’)\]»›]/;
+const OPENER = /["'“‘(\[«‹]/;
+
+/** The word that ends just before `end` (letters, digits, inner full stops, apostrophes, hyphens). */
+function wordBefore(text: string, end: number) {
+  let b = end;
+  while (b > 0 && /[\p{L}\p{N}.'’-]/u.test(text[b - 1])) b--;
+  return { word: text.slice(b, end), begin: b };
+}
+
+/**
+ * Split a block's text into sentences with offsets.
+ *
+ * A full stop, question mark, exclamation mark or ellipsis ends a sentence only when it is followed by
+ * whitespace (or the end) AND the text that follows does not continue the sentence: no lowercase letter
+ * next ("e.g. apples", "per cent. of it", "Wait... what?"), not an abbreviation ("Dr.", "U.S.", "Ph.D.",
+ * "No. 5"), not an initial in a name ("J. K. Rowling"). Decimals, versions and domains ("3.5", "v1.2.3",
+ * "example.com") never split because no whitespace follows their full stop.
+ */
 export function sentences(text: string): { text: string; start: number; end: number }[] {
   const out: { text: string; start: number; end: number }[] = [];
-  const re = /[^.!?…]+(?:[.!?…]+["'”’)\]]*|$)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(text))) {
-    const raw = m[0];
-    const lead = raw.length - raw.trimStart().length;
-    const start = m.index + lead;
-    const t = raw.trim();
-    if (!t) continue;
-    // Merge abbreviations like "Mr." / "Dr." / single capital initials with the next sentence.
-    const prev = out[out.length - 1];
-    if (prev && /\b(?:Mr|Mrs|Ms|Dr|St|Prof|Sr|Jr|vs|etc|No|p|pp|fig|ch|H\.M\.S|M|[A-Z])\.$/.test(prev.text)) {
-      prev.text = text.slice(prev.start, start + t.length);
-      prev.end = start + t.length;
+  const n = text.length;
+  let start = 0;
+  while (start < n && /\s/.test(text[start])) start++;
+  const push = (from: number, to: number) => {
+    let e = to;
+    while (e > from && /\s/.test(text[e - 1])) e--;
+    if (e > from) out.push({ text: text.slice(from, e), start: from, end: e });
+  };
+  for (let i = start; i < n; i++) {
+    if (!TERMINATOR.test(text[i])) continue;
+    let k = i;
+    while (k + 1 < n && TERMINATOR.test(text[k + 1])) k++; // "?!" and "..."
+    const single = k === i && text[i] === ".";
+    for (;;) {
+      // closing quotes and brackets, then footnote markers such as "[1]"
+      while (k + 1 < n && CLOSER.test(text[k + 1])) k++;
+      const marker = /^\[\d+\]/.exec(text.slice(k + 1, k + 8));
+      if (!marker) break;
+      k += marker[0].length;
+    }
+    if (k + 1 < n && !/\s/.test(text[k + 1])) {
+      i = k; // "3.5", "example.com", "cent.—of it": no whitespace, so the sentence goes on
       continue;
     }
-    out.push({ text: t, start, end: start + t.length });
+    let m = k + 1;
+    while (m < n && /\s/.test(text[m])) m++;
+    let f = m;
+    while (f < n && OPENER.test(text[f])) f++;
+    const following = text[f];
+    if (following !== undefined) {
+      if (/\p{Ll}/u.test(following)) {
+        i = k; // a lowercase continuation: "e.g. apples", "etc. and", "Wait... what?"
+        continue;
+      }
+      if (single) {
+        const { word, begin } = wordBefore(text, i);
+        const lower = word.toLowerCase();
+        if (ABBREVIATIONS.has(lower)) {
+          i = k;
+          continue;
+        }
+        if (NUMBERED.has(lower) && /\d/.test(following)) {
+          i = k;
+          continue;
+        }
+        if (/^(?:\p{L}{1,2}\.)+\p{L}{1,2}$/u.test(word)) {
+          i = k; // dotted abbreviations: "H.M.S.", "U.S.", "Ph.D."
+          continue;
+        }
+        if (/^\p{Lu}$/u.test(word)) {
+          // An initial joins the next word only inside a name ("John F. Kennedy", "J. K. Rowling"), not after "vitamin C."
+          const prev = wordBefore(text, Math.max(0, begin - 1)).word;
+          const nextIsInitial = /^\p{Lu}\./u.test(text.slice(f, f + 2));
+          if (!prev || /^\p{Lu}/u.test(prev) || nextIsInitial) {
+            i = k;
+            continue;
+          }
+        }
+      }
+    }
+    push(start, k + 1);
+    start = m;
+    i = k;
   }
+  if (start < n) push(start, n);
   return out;
 }

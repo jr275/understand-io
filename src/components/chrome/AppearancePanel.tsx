@@ -36,6 +36,8 @@ const FACES: { id: Face; label: string; font: string }[] = [
 export function AppearancePanel({ reader = false }: { reader?: boolean }) {
   const [tab, setTab] = useState<"look" | "text" | "answers">("look");
   const [s, set] = useSettings();
+  // The panel only renders after the user opens it, so reading the browser here cannot cause a hydration mismatch.
+  const ttsOk = typeof window === "undefined" || "speechSynthesis" in window;
   const isDark = typeof document !== "undefined" && (document.documentElement.dataset.theme === "night" || document.documentElement.dataset.theme === "ink");
 
   return (
@@ -158,9 +160,11 @@ export function AppearancePanel({ reader = false }: { reader?: boolean }) {
               <SwitchButton checked={s.focus} onChange={(v) => set({ focus: v })}>
                 <Focus size={14} aria-hidden="true" /> Focus
               </SwitchButton>
-              <SwitchButton checked={s.listen} onChange={(v) => set({ listen: v })}>
-                <Headphones size={14} aria-hidden="true" /> Listen
-              </SwitchButton>
+              {ttsOk ? (
+                <SwitchButton checked={s.listen} onChange={(v) => set({ listen: v })}>
+                  <Headphones size={14} aria-hidden="true" /> Listen
+                </SwitchButton>
+              ) : null}
             </div>
           )}
 

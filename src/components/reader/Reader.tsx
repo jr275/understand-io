@@ -60,30 +60,55 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const mounted = useMounted();
 
   /* ---------- speech ---------- */
-  const speech = useMemo(() => new SpeechController(), []);
-  const snap = useSyncExternalStore(
-    (cb) => speech.subscribe(() => cb()),
-    () => speech.snapshot(),
-    () => speech.snapshot(),
-  );
+  const [speech] = useState(() => new SpeechController());
+  const snap = useSyncExternalStore(speech.store.subscribe, speech.store.getSnapshot, speech.store.getSnapshot);
+  const docLang = useMemo(() => guessLang(doc), [doc]);
   useEffect(() => {
     speech.setBlocks(blocks);
   }, [speech, blocks]);
-  useEffect(() => () => speech.dispose(), [speech]);
+  useEffect(() => {
+    speech.setLang(docLang);
+  }, [speech, docLang]);
+  // attach/detach (not construct/dispose): React StrictMode mounts, unmounts and mounts again with the same instance.
+  useEffect(() => {
+    speech.attach();
+    return () => speech.detach();
+  }, [speech]);
   useEffect(() => {
     speech.setRate(settings.rate);
   }, [speech, settings.rate]);
   useEffect(() => {
     speech.setVoice(settings.voice);
   }, [speech, settings.voice]);
-  // Keep the sentence being read in view.
+  // Keep the sentence being read in view: follow the highlighted sentence (not its paragraph, which can be taller than the
+  // screen), respect reduced motion, and stop following once the reader scrolls on their own until they resume or skip.
+  const followSpeech = useRef(true);
+  const prevSpeechState = useRef(snap.state);
+  useEffect(() => {
+    if (snap.state === "playing" && prevSpeechState.current !== "playing") followSpeech.current = true;
+    prevSpeechState.current = snap.state;
+  }, [snap.state]);
+  useEffect(() => {
+    const onUserScroll = () => {
+      if (speech.snapshot().state === "playing") followSpeech.current = false;
+    };
+    window.addEventListener("wheel", onUserScroll, { passive: true });
+    window.addEventListener("touchmove", onUserScroll, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onUserScroll);
+      window.removeEventListener("touchmove", onUserScroll);
+    };
+  }, [speech]);
   useEffect(() => {
     const seg = snap.segment;
-    if (!seg || snap.state !== "playing") return;
-    const el = rootRef.current?.querySelector<HTMLElement>(`.blk[data-block="${CSS.escape(seg.blockId)}"]`);
+    if (!seg || snap.state !== "playing" || !followSpeech.current) return;
+    const root = rootRef.current;
+    const el = root?.querySelector<HTMLElement>(".m-speak") ?? root?.querySelector<HTMLElement>(`.blk[data-block="${CSS.escape(seg.blockId)}"]`);
     if (!el) return;
     const r = el.getBoundingClientRect();
-    if (r.top < 100 || r.bottom > window.innerHeight - 160) window.scrollTo({ top: r.top + window.scrollY - 160, behavior: "smooth" });
+    if (r.top >= 120 && r.bottom <= window.innerHeight - 200) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: r.top + window.scrollY - window.innerHeight * 0.3, behavior: reduced ? "auto" : "smooth" });
   }, [snap.segment, snap.state]);
   useEffect(() => {
     if (snap.state === "error" && snap.error) toast(snap.error);
@@ -396,6 +421,32 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     [glosses, runGloss],
   );
 
+  /* ---------- read aloud: where to start, and what to say when the browser cannot ---------- */
+  /** One rule for every entry point: the selected paragraph if it is on screen, else the first paragraph on screen, else the top. */
+  const readingStart = useCallback(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    if (cursor) {
+      const r = root.querySelector<HTMLElement>(`.blk[data-block="${CSS.escape(cursor)}"]`)?.getBoundingClientRect();
+      if (r && r.bottom > 0 && r.top < window.innerHeight) return cursor;
+    }
+    if (window.scrollY < 240) return undefined;
+    for (const el of root.querySelectorAll<HTMLElement>(".blk[data-block]")) if (el.getBoundingClientRect().bottom > 120) return el.dataset.block;
+    return undefined;
+  }, [cursor]);
+  const readAloudUnavailable = useCallback(() => toast("Read aloud is not available in this browser. Chrome, Edge and Safari have it.", { ttl: 6000 }), []);
+  const startReading = useCallback(() => {
+    if (!speech.supported) return readAloudUnavailable();
+    speech.playFrom(readingStart());
+  }, [speech, readingStart, readAloudUnavailable]);
+  const readPassage = useCallback(
+    (start: { b: string; o: number }, end: { b: string; o: number }) => {
+      if (!speech.supported) return readAloudUnavailable();
+      speech.playRange(start, end, true);
+    },
+    [speech, readAloudUnavailable],
+  );
+
   /* ---------- keyboard ---------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -411,6 +462,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         return;
       }
       if (typing || e.metaKey || e.ctrlKey || e.altKey || pending) return;
+      // A modal panel owns the keyboard: nothing behind it may react (j/k, L, Enter, Space...), except closing the shortcuts list with "?".
+      if (voiceOpen || keysOpen) {
+        if (e.key === "?" && keysOpen) setKeysOpen(false);
+        return;
+      }
       const numbered = blocks.filter((b) => b.n);
       const ci = numbered.findIndex((b) => b.id === cursor);
       switch (e.key) {
@@ -468,10 +524,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         case "l":
         case "L":
           if (snap.state === "playing" || snap.state === "paused") speech.stop();
-          else speech.playFrom(cursor ?? undefined);
+          else startReading();
           break;
         case " ":
-          if (snap.state === "playing" || snap.state === "paused") {
+          // Space belongs to the focused control (buttons, links, menus); only a bare page lets it pause or resume.
+          if ((snap.state === "playing" || snap.state === "paused") && !t?.closest("button, a[href], summary, [role=button], [role=menuitem], [role=menuitemradio], [role=option], [role=slider], [role=toolbar]")) {
             e.preventDefault();
             speech.toggle();
           }
@@ -487,7 +544,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech]);
+  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading]);
 
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
@@ -567,9 +624,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const onHitRead = useCallback(
     (h: Hit) => {
       onHitJump(h);
-      speech.playRange({ b: h.blockId, o: h.start }, { b: h.blockId, o: h.end }, true);
+      readPassage({ b: h.blockId, o: h.start }, { b: h.blockId, o: h.end });
     },
-    [onHitJump, speech],
+    [onHitJump, readPassage],
   );
 
   const listening = snap.state === "playing" || snap.state === "paused";
@@ -605,14 +662,13 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 <Keyboard size={17} strokeWidth={1.8} aria-hidden="true" />
               </IconButton>
             </span>
-            {settings.listen ? (
+            {settings.listen && !(mounted && snap.state === "unsupported") ? (
               <IconButton
                 aria-label={listening ? "Stop reading aloud" : "Read aloud from here"}
-                aria-pressed={listening}
                 active={listening}
                 data-tip={listening ? "Stop reading aloud" : "Read aloud from here"}
                 data-tip-kbd="L"
-                onClick={() => (listening ? speech.stop() : speech.playFrom(cursor ?? lib.progress[documentId]?.blockId ?? undefined))}
+                onClick={() => (listening ? speech.stop() : startReading())}
               >
                 <Headphones size={16} strokeWidth={1.8} aria-hidden="true" />
               </IconButton>
@@ -790,7 +846,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             clearSelection();
           }}
           onListen={() => {
-            speech.playRange(pending.anchor.start, pending.anchor.end, true);
+            readPassage(pending.anchor.start, pending.anchor.end);
             clearSelection();
           }}
           onClose={clearSelection}
@@ -820,16 +876,19 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         onCite={onCite}
         persisted={lib.persisted}
       />
-      <ListenBar snap={snap} voices={speech.getVoices()} onToggle={() => speech.toggle()} onStop={() => speech.stop()} onRestart={() => speech.restart()} onSkip={(d) => speech.skip(d)} onRate={(r) => setSettings({ rate: r })} onVoice={(v) => setSettings({ voice: v })} />
-      {voiceOpen ? <VoiceSearch open onClose={() => setVoiceOpen(false)} blocks={blocks} lang={guessLang(doc)} onJump={onHitJump} onRead={onHitRead} serverKey={!!serverInfo?.serverKey} /> : null}
+      <ListenBar snap={snap} voices={speech.getVoices()} onToggle={() => speech.toggle()} onStop={() => speech.stop()} onRestart={() => speech.restart()} onSkip={(d) => {
+        followSpeech.current = true;
+        speech.skip(d);
+      }} onRate={(r) => setSettings({ rate: r })} onVoice={(v) => setSettings({ voice: v })} docLang={docLang} />
+      {voiceOpen ? <VoiceSearch open onClose={() => setVoiceOpen(false)} blocks={blocks} lang={docLang} onJump={onHitJump} onRead={onHitRead} serverKey={!!serverInfo?.serverKey} /> : null}
       <KeysDialog open={keysOpen} onClose={() => setKeysOpen(false)} />
-      <Toasts />
+      <Toasts bottom={snap.state === "idle" || snap.state === "unsupported" ? 84 : 150} />
     </div>
   );
 }
 
 function guessLang(doc: GlossDocument) {
-  const sample = doc.blocks.slice(0, 5).map((b) => b.text).join(" ").toLowerCase();
+  const sample = doc.blocks.filter((b) => b.type === "p").slice(0, 20).map((b) => b.text).join(" ").toLowerCase();
   const pt = (sample.match(/\b(que|não|uma|para|com|dos|das|como|mais|são)\b/g) ?? []).length;
   const en = (sample.match(/\b(the|and|of|to|that|with|is|are|was|for)\b/g) ?? []).length;
   if (pt > en) return "pt-BR";

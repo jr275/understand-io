@@ -98,16 +98,16 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
 
   if (me.configured) {
     return (
-      <a href={`/api/auth/google?next=${encodeURIComponent(pathname === "/" ? "/library" : pathname)}`} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97]">
-        <LogIn size={15} aria-hidden="true" /> Sign in
+      <a href={`/api/auth/google?next=${encodeURIComponent(pathname === "/" ? "/library" : pathname)}`} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] max-[480px]:w-9 max-[480px]:justify-center max-[480px]:px-0">
+        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">Sign in</span>
       </a>
     );
   }
 
   return (
     <div className="relative ml-1">
-      <IconButton ref={ref} className="!px-3.5" aria-label="Sign in" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
-        <LogIn size={15} aria-hidden="true" /> Sign in
+      <IconButton ref={ref} className="!px-3.5 max-[480px]:w-9 max-[480px]:!px-0" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
+        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">Sign in</span>
       </IconButton>
       <Pop open={open} onClose={() => setOpen(false)} label="Sign in" width={320} anchorRef={ref}>
         <p className="text-[13.5px] font-medium text-ink">Sign-in is not set up on this server yet</p>

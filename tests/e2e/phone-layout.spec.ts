@@ -46,6 +46,34 @@ for (const size of SIZES) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
     });
 
+    test("landing and library top bars: nothing is cut off and nothing overlaps", async ({ page }) => {
+      for (const path of ["/", "/library"]) {
+        await page.goto(path);
+        await expect(page.getByRole("banner")).toBeVisible();
+        await page.waitForTimeout(400);
+        const rects = await page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>("header a, header button")]
+            .filter((e) => e.getClientRects().length)
+            .map((e) => {
+              const r = e.getBoundingClientRect();
+              return { label: e.getAttribute("aria-label") ?? e.textContent?.trim().slice(0, 20) ?? "?", l: r.left, r: r.right, t: r.top, b: r.bottom, w: window.innerWidth };
+            }),
+        );
+        expect(rects.length).toBeGreaterThanOrEqual(3);
+        for (const a of rects) {
+          expect(a.l, `${path}: ${a.label} starts on screen`).toBeGreaterThanOrEqual(0);
+          expect(a.r, `${path}: ${a.label} ends on screen at ${size.width}`).toBeLessThanOrEqual(a.w + 0.5);
+        }
+        for (let i = 0; i < rects.length; i++)
+          for (let j = i + 1; j < rects.length; j++) {
+            const x = Math.min(rects[i].r, rects[j].r) - Math.max(rects[i].l, rects[j].l);
+            const y = Math.min(rects[i].b, rects[j].b) - Math.max(rects[i].t, rects[j].t);
+            expect(x > 2 && y > 2, `${path}: "${rects[i].label}" overlaps "${rects[j].label}"`).toBe(false);
+          }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+      }
+    });
+
     test("the Notebook and the Understand panel open with a tap, fit the screen and leave text visible above them at phone width", async ({ page }) => {
       await openReader(page);
       for (const [name, label] of [["Notebook", "Notebook"], ["Understand", "Understand"]] as const) {

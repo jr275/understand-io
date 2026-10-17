@@ -1,6 +1,8 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import type { Block, GlossDocument, Run } from "./types";
+import { ReadError } from "./errors";
+import { HTML_LIMITS, measureHtml } from "./limits";
 import { finishBlocks } from "./text";
 import { readingMinutes, slugFor } from "./slug";
 
@@ -143,15 +145,19 @@ export interface Extracted {
 
 /** HTML page → article blocks using Readability. Throws when no readable article is found. */
 export function extractArticle(html: string, url: string): Extracted {
+  // linkedom and Readability are synchronous: refuse pages built to keep them busy before parsing anything.
+  if (html.length > HTML_LIMITS.chars) throw new ReadError("That page is too large to read here (over 4 MB of HTML). Paste its text instead.");
+  const m = measureHtml(html);
+  if (!m.ok) throw new ReadError(m.reason === "depth" ? "That page is nested too deeply to read here. Paste its text instead." : "That page has too many elements to read here. Paste its text instead.");
   const { document } = parseHTML(html);
   // linkedom lacks a few APIs Readability probes for.
   const doc = document as unknown as Document;
-  const reader = new Readability(doc, { keepClasses: false });
+  const reader = new Readability(doc, { keepClasses: false, maxElemsToParse: HTML_LIMITS.elements * 2 });
   const article = reader.parse();
-  if (!article || !article.content) throw new Error("Could not find a readable article on that page.");
+  if (!article || !article.content) throw new ReadError("Could not find a readable article on that page.");
   const blocks = blocksFromArticleHtml(article.content, url);
   const chars = blocks.reduce((n, b) => n + b.text.length, 0);
-  if (!blocks.length || chars < 200) throw new Error("The page had no readable paragraphs.");
+  if (!blocks.length || chars < 200) throw new ReadError("The page had no readable paragraphs.");
   return {
     title: (article.title || new URL(url).hostname).trim(),
     author: article.byline?.replace(/^by\s+/i, "").trim() || null,

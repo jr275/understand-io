@@ -302,45 +302,66 @@ export function segmentBlock(
   return segs;
 }
 
-/** Convert a DOM Selection inside `.prose-read` into an Anchor. */
+/**
+ * Convert a DOM Selection inside `.prose-read` into an Anchor.
+ *
+ * Browsers describe a triple-click as "from the start of this paragraph to offset 0 of the next block" (and, on the last
+ * paragraph, to somewhere outside every block). Those shapes are normalised so the anchor covers exactly the paragraph:
+ * an end at the very start of a later block becomes the end of the previous block, a start at the very end of a block
+ * becomes the start of the next one, and an end (or start) outside any block is clamped to the last (first) block the
+ * range touches.
+ */
 export function anchorFromSelection(sel: Selection, blocks: Block[]): Anchor | null {
   if (sel.rangeCount === 0 || sel.isCollapsed) return null;
   const range = sel.getRangeAt(0);
-  const s = pointFromNode(range.startContainer, range.startOffset);
-  const e = pointFromNode(range.endContainer, range.endOffset);
-  if (!s || !e) return null;
-  const a = makeAnchor(blocks, s, e);
+  const idx = blockIndex(blocks);
+  let s = pointFromNode(range.startContainer, range.startOffset);
+  let e = pointFromNode(range.endContainer, range.endOffset);
+  if (!s || !e) {
+    const touched = touchedBlocks(range, idx);
+    if (!touched) return null;
+    s ??= { b: blocks[touched.first].id, o: 0 };
+    e ??= { b: blocks[touched.last].id, o: blocks[touched.last].text.length };
+  }
+  const si = idx.get(s.b);
+  const ei = idx.get(e.b);
+  if (si === undefined || ei === undefined) return null; // the page and the blocks disagree: no anchor rather than a wrong one
+  if (ei > si && e.o === 0) e = { b: blocks[ei - 1].id, o: blocks[ei - 1].text.length };
+  if (ei > si && s.o >= blocks[si].text.length) s = { b: blocks[si + 1].id, o: 0 };
+  if (comparePoints(s, e, idx) >= 0) return null;
+  const a = makeAnchor(blocks, s, e, idx);
   if (!a.quote.trim()) return null;
   return a;
 }
 
-/** Map a DOM node + offset to a block id and plain-text offset. */
+/** First and last block (by index) whose element the range touches, or null when it touches none. */
+function touchedBlocks(range: Range, idx: Map<string, number>): { first: number; last: number } | null {
+  let first = Infinity;
+  let last = -Infinity;
+  document.querySelectorAll<HTMLElement>(".blk[data-block]").forEach((el) => {
+    const i = idx.get(el.dataset.block ?? "");
+    if (i === undefined || !range.intersectsNode(el)) return;
+    first = Math.min(first, i);
+    last = Math.max(last, i);
+  });
+  return last >= 0 ? { first, last } : null;
+}
+
+/**
+ * Map a DOM boundary point (node + offset) to a block id and a plain-text offset, or null when it lies outside every block.
+ * The offset is the number of text characters between the start of the block's text and the boundary, wherever the
+ * boundary sits (inside a text node, between inline elements, at the end of an element such as `(em, 1)`).
+ */
 export function pointFromNode(node: Node, offset: number): AnchorPoint | null {
   const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
   const blk = el?.closest<HTMLElement>(".blk");
   const text = blk?.querySelector<HTMLElement>(".blk-text");
   if (!blk || !text || !blk.dataset.block) return null;
-  let o = 0;
-  const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
-  let n: Node | null;
-  if (node.nodeType !== Node.TEXT_NODE) {
-    // Element boundary: count text before the child at `offset`.
-    const target = node.childNodes[offset] ?? null;
-    while ((n = walker.nextNode())) {
-      if (target && (n === target || target.contains(n))) break;
-      if (target && n.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_PRECEDING) break;
-      o += n.textContent?.length ?? 0;
-    }
-    return { b: blk.dataset.block, o };
-  }
-  while ((n = walker.nextNode())) {
-    if (n === node) {
-      o += offset;
-      return { b: blk.dataset.block, o };
-    }
-    o += n.textContent?.length ?? 0;
-  }
-  return null;
+  const r = document.createRange();
+  r.setStart(text, 0);
+  // A boundary before the text (the paragraph-number gutter) collapses the range to it: offset 0.
+  r.setEnd(node, offset);
+  return { b: blk.dataset.block, o: r.toString().length };
 }
 
 /** DOM Range for an anchor (used to position the lens and to flash). */
@@ -371,9 +392,11 @@ function nodeForPoint(root: ParentNode, p: AnchorPoint): { node: Node; offset: n
   return { node: blk, offset: 0 };
 }
 
+/** Ids of the blocks an anchor spans (none when its start block is not in `blocks`). */
 export function anchorBlockIds(blocks: Block[], a: Anchor): string[] {
   const idx = blockIndex(blocks);
-  const si = idx.get(a.start.b) ?? 0;
+  const si = idx.get(a.start.b);
+  if (si === undefined) return [];
   const ei = idx.get(a.end.b) ?? si;
   return blocks.slice(si, ei + 1).map((b) => b.id);
 }

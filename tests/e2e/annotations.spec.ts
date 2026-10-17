@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { openReader, selectInBlock } from "./helpers";
 
 const DOC = "sample:on-a-piece-of-chalk";
-const sample = JSON.parse(readFileSync(join(process.cwd(), "src/content/samples/on-a-piece-of-chalk.json"), "utf8")) as { blocks: { id: string; text: string }[] };
+const sample = JSON.parse(readFileSync(join(process.cwd(), "src/content/samples/on-a-piece-of-chalk.json"), "utf8")) as { blocks: { id: string; text: string; n?: number }[] };
 const textOf = (id: string) => sample.blocks.find((b) => b.id === id)!.text;
 
 /** Store annotations in localStorage before the app starts (as if saved by an earlier visit). Seeds are plain anchors as older versions stored them. */
@@ -105,5 +105,31 @@ test.describe("annotations in the reader", () => {
     await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
     await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
     await expect(page.locator(".m-hl, .m-note")).toHaveCount(0);
+  });
+
+  test("ANNOT-7: a triple-click selects exactly one paragraph, also the last one, and highlights it", async ({ page }) => {
+    const last = [...sample.blocks].reverse().find((b) => b.n)!;
+    await openReader(page);
+    for (const id of ["p4", last.id]) {
+      const para = page.locator(`.blk[data-block="${id}"] .blk-text`);
+      await para.scrollIntoViewIfNeeded();
+      await para.click({ clickCount: 3 });
+      const lens = page.getByRole("toolbar", { name: "Actions for the selection" });
+      await expect(lens, `lens after triple-click on ${id}`).toBeVisible();
+      await lens.getByRole("button", { name: "Highlight", exact: true }).click();
+      await expect(page.locator(`.blk[data-block="${id}"] .m-hl`)).toHaveText(textOf(id));
+    }
+    // Both annotations are stored as exactly their paragraph: one block, no trailing newline, nothing spilling into the next block.
+    const stored = await page.evaluate(() => (JSON.parse(localStorage.getItem("gloss:v1")!).annotations["sample:on-a-piece-of-chalk"] as { anchor: { start: { b: string }; end: { b: string }; quote: string } }[]).map((a) => a.anchor));
+    expect(stored.map((a) => [a.start.b, a.end.b, a.quote])).toEqual([
+      ["p4", "p4", textOf("p4")],
+      [last.id, last.id, last.text],
+    ]);
+    // Clean up through the notebook.
+    await page.keyboard.press("n");
+    const nb = page.getByRole("complementary", { name: "Notebook" });
+    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
+    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
+    await expect(page.locator(".m-hl")).toHaveCount(0);
   });
 });

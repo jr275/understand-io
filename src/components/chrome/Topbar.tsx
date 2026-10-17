@@ -45,7 +45,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
         <Link aria-label="Understand.io, back to your library" className="rounded-md" href="/">
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
-            <span className="block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36]">Understand.io</span>
+            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : ""}`}>Understand.io</span>
           </span>
         </Link>
       </div>

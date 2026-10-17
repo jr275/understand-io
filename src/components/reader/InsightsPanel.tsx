@@ -41,7 +41,7 @@ export function InsightsPanel(p: InsightsProps) {
   if (!p.open) return null;
   const working = p.insights.some((g) => g.status === "streaming");
   return (
-    <aside aria-label="Understand" className="fixed bottom-2.5 left-2.5 right-2.5 top-[calc(var(--topbar-h)+6px)] z-[45] flex flex-col overflow-hidden rounded-[18px] border border-rule bg-raised shadow-pop sm:left-auto sm:w-[440px]" style={{ animation: "sheet-in 0.38s var(--ease-out)" }}>
+    <aside aria-label="Understand" className="fixed bottom-2.5 left-2.5 right-2.5 top-[calc(var(--topbar-h)+6px)] z-[45] max-sm:top-[14vh] flex flex-col overflow-hidden rounded-[18px] border border-rule bg-raised shadow-pop sm:left-auto sm:w-[440px]" style={{ animation: "sheet-in 0.38s var(--ease-out)" }}>
       <header className="shrink-0 px-5 pb-3 pt-4">
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">

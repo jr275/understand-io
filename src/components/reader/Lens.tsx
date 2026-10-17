@@ -86,31 +86,35 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
     <div ref={ref} role="toolbar" aria-label="Actions for the selection" className="lens fixed z-50" data-tip-tone="paper" style={{ left: pos.left, top: pos.top, ["--origin" as string]: pos.below ? "top center" : "bottom center" }}>
       <div className="relative rounded-[14px] bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5">
         {mode === "bar" && (
-          <div className="no-scrollbar flex max-w-[calc(100vw-24px)] items-center gap-0.5 overflow-x-auto">
-            <button type="button" data-tip="Ask" data-tip-hint="Or just start typing" data-tip-side="top" className="lens-btn group gap-2 pl-3 pr-2.5 font-medium" onClick={() => setMode("ask")}>
+          <div className="no-scrollbar flex max-w-[calc(100vw-24px)] items-center gap-0.5 overflow-x-auto max-sm:flex-wrap max-sm:justify-center max-sm:overflow-visible">
+            {/* On a phone the bar is two rows (words, then marks); from sm up these wrappers disappear and it is one row. */}
+            <div className="contents max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:items-center max-sm:justify-center max-sm:gap-0.5">
+            <button type="button" data-tip="Ask" data-tip-hint="Or just start typing" data-tip-side="top" className="lens-btn group gap-2 pl-3 pr-2.5 font-medium max-sm:pl-2.5 max-sm:pr-2" onClick={() => setMode("ask")}>
               Ask<span className="lens-caret" aria-hidden="true" />
             </button>
             <span className="mx-[3px] h-4 w-px shrink-0 bg-lens-mute/30" aria-hidden="true" />
-            <button type="button" data-tip="Explain" data-tip-hint="What it means here, and why it is here" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={() => onAction("explain")}>
+            <button type="button" data-tip="Explain" data-tip-hint="What it means here, and why it is here" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3 max-sm:gap-1 max-sm:px-2" onClick={() => onAction("explain")}>
               <Lightbulb size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
               Explain
             </button>
-            <button type="button" data-tip="Simplify" data-tip-hint="The same idea in plain words" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={() => onAction("simplify")}>
+            <button type="button" data-tip="Simplify" data-tip-hint="The same idea in plain words" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3 max-sm:gap-1 max-sm:px-2" onClick={() => onAction("simplify")}>
               <Feather size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
               Simplify
             </button>
             {onTranslate ? (
-              <button type="button" data-tip="Translate" data-tip-hint="Keeps the original beside it" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={onTranslate}>
+              <button type="button" data-tip="Translate" data-tip-hint="Keeps the original beside it" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3 max-sm:gap-1 max-sm:px-2" onClick={onTranslate}>
                 <Languages size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
                 Translate
               </button>
             ) : null}
             {onSummarize ? (
-              <button type="button" data-tip="Summarize" data-tip-hint="Only this passage" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3" onClick={onSummarize}>
+              <button type="button" data-tip="Summarize" data-tip-hint="Only this passage" data-tip-side="top" className="lens-btn group gap-1.5 pl-2.5 pr-3 max-sm:gap-1 max-sm:px-2" onClick={onSummarize}>
                 <AlignLeft size={15} strokeWidth={1.9} aria-hidden="true" className="text-lens-mute transition-colors group-hover:text-lens-fg" />
                 Summarize
               </button>
             ) : null}
+            </div>
+            <div className="contents max-sm:flex max-sm:w-full max-sm:flex-wrap max-sm:items-center max-sm:justify-center max-sm:gap-0.5">
             <div className="relative">
               <button type="button" aria-label="More actions" aria-expanded={menu} data-tip="More" data-tip-hint="Define, fact-check, counterpoint, copy" data-tip-side="top" className="lens-btn w-8 justify-center" onClick={() => setMenu((m) => !m)}>
                 <Ellipsis size={16} aria-hidden="true" />
@@ -159,7 +163,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
                   <span aria-hidden="true" className="absolute -bottom-[3px] -right-[3px] size-[7px] rounded-full ring-2 ring-[var(--lens-bg)]" style={{ background: COLORS.find((c) => c.id === marker)?.c }} />
                 </span>
               </button>
-              <div className="h-8 w-0 overflow-hidden transition-[width] duration-300 ease-[var(--ease-out)] group-focus-within/hl:w-[94px] group-hover/hl:w-[94px]">
+              <div className="h-8 w-0 overflow-hidden transition-[width] duration-300 ease-[var(--ease-out)] group-focus-within/hl:w-[94px] group-hover/hl:w-[94px] max-sm:w-[94px]">
                 <div className="flex h-full w-[94px] items-center gap-2 px-2">
                   {COLORS.map((c) => (
                     <button key={c.id} type="button" aria-label={`Highlight in ${c.label.toLowerCase()}`} data-tip={c.label} data-tip-side="top" className={`lens-dot ${c.id === marker ? "is-on" : ""}`} style={{ background: c.c }} onClick={() => onHighlight(c.id)} />
@@ -184,6 +188,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
             <button type="button" aria-label="Add a note" data-tip="Add a note" data-tip-hint="In your own words" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => setMode("note")}>
               <PenLine size={15} aria-hidden="true" />
             </button>
+            </div>
           </div>
         )}
         {mode !== "bar" && (

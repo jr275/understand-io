@@ -950,17 +950,17 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           <IconButton aria-pressed={findOpen} active={findOpen} aria-label="Find in this text" data-tip="Find in this text" data-tip-kbd="S" onClick={() => (findOpen ? closeFind() : openFind())}>
             <Search size={16} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
-          <IconButton className="!px-3" aria-pressed={insightsOpen} active={insightsOpen} data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
+          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={insightsOpen} active={insightsOpen} data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
             <BookOpenCheck size={16} strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">Understand</span>
             <span className="sr-only sm:hidden">Understand</span>
-            {insights.length ? <span className="min-w-[18px] rounded-full bg-sunk px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-ink-2">{insights.length}</span> : null}
+            {insights.length ? <span className="min-w-[18px] rounded-full bg-sunk px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-ink-2 max-sm:absolute max-sm:-right-0.5 max-sm:-top-0.5 max-sm:min-w-[16px] max-sm:px-1 max-sm:text-[10px] max-sm:leading-[16px]">{insights.length}</span> : null}
           </IconButton>
-          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
+          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={nbOpen} active={nbOpen} data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
             <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">Notebook</span>
             <span className="sr-only sm:hidden">Notebook</span>
-            {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white">{annotations.length + glosses.length}</span> : null}
+            {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white max-sm:absolute max-sm:-right-0.5 max-sm:-top-0.5 max-sm:min-w-[16px] max-sm:px-1 max-sm:text-[10px] max-sm:leading-[16px]">{annotations.length + glosses.length}</span> : null}
           </IconButton>
           </>
         }

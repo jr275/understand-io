@@ -331,6 +331,34 @@ test.describe("read aloud: behaviour found by the review (mock engine)", () => {
   });
 });
 
+test.describe("read aloud: keyboard focus when the bar closes", () => {
+  test.beforeEach(async ({ page }) => installFakeSpeech(page));
+
+  test("pressing Stop in the bar keeps keyboard focus in the page instead of dropping it to nowhere", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("l");
+    const region = page.getByRole("region", { name: "Reading aloud" });
+    await expect(region).toBeVisible();
+    const stop = region.getByRole("button", { name: "Stop reading aloud" });
+    await stop.focus();
+    await page.keyboard.press("Enter");
+    await expect(region).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).toBe("MAIN"); // the text; no Listen button is shown by default
+  });
+
+  test("with the Listen setting on, focus goes to the top-bar listen button", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("gloss:settings", JSON.stringify({ listen: true })));
+    await openReader(page);
+    await page.keyboard.press("l");
+    const region = page.getByRole("region", { name: "Reading aloud" });
+    await expect(region).toBeVisible();
+    await region.getByRole("button", { name: "Stop reading aloud" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(region).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Read aloud from here" })).toBeFocused();
+  });
+});
+
 test.describe("read aloud: long paragraph, motion and contrast preferences", () => {
   const longText = `# A long paragraph\n\n${Array.from({ length: 70 }, (_, i) => `Sentence number ${i + 1} goes on for a little while, with several plain words in it.`).join(" ")}`;
   const openLong = async (page: import("@playwright/test").Page) => {

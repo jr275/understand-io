@@ -454,6 +454,18 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     for (const el of root.querySelectorAll<HTMLElement>(".blk[data-block]")) if (el.getBoundingClientRect().bottom > 120) return el.dataset.block;
     return undefined;
   }, [cursor]);
+  /** Stopping from inside the bar removes the bar, so keyboard focus would fall to the page: put it on the top-bar listen button (when the Listen setting shows one) or on the text. */
+  const stopFromBar = useCallback(() => {
+    const inBar = !!(document.activeElement as HTMLElement | null)?.closest('[aria-label="Reading aloud"]');
+    speech.stop();
+    if (!inBar) return;
+    requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>("[data-listen-toggle]") ?? rootRef.current;
+      if (!target) return;
+      if (!target.hasAttribute("tabindex") && target === rootRef.current) target.setAttribute("tabindex", "-1"); // the text itself, so Tab continues from there
+      target.focus({ preventScroll: true });
+    });
+  }, [speech]);
   const readAloudUnavailable = useCallback(() => toast("Read aloud is not available in this browser. Chrome, Edge and Safari have it.", { ttl: 6000 }), []);
   const startReading = useCallback(() => {
     if (!speech.supported) return readAloudUnavailable();
@@ -702,6 +714,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 active={listening}
                 data-tip={listening ? "Stop reading aloud" : "Read aloud from here"}
                 data-tip-kbd="L"
+                data-listen-toggle=""
                 onClick={() => (listening ? speech.stop() : startReading())}
               >
                 <Headphones size={16} strokeWidth={1.8} aria-hidden="true" />
@@ -710,7 +723,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           </>
         }
       />
-      <main ref={rootRef} className="relative z-[1] px-4 pb-10 pt-[calc(var(--topbar-h)+64px)] sm:px-6">
+      <main ref={rootRef} className="relative z-[1] outline-none px-4 pb-10 pt-[calc(var(--topbar-h)+64px)] sm:px-6">
         <div className="reader-grid">
           <div className="rg-rail relative">
             <div className="sticky top-[calc(var(--topbar-h)+28px)] h-[calc(100dvh-var(--topbar-h)-64px)]">
@@ -916,7 +929,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         onCite={onCite}
         persisted={lib.persisted}
       />
-      <ListenBar snap={snap} voices={speech.getVoices()} onToggle={() => speech.toggle()} onStop={() => speech.stop()} onRestart={() => speech.restart()} onSkip={(d) => {
+      <ListenBar snap={snap} voices={speech.getVoices()} onToggle={() => speech.toggle()} onStop={stopFromBar} onRestart={() => speech.restart()} onSkip={(d) => {
         followSpeech.current = true;
         speech.skip(d);
       }} onRate={(r) => setSettings({ rate: r })} onVoice={(v) => setSettings({ voice: v })} docLang={docLang} />

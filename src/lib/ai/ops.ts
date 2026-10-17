@@ -249,7 +249,7 @@ async function translate(input: AiOpInput, generate: Generate, usage: { input: n
       system: [
         `You are a careful translator. Translate only the SELECTED TEXT into ${languageName(input.targetLang)}. Reply with ONE JSON object and nothing else.`,
         'Shape: {"sourceLang":"ISO 639-1 code of the original","natural":"a fluent, natural translation","literal":"a word-for-word rendering, only when it differs materially from the natural one (idioms, fixed expressions)","notes":["short notes on idioms, technical terms, ambiguities or untranslatable words"]}.',
-        "Keep names, numbers and formatting. Add nothing that is not in the selection. If the selection is already in the target language, translate nothing: set natural to the selection and say so in notes.",
+        "Keep names, numbers and formatting, and keep the paragraph breaks (blank lines) of the selection. Add nothing that is not in the selection. If the selection is already in the target language, translate nothing: set natural to the selection and say so in notes.",
       ].join(" "),
       prompt: `${head(input)}\n\nSELECTED TEXT:\n${sel}${context}`,
       maxOutputTokens: Math.min(2400, 300 + Math.ceil(sel.length / 2)),

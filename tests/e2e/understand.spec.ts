@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { openReader, selectInBlock } from "./helpers";
 
@@ -131,6 +132,30 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     expect(await page.locator('.blk[data-block="p2"]').innerText()).toBe(before); // the document is never replaced by the translation
   });
 
+  test("whole-text translation goes part by part: from the paragraph on screen, then the next part, never past what was translated", async ({ page }) => {
+    const requests = await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await panel.getByRole("button", { name: "Translate from the paragraph on screen" }).click();
+    const first = panel.locator("[data-insight]").first();
+    await expect(first.getByRole("heading", { name: "Translation to Portuguese" })).toBeVisible();
+    expect(requests[0].op).toBe("translate");
+    expect(requests[0].blocks).toEqual([]);
+    expect(requests[0].selection!.length).toBeLessThanOrEqual(6000);
+    expect(requests[0].selection).toContain("\n\n"); // paragraph breaks are kept in what is sent
+    const m = /Paragraphs (\d+) to (\d+)/.exec((await first.innerText()) ?? "")!;
+    expect(m).not.toBeNull();
+    const to = Number(m[2]);
+    expect(to).toBeGreaterThan(1);
+    // The next part starts right after the one before.
+    const nextText = await page.locator(`.blk[data-n="${to + 1}"] .blk-text`).innerText();
+    await first.getByRole("button", { name: "Translate the next part" }).click();
+    await expect.poll(() => requests.length).toBe(2);
+    expect(requests[1].selection!.startsWith(nextText.slice(0, 40))).toBe(true);
+    await expect(panel.locator("[data-insight]")).toHaveCount(2);
+  });
+
   test("Summarize in the selection toolbar summarizes only the passage and says so", async ({ page }) => {
     const requests = await mockAi(page, async (sent, route) => {
       const real = sent.blocks[0];
@@ -198,6 +223,46 @@ test.describe("Understand panel without a key (the real server)", () => {
     const card = panel.locator("[data-insight]").first();
     await expect(card.getByRole("alert")).toContainText(/key/i);
     await expect(page.locator(".prose-read .blk").first()).toBeVisible();
+  });
+});
+
+test.describe("Understand panel accessibility", () => {
+  for (const theme of ["paper", "night"] as const) {
+    test(`no axe violations with results, a translation and an error on screen (${theme})`, async ({ page }) => {
+      await page.addInitScript((t) => localStorage.setItem("gloss:settings", JSON.stringify({ theme: t })), theme);
+      let calls = 0;
+      await mockAi(page, async (_s, route) => {
+        calls++;
+        if (calls === 3) {
+          await route.fulfill({ status: 502, json: { error: "provider", message: "The AI service could not answer right now. Try again." } });
+          return true;
+        }
+        return false;
+      });
+      await openReader(page);
+      await selectInBlock(page, "p2", 0, 40);
+      await page.getByRole("toolbar", { name: "Actions for the selection" }).getByRole("button", { name: "Translate" }).click();
+      const panel = page.getByRole("complementary", { name: "Understand" });
+      await expect(panel.locator("[data-insight]")).toHaveCount(1);
+      await panel.getByRole("button", { name: "Executive summary" }).click();
+      await expect(panel.locator("[data-insight]")).toHaveCount(2);
+      await panel.getByRole("button", { name: "Test me" }).click();
+      await expect(panel.locator("[data-insight]").first().getByRole("alert")).toBeVisible();
+      const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze();
+      expect(r.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`)).toEqual([]);
+    });
+  }
+  test("on a phone the panel fits the screen without horizontal scrolling", async ({ page }) => {
+    await mockAi(page);
+    await page.setViewportSize({ width: 375, height: 812 });
+    await openReader(page);
+    await page.getByRole("button", { name: "Understand" }).click();
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    const overflow = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, panel: (() => { const p = document.querySelector('aside[aria-label="Understand"]') as HTMLElement; return p.scrollWidth - p.clientWidth; })() }));
+    expect(overflow.doc).toBeLessThanOrEqual(0);
+    expect(overflow.panel).toBeLessThanOrEqual(0);
   });
 });
 

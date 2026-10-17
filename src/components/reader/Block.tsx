@@ -19,7 +19,7 @@ interface Props {
   hasNote: boolean;
 }
 
-const MARK_CLASS: Record<string, string> = { hl: "m-hl", ul: "m-ul", note: "m-note", gloss: "m-gloss", pending: "m-pending", speak: "m-speak", hit: "hit-mark" };
+const MARK_CLASS: Record<string, string> = { hl: "m-hl", ul: "m-ul", note: "m-note", gloss: "m-gloss", pending: "m-pending", speak: "m-speak", hit: "hit-mark", find: "find-mark", "find-cur": "find-mark is-current" };
 
 function styleRun(r: Run, children: ReactNode, key: number) {
   let node: ReactNode = children;
@@ -60,7 +60,7 @@ export const Block = memo(function Block({ block, first, cursor, speaking, flash
         const inner = runsBetween(runs, seg.start, seg.end);
         if (!seg.marks.length) return <span key={i}>{inner}</span>;
         // Nest marks: outermost gloss/note, then highlight, then transient marks.
-        const order = ["gloss", "note", "ul", "hl", "hit", "speak", "pending"];
+        const order = ["gloss", "note", "ul", "hl", "hit", "find", "find-cur", "speak", "pending"];
         const marks = [...seg.marks].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
         // The key sits on a Fragment per segment: a mark that spans several segments (e.g. a highlight with a selection inside it) would otherwise give its sibling segments the same key.
         const nested = marks.reduceRight<ReactNode>(

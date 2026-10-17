@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight, ArrowUpRight, BookOpenCheck, Headphones, Keyboard, NotebookPen } from "lucide-react";
+import { ArrowRight, ArrowUp, ArrowUpRight, BookOpenCheck, Headphones, Keyboard, NotebookPen, Search } from "lucide-react";
 import type { Anchor, Annotation, Evidence, Gloss, GlossAction, GlossDocument, HighlightColor, SummaryVariant } from "@/lib/content/types";
 import { isInsight } from "@/lib/ai/results";
 import { decideAnnotate, marksOnRange } from "@/lib/anchors/annotate";
 import { anchorBlockIds, anchorFromSelection, blockIndex, clampNote, makeAnchor, rangeForAnchor, resolveAll, resolveCached, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
+import { findAll, sections as outlineOf, type Section } from "@/lib/search/find";
 import { SpeechController } from "@/lib/speech/controller";
 import { newId } from "@/lib/content/slug";
 import { guessLang } from "@/lib/content/lang";
@@ -28,6 +29,7 @@ import { Composer } from "./Composer";
 import { Rail } from "./Rail";
 import { Notebook } from "./Notebook";
 import { InsightsPanel } from "./InsightsPanel";
+import { FindBar } from "./FindBar";
 import { ListenBar } from "./ListenBar";
 import { VoiceSearch } from "./VoiceSearch";
 import { QuickAdd } from "./QuickAdd";
@@ -60,6 +62,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const [hit, setHit] = useState<Anchor | null>(null);
   const [nbOpen, setNbOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState("");
+  const [findCur, setFindCur] = useState(0);
   const [keysOpen, setKeysOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -243,10 +248,13 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     setFlash(id);
     window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1900);
   }, []);
+  // Jumps made on purpose (a citation, a search hit, a section) remember where the reader was, so they can go back.
+  const [backTo, setBackTo] = useState<{ y: number } | null>(null);
   const scrollToBlock = useCallback(
-    (id: string) => {
+    (id: string, remember = false) => {
       const el = blockEl(id);
       if (!el) return;
+      if (remember) setBackTo((prev) => prev ?? { y: window.scrollY });
       window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140, behavior: "smooth" });
       flashBlock(id);
       setCursor(id);
@@ -257,14 +265,14 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     (a: Anchor) => {
       const resolved = resolveCached(blocks, a, blockIdx).anchor;
       if (!resolved) return void toast("Couldn't find that passage in the text any more.", { ttl: 3500 });
-      scrollToBlock(resolved.start.b);
+      scrollToBlock(resolved.start.b, true);
     },
     [blocks, blockIdx, scrollToBlock],
   );
   const onCite = useCallback(
     (n: number) => {
       const b = blocks.find((x) => x.n === n);
-      if (b) scrollToBlock(b.id);
+      if (b) scrollToBlock(b.id, true);
     },
     [blocks, scrollToBlock],
   );
@@ -438,6 +446,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   /* ---------- structured results: summaries, concepts, questions, translation ---------- */
   const targetLang = settings.targetLang || (docLang === "pt" ? "en" : "pt");
   const insightJobs = useRef<Map<string, AiOpRequest>>(new Map());
+  const insightRanges = useRef<Map<string, { from: number; to: number }>>(new Map());
   const runInsight = useCallback(
     async (g: Gloss) => {
       const req = insightJobs.current.get(g.id);
@@ -454,7 +463,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         if (out.needsKey) toast("This needs a Together AI key. Add yours with the key button in the top bar.", { ttl: 7000 });
         return;
       }
-      const done: Gloss = { ...g, status: "done", error: undefined, result: out.result, model: out.model, usage: out.usage ?? null };
+      const range = insightRanges.current.get(g.id);
+      const result = out.result.kind === "translation" && range ? { ...out.result, range } : out.result;
+      const done: Gloss = { ...g, status: "done", error: undefined, result, model: out.model, usage: out.usage ?? null };
       upsertGloss(done);
       persistGloss(done);
     },
@@ -467,6 +478,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       upsertGloss(g);
       setInsightsOpen(true);
       setNbOpen(false);
+      setFindOpen(false);
       void runInsight(g);
     },
     [documentId, runInsight],
@@ -488,6 +500,42 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       else startInsight("summarize", { op: "summarize", variant: "passage", title: doc.title, author: doc.author, blocks: blocksAround(blocks, ids, 0), totalParagraphs, selection: anchor.quote, outputLang: settings.outLang || undefined }, anchor);
     },
     [blocks, doc.title, doc.author, startInsight, targetLang, settings.outLang],
+  );
+  /** Translate a part of the text (about a page), starting at the paragraph on screen or just after a part already translated. */
+  const translatePart = useCallback(
+    (afterParagraph?: number) => {
+      let start = -1;
+      if (afterParagraph !== undefined) {
+        const i = blocks.findIndex((b) => b.n === afterParagraph);
+        start = i < 0 ? -1 : i + 1;
+      } else {
+        const first = [...document.querySelectorAll<HTMLElement>(".blk")].find((el) => el.getBoundingClientRect().bottom > 120);
+        start = first ? blocks.findIndex((b) => b.id === first.dataset.block) : 0;
+      }
+      if (start < 0 || start >= blocks.length) return void toast("There is nothing more to translate.", { ttl: 3000 });
+      const parts: string[] = [];
+      const nums: number[] = [];
+      let chars = 0;
+      for (let i = start; i < blocks.length; i++) {
+        const b = blocks[i];
+        if (b.type === "figure" || !b.text.trim()) continue;
+        if (parts.length && chars + b.text.length > 5500) break;
+        parts.push(b.text.slice(0, 5500));
+        chars += b.text.length;
+        if (b.n) nums.push(b.n);
+      }
+      if (!parts.length) return void toast("There is nothing more to translate.", { ttl: 3000 });
+      const req: AiOpRequest = { op: "translate", title: doc.title, author: doc.author, blocks: [], totalParagraphs: blocks.filter((b) => b.n).length, selection: parts.join("\n\n"), targetLang };
+      const g: Gloss = { id: newId(), documentId, action: "translate", anchor: null, turns: [], createdAt: Date.now(), status: "streaming" };
+      insightJobs.current.set(g.id, req);
+      if (nums.length) insightRanges.current.set(g.id, { from: Math.min(...nums), to: Math.max(...nums) });
+      upsertGloss(g);
+      setInsightsOpen(true);
+      setNbOpen(false);
+      setFindOpen(false);
+      void runInsight(g);
+    },
+    [blocks, doc.title, doc.author, documentId, targetLang, runInsight],
   );
   const cancelInsight = useCallback(
     (id: string) => {
@@ -532,15 +580,43 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     },
     [blocks, blockIdx, jumpToAnchor, sheet],
   );
-  // One side panel at a time.
+  // One side panel at a time, and the find bar shares their corner, so it gives way to them.
   const toggleNotebook = useCallback(() => {
-    if (!nbOpen) setInsightsOpen(false);
+    if (!nbOpen) {
+      setInsightsOpen(false);
+      setFindOpen(false);
+    }
     setNbOpen(!nbOpen);
   }, [nbOpen]);
   const toggleInsights = useCallback(() => {
-    if (!insightsOpen) setNbOpen(false);
+    if (!insightsOpen) {
+      setNbOpen(false);
+      setFindOpen(false);
+    }
     setInsightsOpen(!insightsOpen);
   }, [insightsOpen]);
+
+  /* ---------- find in the text (literal) ---------- */
+  const found = useMemo(() => (findOpen ? findAll(blocks, findQuery) : { matches: [], truncated: false }), [findOpen, blocks, findQuery]);
+  const sectionList = useMemo(() => outlineOf(blocks), [blocks]);
+  const openFind = useCallback(() => {
+    setNbOpen(false);
+    setInsightsOpen(false);
+    setFindOpen(true);
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[role=search] input')?.focus());
+  }, []);
+  const closeFind = useCallback(() => {
+    setFindOpen(false);
+    setFindQuery("");
+    setFindCur(0);
+  }, []);
+  const stepFind = useCallback((d: number) => setFindCur((c) => (found.matches.length ? (c + d + found.matches.length) % found.matches.length : 0)), [found.matches.length]);
+  const curMatch = found.matches[Math.min(findCur, Math.max(0, found.matches.length - 1))];
+  useEffect(() => {
+    if (!findOpen || !curMatch) return;
+    const id = requestAnimationFrame(() => document.querySelector(".find-mark.is-current")?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    return () => cancelAnimationFrame(id);
+  }, [findOpen, curMatch]);
 
   const deleteGloss = useCallback(
     (id: string) => {
@@ -618,6 +694,12 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     setVoiceOpen(true);
   }, [speech]);
 
+  useEffect(() => {
+    if (!backTo) return;
+    const t = window.setTimeout(() => setBackTo(null), 30_000);
+    return () => window.clearTimeout(t);
+  }, [backTo]);
+
   /* ---------- keyboard ---------- */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -625,6 +707,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       const typing = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
       if (e.key === "Escape") {
         if (pending) return clearSelection();
+        if (findOpen) return closeFind();
         if (voiceOpen) return setVoiceOpen(false);
         if (keysOpen) return setKeysOpen(false);
         if (activeId) return setActiveId(null);
@@ -699,6 +782,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         case "F":
           setSettings({ focus: !settings.focus });
           break;
+        case "s":
+        case "S":
+          e.preventDefault();
+          openFind();
+          break;
         case "l":
         case "L":
           if (snap.state === "playing" || snap.state === "paused") speech.stop();
@@ -722,7 +810,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, insightsOpen, toggleNotebook, toggleInsights, settings.focus, settings.keys, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
+  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, insightsOpen, findOpen, closeFind, openFind, toggleNotebook, toggleInsights, settings.focus, settings.keys, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
 
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
@@ -737,12 +825,21 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     }
     if (pending) list.push({ id: "pending", kind: "pending", anchor: pending.anchor });
     if (hit) list.push({ id: "hit", kind: "hit", anchor: hit });
+    // Matches of the literal search: the first 500 are marked (the count shows all), and the current one always is.
+    const markFind = (i: number, current: boolean) => {
+      const m = found.matches[i];
+      const b = blocks[blockIdx.get(m.blockId) ?? -1];
+      if (b) list.push({ id: `find-${i}`, kind: current ? "find-cur" : "find", anchor: { start: { b: m.blockId, o: m.start }, end: { b: m.blockId, o: m.end }, quote: b.text.slice(m.start, m.end) } });
+    };
+    const cur = Math.min(findCur, found.matches.length - 1);
+    for (let i = 0; i < Math.min(found.matches.length, 500); i++) markFind(i, i === cur);
+    if (cur >= 500) markFind(cur, true);
     if (snap.segment && (snap.state === "playing" || snap.state === "paused")) {
       const s = snap.segment;
       list.push({ id: "speak", kind: "speak", anchor: { start: { b: s.blockId, o: s.start }, end: { b: s.blockId, o: s.end }, quote: s.text } });
     }
     return list;
-  }, [resolvedAnn, resolvedGl, activeId, hoverId, pending, hit, snap.segment, snap.state]);
+  }, [resolvedAnn, resolvedGl, activeId, hoverId, pending, hit, snap.segment, snap.state, found, findCur, blocks, blockIdx]);
   const segmentsByBlock = useMemo(() => {
     const m = new Map<string, ReturnType<typeof segmentBlock>>();
     for (const b of blocks) {
@@ -801,7 +898,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     (h: Hit) => {
       const a: Anchor = { start: { b: h.blockId, o: h.start }, end: { b: h.blockId, o: h.end }, quote: h.excerpt };
       setHit(a);
-      scrollToBlock(h.blockId);
+      scrollToBlock(h.blockId, true);
       window.setTimeout(() => setHit((x) => (x === a ? null : x)), 6000);
     },
     [scrollToBlock],
@@ -827,14 +924,19 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         progress={ratio}
         after={
           <>
-          <IconButton className="!px-3" aria-pressed={insightsOpen} active={insightsOpen} aria-label="Understand" data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
+          <IconButton aria-pressed={findOpen} active={findOpen} aria-label="Find in this text" data-tip="Find in this text" data-tip-kbd="S" onClick={() => (findOpen ? closeFind() : openFind())}>
+            <Search size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+          <IconButton className="!px-3" aria-pressed={insightsOpen} active={insightsOpen} data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
             <BookOpenCheck size={16} strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">Understand</span>
+            <span className="sr-only sm:hidden">Understand</span>
             {insights.length ? <span className="min-w-[18px] rounded-full bg-sunk px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-ink-2">{insights.length}</span> : null}
           </IconButton>
-          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} aria-label="Notebook" data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
+          <IconButton className="!px-3" aria-pressed={nbOpen} active={nbOpen} data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
             <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
             <span className="hidden sm:inline">Notebook</span>
+            <span className="sr-only sm:hidden">Notebook</span>
             {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white">{annotations.length + glosses.length}</span> : null}
           </IconButton>
           </>
@@ -1064,6 +1166,40 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         </aside>
       ) : null}
 
+      {backTo ? (
+        <button
+          type="button"
+          className="fixed bottom-[88px] left-4 z-[43] flex h-9 items-center gap-2 rounded-full border border-rule bg-raised px-3.5 text-[13px] font-medium text-ink-2 shadow-pop hover:text-ink"
+          style={{ animation: "sheet-in 0.25s var(--ease-out)" }}
+          onClick={() => {
+            window.scrollTo({ top: backTo.y, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+            setBackTo(null);
+          }}
+        >
+          <ArrowUp size={14} aria-hidden="true" /> Back to where you were
+        </button>
+      ) : null}
+      {findOpen ? (
+        <FindBar
+          query={findQuery}
+          onQuery={(q) => {
+            setFindQuery(q);
+            setFindCur(0);
+          }}
+          total={found.matches.length}
+          current={Math.min(findCur, Math.max(0, found.matches.length - 1))}
+          truncated={found.truncated}
+          onNext={() => stepFind(1)}
+          onPrev={() => stepFind(-1)}
+          onClose={closeFind}
+          sections={sectionList}
+          onSection={(s: Section) => scrollToBlock(s.blockId, true)}
+          onAskMeaning={() => {
+            closeFind();
+            openVoice();
+          }}
+        />
+      ) : null}
       <InsightsPanel
         open={insightsOpen}
         onClose={() => setInsightsOpen(false)}
@@ -1075,6 +1211,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         targetLang={targetLang}
         onTargetLang={(c) => setSettings({ targetLang: c })}
         onRun={(op, v) => runDocumentOp(op, v)}
+        onTranslatePart={translatePart}
         onContinue={continueSummary}
         onJumpEvidence={jumpToEvidence}
         onDelete={cancelInsight}

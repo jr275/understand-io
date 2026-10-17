@@ -819,6 +819,24 @@ mark.key .cite {
   width: 3px;
   transition: height 0.12s var(--ease-out);
 }
+.find-mark {
+  background: color-mix(in oklab, var(--rubric) 14%, transparent);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--rubric) 35%, transparent);
+}
+.find-mark.is-current {
+  background: color-mix(in oklab, var(--rubric) 38%, transparent);
+  box-shadow: 0 0 0 2px var(--rubric);
+}
+@media (forced-colors: active) {
+  .find-mark {
+    outline: 1px solid Highlight;
+  }
+  .find-mark.is-current {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
 .hit-mark {
   background: color-mix(in oklab, var(--rubric) 22%, transparent);
   border-radius: 2px;

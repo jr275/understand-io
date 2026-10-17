@@ -14,6 +14,7 @@ const ROWS: { keys: string[] | null; text: string; what: string }[] = [
   { keys: ["N"], text: "", what: "Notebook" },
   { keys: ["I"], text: "", what: "Understand: summaries, concepts, questions, translation" },
   { keys: ["F"], text: "", what: "Focus mode" },
+  { keys: ["S"], text: "", what: "Find words in this text" },
   { keys: ["L"], text: "", what: "Listen: read aloud from here" },
   { keys: ["Space"], text: "", what: "Pause or resume reading aloud" },
   { keys: ["V"], text: "", what: "Ask by voice where something is" },

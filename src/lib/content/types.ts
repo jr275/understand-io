@@ -144,7 +144,7 @@ export type AiResult =
   | { kind: "summary"; variant: SummaryVariant; items: AiItem[]; caveats: string[]; coverage: Coverage }
   | { kind: "concepts"; items: AiItem[]; caveats: string[]; coverage: Coverage }
   | { kind: "questions"; items: AiItem[]; caveats: string[]; coverage: Coverage }
-  | { kind: "translation"; sourceLang: string; targetLang: string; original: string; natural: string; literal?: string; notes: string[]; contextUsed: boolean };
+  | { kind: "translation"; sourceLang: string; targetLang: string; original: string; natural: string; literal?: string; notes: string[]; contextUsed: boolean; /** Paragraph numbers of a translated part of the text (whole-text translation goes part by part). */ range?: { from: number; to: number } };
 
 /** What is kept next to a gloss: a structured AI result, or for streamed answers the paragraphs the model was given (so ¶ citations can be checked later). */
 export type GlossResult = AiResult | { kind: "stream"; context: string[]; coverage: Coverage };

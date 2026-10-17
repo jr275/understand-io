@@ -20,6 +20,8 @@ export interface InsightsProps {
   targetLang: string;
   onTargetLang: (code: string) => void;
   onRun: (op: "summarize" | "concepts" | "questions", variant?: SummaryVariant) => void;
+  /** Translate a part of the text that starts at the paragraph on screen, or after the part a translation already covers. */
+  onTranslatePart: (afterParagraph?: number) => void;
   /** Summarize the part of the text after what this result read. */
   onContinue: (g: Gloss) => void;
   onJumpEvidence: (e: Evidence) => void;
@@ -73,6 +75,13 @@ export function InsightsPanel(p: InsightsProps) {
               Test me
             </button>
           </div>
+          <p className="mt-3 px-1 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">Translate</p>
+          <div className="mt-2">
+            <button type="button" disabled={working} data-tip="Part by part, so you can stop anywhere" className="flex w-full items-center gap-2 rounded-[10px] bg-sunk px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-pill disabled:pointer-events-none disabled:opacity-50" onClick={() => p.onTranslatePart()}>
+              <Languages size={14} aria-hidden="true" className="shrink-0 text-ink-3" />
+              Translate from the paragraph on screen
+            </button>
+          </div>
           <div className="mt-3 grid grid-cols-2 gap-2 px-1 text-[12.5px] text-ink-3">
             <label className="flex flex-col gap-1">
               Answer in
@@ -115,7 +124,7 @@ export function InsightsPanel(p: InsightsProps) {
           <ol className="mt-3 space-y-2.5" aria-label="Results">
             {p.insights.map((g) => (
               <li key={g.id}>
-                <InsightCard g={g} doc={p.doc} onJump={p.onJumpEvidence} onDelete={() => p.onDelete(g.id)} onRetry={() => p.onRetry(g.id)} onCancel={() => p.onCancel(g.id)} onContinue={() => p.onContinue(g)} />
+                <InsightCard g={g} doc={p.doc} onJump={p.onJumpEvidence} onDelete={() => p.onDelete(g.id)} onRetry={() => p.onRetry(g.id)} onCancel={() => p.onCancel(g.id)} onContinue={() => p.onContinue(g)} onTranslateNext={(n) => p.onTranslatePart(n)} />
               </li>
             ))}
           </ol>
@@ -139,7 +148,7 @@ function Chip({ e, onJump }: { e: Evidence; onJump: (e: Evidence) => void }) {
   );
 }
 
-function InsightCard({ g, doc, onJump, onDelete, onRetry, onCancel, onContinue }: { g: Gloss; doc: GlossDocument; onJump: (e: Evidence) => void; onDelete: () => void; onRetry: () => void; onCancel: () => void; onContinue: () => void }) {
+function InsightCard({ g, doc, onJump, onDelete, onRetry, onCancel, onContinue, onTranslateNext }: { g: Gloss; doc: GlossDocument; onJump: (e: Evidence) => void; onDelete: () => void; onRetry: () => void; onCancel: () => void; onContinue: () => void; onTranslateNext: (after: number) => void }) {
   const r = g.result && g.result.kind !== "stream" ? g.result : null;
   const title = r ? insightTitle(r) : g.action === "translate" ? "Translation" : g.action === "summarize" ? "Summary" : g.action === "concepts" ? "Key concepts" : "Questions";
   const [shown, setShown] = useState<Record<number, boolean>>({});
@@ -183,13 +192,13 @@ function InsightCard({ g, doc, onJump, onDelete, onRetry, onCancel, onContinue }
           <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-4">Original{r.sourceLang ? ` (${LANGUAGES[r.sourceLang.slice(0, 2)] ?? r.sourceLang})` : ""}</p>
-              <p lang={r.sourceLang || undefined} className="mt-1 border-l-2 border-rule-strong pl-3 font-serif text-[14.5px] leading-[1.5] text-ink-2">
+              <p lang={r.sourceLang || undefined} className="mt-1 whitespace-pre-line border-l-2 border-rule-strong pl-3 font-serif text-[14.5px] leading-[1.5] text-ink-2">
                 {r.original}
               </p>
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-4">Translation ({LANGUAGES[r.targetLang] ?? r.targetLang})</p>
-              <p lang={r.targetLang} className="mt-1 border-l-2 border-[var(--rubric-line)] pl-3 font-serif text-[14.5px] leading-[1.5] text-ink">
+              <p lang={r.targetLang} className="mt-1 whitespace-pre-line border-l-2 border-[var(--rubric-line)] pl-3 font-serif text-[14.5px] leading-[1.5] text-ink">
                 {r.natural}
               </p>
             </div>
@@ -207,11 +216,19 @@ function InsightCard({ g, doc, onJump, onDelete, onRetry, onCancel, onContinue }
               ))}
             </ul>
           ) : null}
-          <div className="mt-3 flex items-center gap-3 text-[12px] text-ink-3">
+          <div className="mt-3 text-[12px] leading-snug text-ink-3">
             <button type="button" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink" onClick={() => void navigator.clipboard?.writeText(r.natural)}>
               Copy translation
             </button>
-            <span>{r.contextUsed ? "The surrounding paragraph was used to settle meaning." : "Translated without surrounding context."} The text in the reader is unchanged.</span>
+            {r.range ? (
+              <p className="mt-1">
+                Paragraphs {r.range.from} to {r.range.to}.{" "}
+                <button type="button" className="font-medium text-ink-2 underline underline-offset-2 hover:text-ink" onClick={() => onTranslateNext(r.range!.to)}>
+                  Translate the next part
+                </button>
+              </p>
+            ) : null}
+            <p className="mt-1">{r.contextUsed ? "The surrounding paragraph was used to settle meaning." : "Translated without surrounding context."} The text in the reader is unchanged.</p>
           </div>
         </div>
       ) : null}

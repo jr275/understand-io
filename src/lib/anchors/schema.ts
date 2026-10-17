@@ -92,6 +92,7 @@ export const GlossResultZ = z.discriminatedUnion("kind", [
     literal: text(20_000).optional(),
     notes: z.array(text(600)).max(12),
     contextUsed: z.boolean(),
+    range: z.object({ from: z.number().int().min(0).max(1_000_000), to: z.number().int().min(0).max(1_000_000) }).optional(),
   }),
   z.object({ kind: z.literal("stream"), context: z.array(z.string().max(LIMITS.blockId)).max(400), coverage: CoverageZ }),
 ]);

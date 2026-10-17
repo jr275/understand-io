@@ -18,18 +18,26 @@ export function Spine({ spec, doc, inProgress = false, className = "" }: { spec:
           <span className="spine-bands bottom" />
         </>
       ) : null}
-      {spec.style === "foil" ? <span className="spine-orn">◆</span> : null}
-      {spec.style === "sans" ? <TopicGlyph topic={doc.topic} size={15} className="spine-emoji" /> : null}
+      {spec.style === "foil" ? <span className="spine-orn" data-glyph="◆" aria-hidden="true" /> : null}
+      {spec.style === "sans" ? <TopicGlyph topic={doc.topic} size={15} className="spine-emoji" pseudo /> : null}
       <span className={`spine-title-wrap ${spec.style === "label" ? "is-label" : ""}`}>
         <span className="spine-title" style={{ fontSize: spec.fontSize }}>
           {doc.title}
-          {!spec.wide && by ? <span className="spine-by">{by}</span> : null}
+          {!spec.wide && by ? (
+            <>
+              {" "}
+              <span className="spine-by">{by}</span>
+            </>
+          ) : null}
         </span>
       </span>
       {spec.wide && by ? (
-        <span className="spine-author" style={{ fontSize: 11 }}>
-          {by}
-        </span>
+        <>
+          {/* The space keeps the visible words contiguous for accessible-name matching (WCAG 2.5.3); flex ignores it for layout. */}{" "}
+          <span className="spine-author" style={{ fontSize: 11 }}>
+            {by}
+          </span>
+        </>
       ) : null}
     </div>
   );

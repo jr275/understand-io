@@ -64,6 +64,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
       <nav aria-label={reader ? "Reader tools" : "Main"} className="flex items-center gap-1 max-[380px]:gap-0">
         {!reader && (
           <Link
+            aria-label="Library"
             aria-current={pathname === "/library" ? "page" : undefined}
             className="mr-1 inline-flex h-9 items-center gap-2 rounded-full px-3 text-[14px] font-medium text-ink-2 transition-colors hover:bg-sunk hover:text-ink aria-[current=page]:bg-sunk aria-[current=page]:text-ink max-sm:w-9 max-sm:justify-center max-sm:px-0"
             href="/library"

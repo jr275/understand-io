@@ -700,6 +700,10 @@ button.plank-label:hover {
 .spine-bands.bottom {
   bottom: 30px;
 }
+.glyph[data-glyph]::before,
+.spine-orn[data-glyph]::before {
+  content: attr(data-glyph);
+}
 .spine-orn {
   color: #ecd391;
   opacity: 0.85;
@@ -738,7 +742,7 @@ button.plank-label:hover {
   font-family: var(--font-sans);
   letter-spacing: 0.01em;
   opacity: 0.76;
-  margin-inline-start: 0.8em;
+  margin-inline-start: 0.55em; /* the collapsible space before it supplies the rest */
   font-size: 0.78em;
   font-weight: 500;
 }
@@ -1079,7 +1083,7 @@ button.plank-label:hover {
   background: color-mix(in oklab, var(--c) 13%, transparent);
   min-width: 0;
   height: 28px;
-  color: color-mix(in oklab, var(--c) 78%, var(--ink));
+  color: color-mix(in oklab, var(--c) 55%, var(--ink));
   white-space: nowrap;
   cursor: pointer;
   border-radius: 999px;
@@ -1311,7 +1315,7 @@ button.plank-label:hover {
 }
 .ex-head {
   font-family: var(--font-sans);
-  color: #8a7f71;
+  color: #7a7064;
   margin-top: 12px;
   font-size: 11.5px;
 }
@@ -1334,7 +1338,7 @@ button.plank-label:hover {
 }
 .ex-meta {
   font-family: var(--font-sans);
-  color: #9a8f81;
+  color: #7b7062;
   font-size: 11px;
 }
 /* Starter cards and add panel */

@@ -82,7 +82,7 @@ export function TipLayer() {
           ? "translate(0, -50%)"
           : "translate(-50%, 0)";
   return (
-    <div className="tip-box" data-side={tip.side} role="tooltip" style={{ transform: `translate(${tip.x}px, ${tip.y}px)` }}>
+    <div className="tip-box" data-side={tip.side} aria-hidden="true" style={{ transform: `translate(${tip.x}px, ${tip.y}px)` }}>
       <div className={`tip ${tip.tone === "paper" ? "tip-paper" : ""}`} style={{ transform }}>
         <span className="tip-main">
           {tip.main}

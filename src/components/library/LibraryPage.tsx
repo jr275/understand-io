@@ -14,7 +14,7 @@ import { Spine } from "./Spine";
 import { TopicArt, TopicGlyph } from "./TopicGlyph";
 import { OpenBook } from "./OpenBook";
 import { AddPanel } from "./AddPanel";
-import { layoutShelf, spineFor, type Sort } from "./shelf";
+import { layoutShelf, shortAuthor, spineFor, type Sort } from "./shelf";
 
 type Meta = Omit<GlossDocument, "blocks">;
 
@@ -281,7 +281,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                               type="button"
                               data-book={b.doc.slug}
                               className="bk"
-                              aria-label={`${b.doc.title}, ${b.doc.author ?? b.doc.sourceLabel ?? ""}`}
+                              aria-label={`${b.doc.title} ${shortAuthor(b.doc)}`.trim()}
                               data-tip={b.doc.title}
                               data-tip-hint={`${b.doc.author ?? b.doc.sourceLabel ?? ""} · ${b.doc.minutes} min${p?.finished ? " · read" : p && p.ratio > 0.02 ? ` · ${Math.round(p.ratio * 100)}% read` : ""}`}
                               onClick={(e) => setOpen({ slug: b.doc.slug, rect: (e.currentTarget.querySelector(".spine") as HTMLElement).getBoundingClientRect() })}

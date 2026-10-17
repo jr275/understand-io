@@ -10,15 +10,17 @@ const GLYPHS: Record<string, string> = {
  * Topic glyph. The reference ships small painted icons per topic; this build draws a
  * typographic glyph on a tinted disc instead (documented deviation).
  */
-export function TopicGlyph({ topic, size = 18, className = "" }: { topic: string; size?: number; className?: string }) {
+export function TopicGlyph({ topic, size = 18, className = "", pseudo = false }: { topic: string; size?: number; className?: string; pseudo?: boolean }) {
   const t = topicInfo(topic);
+  const glyph = GLYPHS[t.id] ?? "·";
   return (
     <span
       className={`glyph inline-grid shrink-0 place-items-center rounded-full ${className}`}
       aria-hidden="true"
+      data-glyph={pseudo ? glyph : undefined}
       style={{ width: size, height: size, background: `color-mix(in oklab, ${t.color} 22%, #f4ecda)`, color: t.deep, fontSize: size * 0.58, lineHeight: 1, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${t.color} 35%, transparent)` }}
     >
-      {GLYPHS[t.id] ?? "·"}
+      {pseudo ? null : glyph}
     </span>
   );
 }

@@ -192,7 +192,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
     <div className="fixed inset-0 z-[70] grid place-items-start justify-center p-4 pt-[calc(var(--topbar-h)+20px)]">
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_55%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} onPointerDown={onClose} />
       <section role="dialog" aria-modal="true" aria-label="Ask by voice" className="pop relative w-full max-w-[560px] p-5" style={{ ["--origin" as string]: "top center" }}>
-        <header className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-serif text-[21px] leading-tight text-ink">Where does it talk about…</p>
             <p className="mt-1 text-[13px] text-ink-3">Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches.</p>
@@ -200,7 +200,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />
           </button>
-        </header>
+        </div>
 
         <div className="mt-4 flex items-center gap-2">
           <button

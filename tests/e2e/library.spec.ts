@@ -8,7 +8,11 @@ test.describe("library", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your library");
     await expect(page.locator("button.bk")).toHaveCount(3);
     await expect(page.getByText(/3 texts/)).toBeVisible();
-    await page.getByRole("button", { name: /On a Piece of Chalk, Thomas Henry Huxley/ }).click();
+    // The accessible name starts with exactly the words printed on the spine (title, then short author), so
+    // voice-control users can say what they see (WCAG 2.5.3 Label in Name).
+    const spine = page.getByRole("button", { name: "On a Piece of Chalk Huxley" });
+    await expect(spine).toHaveText(/On a Piece of Chalk\s+Huxley/);
+    await spine.click();
     const dialog = page.getByRole("dialog", { name: "On a Piece of Chalk" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("Start reading")).toBeVisible();

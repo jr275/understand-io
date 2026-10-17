@@ -772,6 +772,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       ) : null}
 
       {pending ? (
+        <aside aria-label="Selection tools">
         <Lens
           rect={pending.rect}
           marker={settings.marker}
@@ -794,6 +795,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           }}
           onClose={clearSelection}
         />
+        </aside>
       ) : null}
 
       <Notebook

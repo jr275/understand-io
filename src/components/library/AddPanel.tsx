@@ -72,7 +72,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
     <div className="fixed inset-0 z-[85]">
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_62%,transparent)] backdrop-blur-[6px]" style={{ animation: "fade .3s var(--ease-out)" }} onPointerDown={onClose} />
       <section role="dialog" aria-modal="true" aria-label="Add to the library" className="add-panel scroll-thin">
-        <header className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <div className="lib-sort !ml-0" role="tablist" aria-label="Add">
             <button type="button" role="tab" aria-selected={tab === "agent"} onClick={() => setTab("agent")}>
               Connect an agent
@@ -84,7 +84,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />
           </button>
-        </header>
+        </div>
         {tab === "agent" ? (
           <div className="mt-5">
             <div className="flex items-start gap-3.5">

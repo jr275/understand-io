@@ -67,10 +67,39 @@ export const AnnotationZ = z.object({
 
 export const AnnotationPatchZ = z.object({ color: ColorZ.optional(), note: text(LIMITS.note).optional(), kind: KindZ.optional(), updatedAt: TimestampZ.optional() });
 
+/* Structured AI results (lib/ai): bounded so a client cannot store arbitrary documents in the result column. */
+const EvidenceZ = z.object({ blockId: z.string().min(1).max(LIMITS.blockId), n: z.number().int().min(0).max(1_000_000).optional(), quote: text(1000), start: z.number().int().min(0).max(LIMITS.offset), end: z.number().int().min(0).max(LIMITS.offset) });
+const AiItemZ = z.object({
+  label: text(300).optional(),
+  text: text(6000),
+  basis: z.enum(["text", "interpretation", "external"]),
+  evidence: z.array(EvidenceZ).max(8),
+  unverified: z.boolean().optional(),
+  answer: text(6000).optional(),
+});
+const CoverageZ = z.object({ used: z.number().int().min(0).max(1_000_000), total: z.number().int().min(0).max(1_000_000), from: z.number().int().min(0).max(1_000_000), to: z.number().int().min(0).max(1_000_000), complete: z.boolean(), note: text(500).optional() });
+const itemsResult = { items: z.array(AiItemZ).max(60), caveats: z.array(text(600)).max(12), coverage: CoverageZ };
+export const GlossResultZ = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("summary"), variant: z.enum(["quick", "executive", "detailed", "ideas", "passage"]), ...itemsResult }),
+  z.object({ kind: z.literal("concepts"), ...itemsResult }),
+  z.object({ kind: z.literal("questions"), ...itemsResult }),
+  z.object({
+    kind: z.literal("translation"),
+    sourceLang: z.string().max(8),
+    targetLang: z.string().max(8),
+    original: text(LIMITS.quote),
+    natural: text(20_000),
+    literal: text(20_000).optional(),
+    notes: z.array(text(600)).max(12),
+    contextUsed: z.boolean(),
+  }),
+  z.object({ kind: z.literal("stream"), context: z.array(z.string().max(LIMITS.blockId)).max(400), coverage: CoverageZ }),
+]);
+
 export const GlossZ = z.object({
   id: IdZ,
   documentId: DocumentIdZ,
-  action: z.enum(["ask", "explain", "simplify", "define", "factcheck", "related", "counterpoint", "overview", "whole"]),
+  action: z.enum(["ask", "explain", "simplify", "define", "factcheck", "related", "counterpoint", "overview", "whole", "summarize", "translate", "concepts", "questions"]),
   anchor: AnchorZ.nullable(),
   turns: z.array(z.object({ role: z.enum(["user", "assistant"]), content: text(LIMITS.turn) })).max(LIMITS.turns),
   model: z.string().max(200).optional(),
@@ -78,6 +107,7 @@ export const GlossZ = z.object({
     .object({ input: z.number().int().min(0).max(1e9), output: z.number().int().min(0).max(1e9), cost: z.number().min(0).max(1e6).optional() })
     .nullable()
     .optional(),
+  result: GlossResultZ.nullable().optional(),
   createdAt: TimestampZ,
 });
 

@@ -317,7 +317,7 @@ export function upsertGloss(g: Gloss) {
     const list = s.glosses[g.documentId] ?? [];
     const i = list.findIndex((x) => x.id === g.id);
     // New content (a follow-up, streamed text) is no longer what the server has confirmed.
-    const kept: Gloss = i >= 0 && list[i].turns === g.turns ? g : { ...g, syncedAt: undefined };
+    const kept: Gloss = i >= 0 && list[i].turns === g.turns && list[i].result === g.result ? g : { ...g, syncedAt: undefined };
     const next = i >= 0 ? list.map((x) => (x.id === g.id ? kept : x)) : [...list, kept];
     return { glosses: { ...s.glosses, [g.documentId]: next } };
   });
@@ -333,7 +333,7 @@ export function persistGloss(g: Gloss) {
     set((s) => {
       const rp = readerPatch(s, r.readerKey);
       const glosses = rp.glosses ?? s.glosses;
-      return { ...rp, glosses: { ...glosses, [g.documentId]: (glosses[g.documentId] ?? []).map((x) => (x.id === g.id && x.turns === g.turns ? { ...x, syncedAt: Date.now() } : x)) } };
+      return { ...rp, glosses: { ...glosses, [g.documentId]: (glosses[g.documentId] ?? []).map((x) => (x.id === g.id && x.turns === g.turns && x.result === g.result ? { ...x, syncedAt: Date.now() } : x)) } };
     });
   });
 }

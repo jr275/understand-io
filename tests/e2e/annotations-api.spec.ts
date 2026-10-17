@@ -37,6 +37,26 @@ test.describe("annotation routes (PostgreSQL)", () => {
     test.skip(j.persisted !== true, "server has no reachable database");
   });
 
+  test("a structured AI result is stored with the gloss and comes back unchanged; a malformed one is refused", async ({ request }) => {
+    const id = newId();
+    const result = {
+      kind: "summary",
+      variant: "quick",
+      items: [{ text: "Tides follow the moon.", basis: "text", evidence: [{ blockId: "p1", n: 1, quote: "chalk is soft", start: 4, end: 17 }] }],
+      caveats: [],
+      coverage: { used: 3, total: 3, from: 1, to: 3, complete: true },
+    };
+    const g = { id, documentId: DOC, action: "summarize", anchor: null, turns: [], result, createdAt: Date.now() - 5_000 };
+    const bad = await request.post("/api/glosses", { data: { ...g, id: newId(), result: { ...result, items: [{ ...result.items[0], basis: "certain" }] } } });
+    expect(bad.status()).toBe(400);
+    const ok = await request.post("/api/glosses", { data: g });
+    expect((await ok.json()).persisted).toBe(true);
+    const res = await request.get(`/api/documents/${encodeURIComponent(DOC)}/data`);
+    const back = ((await res.json()) as { glosses: { id: string; result?: unknown }[] }).glosses.find((x) => x.id === id);
+    expect(back?.result).toEqual(result);
+    await request.delete(`/api/glosses/${id}`);
+  });
+
   test("POST rejects oversized, malformed and inconsistent annotations with 400, and stores nothing", async ({ request }) => {
     const id = newId();
     const q = "x".repeat(20_001);

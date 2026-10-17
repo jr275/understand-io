@@ -95,3 +95,28 @@ describe("GlossZ and ProgressZ", () => {
     expect(ProgressZ.safeParse({ documentId: "sample:x", ratio: 0.5, updatedAt: NOW, ...patch }).success).toBe(false);
   });
 });
+
+describe("GlossZ with a structured AI result", () => {
+  const cov = { used: 3, total: 3, from: 1, to: 3, complete: true };
+  const item = { text: "Tides follow the moon.", basis: "text", evidence: [{ blockId: "p1", n: 1, quote: "tide rises when the moon", start: 4, end: 28 }] };
+  const base = (result: unknown) => ({ id: "gloss0000002", documentId: "sample:x", action: "summarize", anchor: null, turns: [], result, createdAt: NOW });
+  it("accepts each kind of result", () => {
+    expect(GlossZ.safeParse(base({ kind: "summary", variant: "quick", items: [item], caveats: [], coverage: cov })).success).toBe(true);
+    expect(GlossZ.safeParse(base({ kind: "concepts", items: [{ ...item, label: "Tide" }], caveats: ["x"], coverage: cov })).success).toBe(true);
+    expect(GlossZ.safeParse(base({ kind: "questions", items: [{ ...item, answer: "Overhead." }], caveats: [], coverage: cov })).success).toBe(true);
+    expect(GlossZ.safeParse({ ...base({ kind: "translation", sourceLang: "en", targetLang: "pt", original: "The tide rises.", natural: "A maré sobe.", notes: [], contextUsed: true }), action: "translate" }).success).toBe(true);
+    expect(GlossZ.safeParse({ ...base({ kind: "stream", context: ["p1", "p2"], coverage: cov }), action: "ask" }).success).toBe(true);
+    expect(GlossZ.safeParse(base(null)).success).toBe(true);
+  });
+  it.each<[string, unknown]>([
+    ["an unknown kind", { kind: "script", items: [] }],
+    ["a basis the app does not know", { kind: "summary", variant: "quick", items: [{ ...item, basis: "certain" }], caveats: [], coverage: cov }],
+    ["61 items", { kind: "summary", variant: "quick", items: Array.from({ length: 61 }, () => item), caveats: [], coverage: cov }],
+    ["an item of 7000 characters", { kind: "summary", variant: "quick", items: [{ ...item, text: "x".repeat(7000) }], caveats: [], coverage: cov }],
+    ["evidence with a lone surrogate", { kind: "summary", variant: "quick", items: [{ ...item, evidence: [{ ...item.evidence[0], quote: "x\ud800" }] }], caveats: [], coverage: cov }],
+    ["a missing coverage statement", { kind: "summary", variant: "quick", items: [item], caveats: [] }],
+    ["1000 context ids", { kind: "stream", context: Array.from({ length: 1000 }, (_, i) => `p${i}`), coverage: cov }],
+  ])("rejects %s", (_n, result) => {
+    expect(GlossZ.safeParse(base(result)).success).toBe(false);
+  });
+});

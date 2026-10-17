@@ -25,7 +25,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         persisted: true,
         readerKey: readerKeyOf(readerId),
         annotations: a.map((r) => ({ id: r.id, documentId: r.documentId, kind: r.kind, color: r.color ?? undefined, note: r.note ?? undefined, anchor: r.anchor, createdAt: r.createdAt.getTime(), updatedAt: r.updatedAt.getTime() })),
-        glosses: g.map((r) => ({ id: r.id, documentId: r.documentId, action: r.action, anchor: r.anchor, turns: r.turns, model: r.model ?? undefined, usage: r.usage ?? undefined, createdAt: r.createdAt.getTime() })),
+        glosses: g.map((r) => ({ id: r.id, documentId: r.documentId, action: r.action, anchor: r.anchor, turns: r.turns, model: r.model ?? undefined, usage: r.usage ?? undefined, result: r.result ?? undefined, createdAt: r.createdAt.getTime() })),
         progress: p[0] ? { documentId: id, blockId: p[0].blockId ?? undefined, ratio: p[0].ratio, finished: !!p[0].finished, updatedAt: p[0].updatedAt.getTime() } : null,
       });
     },

@@ -143,7 +143,7 @@ function GlossItem({ g, n, onOpen, onDelete, onCite }: { g: Gloss; n?: number; o
   const [full, setFull] = useState(false);
   const q = g.turns.find((t) => t.role === "user")?.content ?? "What does this mean here?";
   const a = g.turns.filter((t) => t.role === "assistant").slice(-1)[0]?.content ?? "";
-  const label = { explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text" }[g.action] ?? "Ask";
+  const label = ({ explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text", summarize: "Summary", translate: "Translation", concepts: "Concepts", questions: "Questions" } as Record<string, string>)[g.action] ?? "Ask";
   return (
     <article className="group relative rounded-[14px] border border-rule bg-bg px-4 pb-4 pt-3.5 transition-colors hover:border-rule-strong">
       <button type="button" className="block w-full pr-7 text-left" onClick={onOpen}>
@@ -158,7 +158,7 @@ function GlossItem({ g, n, onOpen, onDelete, onCite }: { g: Gloss; n?: number; o
         <div>
           <div className="grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-rubric-text">Q</span>
-            <p className="font-serif text-[16.5px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{g.action === "ask" || g.action === "whole" ? q : { explain: "What does this mean here?", simplify: "Say it plainly.", define: "Define this.", factcheck: "Does this hold up?", related: "Where else is this taken up?", counterpoint: "What is the strongest objection?", overview: "What is the gist?" }[g.action]}</p>
+            <p className="font-serif text-[16.5px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{g.action === "ask" || g.action === "whole" ? q : ({ explain: "What does this mean here?", simplify: "Say it plainly.", define: "Define this.", factcheck: "Does this hold up?", related: "Where else is this taken up?", counterpoint: "What is the strongest objection?", overview: "What is the gist?" } as Record<string, string>)[g.action]}</p>
           </div>
           <div className="mt-2 grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-ink-4">A</span>

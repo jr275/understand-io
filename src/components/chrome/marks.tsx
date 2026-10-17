@@ -8,17 +8,3 @@ export function GlossMark({ className = "size-[21px] shrink-0" }: { className?: 
     </svg>
   );
 }
-
-/** Partner credit shown beside the wordmark: a three-disc mark plus "together.ai". */
-export function PartnerMark() {
-  return (
-    <span className="flex items-center gap-1.5" aria-label="Together AI">
-      <svg viewBox="0 0 39 36" className="h-[19px] w-auto" aria-hidden="true">
-        <circle cx="27" cy="10" r="9.5" fill="#EF2CC1" />
-        <circle cx="10" cy="10" r="9.5" fill="#CAAEF5" />
-        <circle cx="19" cy="26" r="9.5" fill="#FC4C02" />
-      </svg>
-      <span className="hidden text-[15px] font-medium tracking-[-0.01em] min-[860px]:inline">together.ai</span>
-    </span>
-  );
-}

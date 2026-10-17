@@ -1,0 +1,1 @@
+ALTER TABLE "glosses" ADD COLUMN "result" jsonb;

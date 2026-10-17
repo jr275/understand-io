@@ -9,7 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { Anchor, Block, GlossTurn } from "@/lib/content/types";
+import type { Anchor, Block, GlossResult, GlossTurn } from "@/lib/content/types";
 
 export const readers = pgTable("readers", {
   id: text("id").primaryKey(),
@@ -87,6 +87,8 @@ export const glosses = pgTable(
     turns: jsonb("turns").$type<GlossTurn[]>().notNull(),
     model: text("model"),
     usage: jsonb("usage").$type<{ input: number; output: number; cost?: number } | null>(),
+    /** Structured AI result (summary, translation, ...) or streaming metadata; null for older rows. */
+    result: jsonb("result").$type<GlossResult | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("glosses_doc_idx").on(t.documentId, t.readerId)],

@@ -94,7 +94,60 @@ export type GlossAction =
   | "related"
   | "counterpoint"
   | "overview"
-  | "whole";
+  | "whole"
+  // Structured operations (see lib/ai): the answer lives in `Gloss.result`, not in `turns`.
+  | "summarize"
+  | "translate"
+  | "concepts"
+  | "questions";
+
+export type SummaryVariant = "quick" | "executive" | "detailed" | "ideas" | "passage";
+
+/** What an AI statement rests on: the text itself (needs verified evidence), the model's interpretation, or knowledge from outside the text. */
+export type Basis = "text" | "interpretation" | "external";
+
+/** A quote that was checked against the block it names: `text.slice(start, end)` of that block is the quote. */
+export interface Evidence {
+  blockId: string;
+  /** Paragraph number of the block, when it has one. */
+  n?: number;
+  quote: string;
+  start: number;
+  end: number;
+}
+
+export interface AiItem {
+  label?: string;
+  text: string;
+  basis: Basis;
+  evidence: Evidence[];
+  /** The model claimed the text supports this but no quote could be verified, so it is shown as interpretation. */
+  unverified?: boolean;
+  /** Comprehension questions only: the answer, shown when the reader asks for it. */
+  answer?: string;
+}
+
+/** Which paragraphs the model was actually given. Never claims more than that. */
+export interface Coverage {
+  /** Numbered paragraphs the model read. */
+  used: number;
+  /** Numbered paragraphs in the whole text. */
+  total: number;
+  /** First and last paragraph number read (0 when none are numbered). */
+  from: number;
+  to: number;
+  complete: boolean;
+  note?: string;
+}
+
+export type AiResult =
+  | { kind: "summary"; variant: SummaryVariant; items: AiItem[]; caveats: string[]; coverage: Coverage }
+  | { kind: "concepts"; items: AiItem[]; caveats: string[]; coverage: Coverage }
+  | { kind: "questions"; items: AiItem[]; caveats: string[]; coverage: Coverage }
+  | { kind: "translation"; sourceLang: string; targetLang: string; original: string; natural: string; literal?: string; notes: string[]; contextUsed: boolean };
+
+/** What is kept next to a gloss: a structured AI result, or for streamed answers the paragraphs the model was given (so ¶ citations can be checked later). */
+export type GlossResult = AiResult | { kind: "stream"; context: string[]; coverage: Coverage };
 
 export interface GlossTurn {
   role: "user" | "assistant";
@@ -114,6 +167,8 @@ export interface Gloss {
   syncedAt?: number;
   status?: "streaming" | "done" | "error";
   error?: string;
+  /** Structured result or streaming metadata (see GlossResult). */
+  result?: GlossResult;
 }
 
 export interface ReadingProgress {

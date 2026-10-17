@@ -7,7 +7,7 @@ import { KeyRound, Library, Plus } from "lucide-react";
 import { AddPanel } from "@/components/library/AddPanel";
 import { syncRemoteLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
-import { GlossMark, PartnerMark } from "./marks";
+import { GlossMark } from "./marks";
 import { IconButton } from "@/components/ui/IconButton";
 import { Pop } from "@/components/ui/Pop";
 import { AppearancePanel } from "./AppearancePanel";
@@ -48,17 +48,6 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
             <span className="block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36]">Understand.io</span>
           </span>
         </Link>
-        <span aria-hidden="true" className="h-[18px] w-px bg-rule-strong" />
-        <a
-          href="https://www.together.ai"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Together AI"
-          data-tip="Models served by Together AI"
-          className="flex h-9 shrink-0 items-center rounded-sm text-ink opacity-75 transition-opacity duration-200 hover:opacity-100"
-        >
-          <PartnerMark />
-        </a>
       </div>
       {reader ? <div className="flex min-w-0 flex-1 justify-center">{center}</div> : null}
       <nav aria-label={reader ? "Reader tools" : "Main"} className="flex items-center gap-1 max-[380px]:gap-0">

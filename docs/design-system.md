@@ -101,7 +101,7 @@ Together AI wordmark, bookend, plant, Claude/ChatGPT/Grok marks.
 
 ## Component hierarchy
 
-- **Topbar** (`header`): wordmark + divider + partner mark; nav: Library link (landing/library)
+- **Topbar** (`header`): wordmark; nav: Library link (landing/library)
   or reader tools (Shortcuts `?`, Read aloud, Appearance `Aa`, Key, Notebook `N`, Sign in / avatar).
 - **Landing**: `.hero-title`, `.import-bar`, secondary actions, `.lib-line` (samples or continue),
   `.desk` (how-it-works steps `.desk-tile.is-step` or highlights `.desk-tile.is-quote` + `.is-room`),

@@ -16,8 +16,8 @@ export async function POST(req: Request) {
     await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
     const written = await db
       .insert(glosses)
-      .values({ id: g.id, documentId: g.documentId, readerId, action: g.action, anchor: g.anchor, turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, createdAt: new Date(g.createdAt) })
-      .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null }, setWhere: eq(glosses.readerId, readerId) })
+      .values({ id: g.id, documentId: g.documentId, readerId, action: g.action, anchor: g.anchor, turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, result: g.result ?? null, createdAt: new Date(g.createdAt) })
+      .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, result: g.result ?? null }, setWhere: eq(glosses.readerId, readerId) })
       .returning({ id: glosses.id });
     // Nothing written: the id belongs to another reader. Never overwrite it and never claim success.
     if (!written.length) return Response.json({ error: "id-conflict" }, { status: 409 });

@@ -21,10 +21,12 @@ export function googleConfig(): GoogleConfig | null {
   return { clientId, clientSecret };
 }
 
-/** Public origin for OAuth redirects: APP_URL when set, else the request's own origin. */
+/** Public origin for OAuth redirects: APP_URL when set, else (outside production) the request's own origin. */
 export function appOrigin(req: Request) {
   const configured = process.env.APP_URL?.replace(/\/$/, "");
   if (configured) return configured;
+  // Without APP_URL the origin would come from forwarded headers and Host, which whoever reaches a bare server controls.
+  if (process.env.NODE_ENV === "production") throw new Error("APP_URL must be set in production (the public origin used for the Google sign-in redirect).");
   const u = new URL(req.url);
   const proto = req.headers.get("x-forwarded-proto") ?? u.protocol.replace(":", "");
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? u.host;
@@ -43,8 +45,13 @@ export interface OAuthState {
   next: string;
 }
 
+/** A same-site path only: one leading slash (never `//` or `/\`), no scheme, no control characters. Anything else becomes the library. */
+export function safeNext(next: string): string {
+  return next.length <= 512 && /^\/(?![/\\])[\w\-./?=&%#]*$/.test(next) ? next : "/library";
+}
+
 export function newOAuthState(next: string): OAuthState {
-  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: next.startsWith("/") ? next : "/library" };
+  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: safeNext(next) };
 }
 
 export function codeChallenge(verifier: string) {

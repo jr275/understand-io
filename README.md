@@ -24,9 +24,9 @@ are built in, and highlights, notes, glosses and settings are kept in the browse
 | `DATABASE_URL` | PostgreSQL persistence (documents you import, annotations, glosses, progress), keyed by an anonymous reader cookie. Without it the app runs local-only. |
 | `TOGETHER_API_KEY` | Margin glosses and whole-text answers (OpenAI-compatible endpoint, DeepSeek by default), embedding re-ranking for semantic search, and server-side transcription. Readers can also paste their own key in the app; it is sent per request and never stored. |
 | `GLOSS_RATE_GLOSS`, `GLOSS_RATE_SEARCH`, `GLOSS_RATE_TRANSCRIBE`, `GLOSS_RATE_WINDOW_SEC` | Rate limits for calls paid by `TOGETHER_API_KEY` only (a reader's own key is never limited): requests per window for each reader id and each client address. Defaults 30 / 60 / 15 per 3600 s; `off` disables one. The limiter is in memory, so it is **per process**: with several instances or serverless functions each keeps its own counters (the effective limit is multiplied) and a restart resets them; a hard global cap needs a shared store such as Redis. The client address is read from `x-forwarded-for` / `x-real-ip`, which only a trusted proxy in front of the app can set. |
-| `GLOSS_COOKIE_SECRET` | Signs the reader, session and OAuth-state cookies. |
+| `GLOSS_COOKIE_SECRET` | Signs the reader, session and OAuth-state cookies. **In production it must be at least 32 characters** (`openssl rand -hex 32`); a shorter or example value stops the server from signing anything. Changing it signs every reader out. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in (optional). An account owns one reader id; signing in on another browser swaps that browser's reader cookie to it and merges anything read anonymously there into the account. Needs `DATABASE_URL`. Redirect URI: `<origin>/api/auth/google/callback`. |
-| `APP_URL` | Public origin for the OAuth redirect when the app runs behind a proxy (defaults to the request origin). |
+| `APP_URL` | Public origin for the OAuth redirect and post-sign-in redirect. **Required in production** (sign-in answers 503 without it); outside production it defaults to the request origin. |
 
 Read-aloud uses the browser's own speech engine and needs no key. Voice search uses the browser's
 speech recognition where available (Chrome, Edge, Safari) and falls back to server transcription

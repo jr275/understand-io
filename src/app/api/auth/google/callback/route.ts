@@ -1,9 +1,13 @@
-import { exchangeGoogleCode, googleConfig, readOAuthCookie, redirectUri, signInGoogle, writeSession } from "@/lib/server/auth";
-import { appOrigin } from "@/lib/server/auth";
+import { appOrigin, exchangeGoogleCode, googleConfig, readOAuthCookie, redirectUri, safeNext, signInGoogle, writeSession } from "@/lib/server/auth";
 import { getReaderId } from "@/lib/server/reader";
 
 export async function GET(req: Request) {
-  const origin = appOrigin(req);
+  let origin: string;
+  try {
+    origin = appOrigin(req);
+  } catch (err) {
+    return Response.json({ error: "not-configured", message: err instanceof Error ? err.message : "APP_URL is not set." }, { status: 503 });
+  }
   const back = (msg: string) => Response.redirect(`${origin}/?signin=${encodeURIComponent(msg)}`, 302);
   const cfg = googleConfig();
   if (!cfg) return back("Sign-in is not set up on this server.");
@@ -17,7 +21,7 @@ export async function GET(req: Request) {
     const profile = await exchangeGoogleCode(cfg, code, saved.verifier, redirectUri(req));
     const account = await signInGoogle(profile, await getReaderId());
     await writeSession(account);
-    return Response.redirect(`${origin}${saved.next}`, 302);
+    return Response.redirect(`${origin}${safeNext(saved.next)}`, 302);
   } catch (err) {
     return back(err instanceof Error ? err.message : "Sign-in failed.");
   }

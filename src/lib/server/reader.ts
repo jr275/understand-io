@@ -3,10 +3,16 @@ import { cookies } from "next/headers";
 
 export const READER_COOKIE = "gloss_reader";
 
+const MIN_SECRET_LENGTH = 32;
+
 function secret() {
   const s = process.env.GLOSS_COOKIE_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    // Fail closed: a short or example secret makes every cookie guessable offline. Generate one with `openssl rand -hex 32`.
+    if (!s || s === "change-me" || s.length < MIN_SECRET_LENGTH) throw new Error(`GLOSS_COOKIE_SECRET must be set to at least ${MIN_SECRET_LENGTH} characters in production (openssl rand -hex 32).`);
+    return s;
+  }
   if (s && s !== "change-me") return s;
-  if (process.env.NODE_ENV === "production") throw new Error("GLOSS_COOKIE_SECRET must be set in production.");
   return "gloss-dev-secret";
 }
 

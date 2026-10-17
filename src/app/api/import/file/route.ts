@@ -1,3 +1,4 @@
+import { classifyUpload } from "@/lib/content/uploadKind";
 import { documentFromText } from "@/lib/content/text";
 import { readFormLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
@@ -15,15 +16,18 @@ export async function POST(req: Request) {
   const file = form?.get("file");
   if (!(file instanceof File)) return Response.json({ error: "No file received." }, { status: 400 });
   if (file.size > MAX_FILE) return Response.json({ error: "That file is larger than 25 MB." }, { status: 413 });
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const kind = classifyUpload(file.name, file.type, bytes);
+  if (kind === "unsupported") return Response.json({ error: "Only PDF, text (.txt) and markdown (.md) files can be imported." }, { status: 415 });
+  if (kind === "binary") return Response.json({ error: "That file does not look like text. Only PDF, text and markdown files can be imported." }, { status: 415 });
   const readerId = await ensureReaderId();
   try {
-    const isPdf = file.type.includes("pdf") || /\.pdf$/i.test(file.name);
     let doc;
-    if (isPdf) {
+    if (kind === "pdf") {
       const { documentFromPdf } = await import("@/lib/content/pdf");
-      doc = await documentFromPdf(new Uint8Array(await file.arrayBuffer()), file.name);
+      doc = await documentFromPdf(bytes, file.name);
     } else {
-      const text = await file.text();
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
       // A leading heading in the file names the text; otherwise the file name does.
       const fromHeading = documentFromText(text);
       doc = /^\s*#\s+\S/.test(text) ? fromHeading : documentFromText(text, file.name.replace(/\.(txt|md|markdown)$/i, ""));

@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const json = await readJsonLimited(req, HTML_LIMITS.chars * 4 + 8192);
   if (json === "too-large") return Response.json({ error: "That page is too large to read here (over 4 MB of HTML). Paste its text instead." }, { status: 413 });
   const parsed = Body.safeParse(json);
-  if (!parsed.success) return Response.json({ error: "No page content received." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "No page content received: send JSON with a url and the page's html." }, { status: 400 });
   const { url, html, title } = parsed.data;
   if (!/^https?:$/.test(new URL(url).protocol)) return Response.json({ error: "Only http(s) pages can be read." }, { status: 400 });
   try {

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ArrowUpRight, Headphones, Keyboard, NotebookPen } from "lucide-react";
 import type { Anchor, Annotation, Gloss, GlossAction, GlossDocument, HighlightColor } from "@/lib/content/types";
-import { anchorBlockIds, anchorFromSelection, makeAnchor, rangeForAnchor, resolveAnchor, segmentBlock } from "@/lib/anchors";
+import { decideAnnotate, marksOnRange } from "@/lib/anchors/annotate";
+import { anchorBlockIds, anchorFromSelection, blockIndex, clampNote, makeAnchor, rangeForAnchor, resolveAll, resolveCached, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
 import { SpeechController } from "@/lib/speech/controller";
 import { newId } from "@/lib/content/slug";
@@ -38,6 +39,10 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const lib = useLibrary();
   const annotations = lib.annotations[documentId] ?? EMPTY_A;
   const glosses = lib.glosses[documentId] ?? EMPTY_G;
+  // Every anchor is resolved once (cached per anchor): painting, clicking marks, margin cards, the rail and the notebook all use this result.
+  const blockIdx = useMemo(() => blockIndex(blocks), [blocks]);
+  const resolvedAnn = useMemo(() => resolveAll(blocks, annotations, blockIdx), [blocks, annotations, blockIdx]);
+  const resolvedGl = useMemo(() => resolveAll(blocks, glosses, blockIdx), [blocks, glosses, blockIdx]);
   const rootRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLInputElement>(null);
 
@@ -243,10 +248,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   );
   const jumpToAnchor = useCallback(
     (a: Anchor) => {
-      const resolved = resolveAnchor(blocks, a) ?? a;
+      const resolved = resolveCached(blocks, a, blockIdx).anchor;
+      if (!resolved) return void toast("Couldn't find that passage in the text any more.", { ttl: 3500 });
       scrollToBlock(resolved.start.b);
     },
-    [blocks, scrollToBlock],
+    [blocks, blockIdx, scrollToBlock],
   );
   const onCite = useCallback(
     (n: number) => {
@@ -292,14 +298,27 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const annotate = useCallback(
     (kind: Annotation["kind"], color: HighlightColor, note?: string) => {
       if (!pending) return;
-      const a: Annotation = { id: newId(), documentId, kind, color, note, anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
+      // The same kind on an identical range does not stack: the same colour takes the mark off, another colour recolours it.
+      const decision = decideAnnotate(resolvedAnn, pending.anchor, kind, color);
+      if (decision.type !== "add") {
+        for (const id of decision.ids) {
+          if (decision.type === "remove") removeAnnotation(documentId, id);
+          else updateAnnotation(documentId, id, { color });
+        }
+        clearSelection();
+        toast(decision.type === "remove" ? (kind === "underline" ? "Underline removed." : "Highlight removed.") : "Colour changed.", { ttl: 2200 });
+        return;
+      }
+      const a: Annotation = { id: newId(), documentId, kind, color, note: note === undefined ? undefined : clampNote(note), anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
       addAnnotation(a);
       clearSelection();
       if (kind === "note") setActiveId(a.id);
       toast(lib.persisted ? "Kept in your library." : "Kept in this browser.", { ttl: 2600 });
     },
-    [pending, documentId, clearSelection, lib.persisted],
+    [pending, documentId, clearSelection, lib.persisted, resolvedAnn],
   );
+  // Highlights and underlines that already cover exactly the selected range (the lens offers to remove them).
+  const pendingMarks = useMemo(() => (pending ? marksOnRange(resolvedAnn, pending.anchor) : []), [pending, resolvedAnn]);
 
   /* ---------- glosses ---------- */
   const index = useMemo(() => new Bm25Index(buildPassages(blocks)), [blocks]);
@@ -556,14 +575,11 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
     const list: { id: string; kind: string; anchor: Anchor; data?: Record<string, string | undefined> }[] = [];
-    for (const a of annotations) {
-      const anchor = resolveAnchor(blocks, a.anchor);
-      if (!anchor) continue;
+    for (const { item: a, anchor } of resolvedAnn) {
+      if (!anchor) continue; // orphaned: no mark (it is listed as "couldn't find this passage" instead)
       list.push({ id: a.id, kind: a.kind === "highlight" ? "hl" : a.kind === "underline" ? "ul" : "note", anchor, data: { color: a.color ?? "yellow", state: a.id === activeId ? "is-active" : "" } });
     }
-    for (const g of glosses) {
-      if (!g.anchor) continue;
-      const anchor = resolveAnchor(blocks, g.anchor);
+    for (const { item: g, anchor } of resolvedGl) {
       if (!anchor) continue;
       list.push({ id: g.id, kind: "gloss", anchor, data: { state: `${g.id === activeId ? "is-active" : ""} ${g.id === hoverId ? "is-hover" : ""} ${g.status === "streaming" ? "is-new" : ""}` } });
     }
@@ -574,16 +590,17 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       list.push({ id: "speak", kind: "speak", anchor: { start: { b: s.blockId, o: s.start }, end: { b: s.blockId, o: s.end }, quote: s.text } });
     }
     return list;
-  }, [annotations, glosses, blocks, activeId, hoverId, pending, hit, snap.segment, snap.state]);
+  }, [resolvedAnn, resolvedGl, activeId, hoverId, pending, hit, snap.segment, snap.state]);
   const segmentsByBlock = useMemo(() => {
     const m = new Map<string, ReturnType<typeof segmentBlock>>();
     for (const b of blocks) {
-      const segs = segmentBlock(b, blocks, marks);
+      const segs = segmentBlock(b, blocks, marks, blockIdx);
       if (segs.length > 1 || segs[0]?.marks.length) m.set(b.id, segs);
     }
     return m;
-  }, [blocks, marks]);
-  const noteBlocks = useMemo(() => new Set(annotations.filter((a) => a.kind === "note").map((a) => a.anchor.start.b)), [annotations]);
+  }, [blocks, blockIdx, marks]);
+  const noteBlocks = useMemo(() => new Set(resolvedAnn.filter((r) => r.item.kind === "note" && r.anchor).map((r) => r.anchor!.start.b)), [resolvedAnn]);
+  const railMarks = useMemo(() => resolvedAnn.filter((r) => r.anchor).map((r) => ({ blockId: r.anchor!.start.b, color: r.item.color })), [resolvedAnn]);
   const layoutKey = `${resizeTick}:${marks.length}:${settings.size}:${settings.face}:${settings.width}:${settings.leading}`;
 
   useEffect(() => {
@@ -594,8 +611,12 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   }, [layoutKey]);
 
   const marginItems: MarginItem[] = useMemo(
-    () => [...glosses.map((g) => ({ id: g.id, kind: "gloss" as const, gloss: g })), ...annotations.filter((a) => a.kind === "note").map((a) => ({ id: a.id, kind: "note" as const, note: a }))],
-    [glosses, annotations],
+    () => [
+      ...resolvedGl.map((r) => ({ id: r.item.id, kind: "gloss" as const, gloss: r.item, anchor: r.anchor, orphaned: r.status === "orphaned" })),
+      // Notes sit next to their passage; anything whose passage cannot be found (of any kind) goes to the "couldn't find this passage" group.
+      ...resolvedAnn.filter((r) => r.item.kind === "note" || r.status === "orphaned").map((r) => (r.status === "orphaned" ? { id: r.item.id, kind: "orphan" as const, note: r.item, anchor: null, orphaned: true } : { id: r.item.id, kind: "note" as const, note: r.item, anchor: r.anchor, orphaned: false })),
+    ],
+    [resolvedGl, resolvedAnn],
   );
 
   const onMarkClick = useCallback(
@@ -606,9 +627,14 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         return;
       }
       if (kind === "hl" || kind === "ul") {
-        const a = annotations.find((x) => x.id === id);
-        if (!a) return;
-        const range = rangeForAnchor(rootRef.current!, a.anchor);
+        // A click that ends a drag-selection must not replace what the reader just selected, and with nested marks only the innermost one answers.
+        if (document.getSelection()?.isCollapsed === false) return;
+        const inner = (e.target as Element).closest?.(".m-hl, .m-ul") as HTMLElement | null;
+        if (inner && inner.dataset.mark !== id) return;
+        // The resolved anchor (where the text is now), not the stored one: they differ after the text moved.
+        const anchor = resolvedAnn.find((x) => x.item.id === id)?.anchor;
+        if (!anchor) return;
+        const range = rangeForAnchor(rootRef.current!, anchor);
         if (range) {
           const sel = document.getSelection();
           sel?.removeAllRanges();
@@ -616,7 +642,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         }
       }
     },
-    [annotations],
+    [resolvedAnn],
   );
 
   const onHitJump = useCallback(
@@ -688,7 +714,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         <div className="reader-grid">
           <div className="rg-rail relative">
             <div className="sticky top-[calc(var(--topbar-h)+28px)] h-[calc(100dvh-var(--topbar-h)-64px)]">
-              {settings.rail ? <Rail blocks={blocks} rootRef={rootRef} progress={ratio} marks={annotations.map((a) => ({ blockId: a.anchor.start.b, color: a.color }))} /> : null}
+              {settings.rail ? <Rail blocks={blocks} rootRef={rootRef} progress={ratio} marks={railMarks} /> : null}
             </div>
           </div>
           <div className="rg-numgap" aria-hidden="true" />
@@ -846,6 +872,12 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             annotate("highlight", c);
           }}
           onUnderline={(c) => annotate("underline", c)}
+          existing={pendingMarks.map((a) => ({ id: a.id, kind: a.kind === "underline" ? ("underline" as const) : ("highlight" as const) }))}
+          onRemove={(ids) => {
+            ids.forEach((id) => removeAnnotation(documentId, id));
+            clearSelection();
+            toast("Removed.", { ttl: 2200 });
+          }}
           onNote={(t) => annotate("note", settings.marker, t)}
           onCopy={() => {
             const n = blocks.find((b) => b.id === pending.anchor.start.b)?.n;
@@ -867,8 +899,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         onClose={() => setNbOpen(false)}
         doc={doc}
         blocks={blocks}
-        annotations={annotations}
-        glosses={glosses}
+        annotations={resolvedAnn}
+        glosses={resolvedGl}
         onJump={(a) => {
           jumpToAnchor(a);
           if (sheet) setNbOpen(false);

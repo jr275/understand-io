@@ -1,31 +1,26 @@
 import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import { glosses, readers } from "@/lib/db/schema";
+import { GlossZ } from "@/lib/anchors/schema";
 import { ensureReaderId } from "@/lib/server/reader";
-
-const GlossZ = z.object({
-  id: z.string().min(4).max(40),
-  documentId: z.string().min(1).max(80),
-  action: z.string().max(20),
-  anchor: z.object({ start: z.object({ b: z.string(), o: z.number() }), end: z.object({ b: z.string(), o: z.number() }), quote: z.string(), prefix: z.string().optional(), suffix: z.string().optional() }).nullable(),
-  turns: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(20000) })).max(40),
-  model: z.string().optional(),
-  usage: z.object({ input: z.number(), output: z.number(), cost: z.number().optional() }).nullable().optional(),
-  createdAt: z.number(),
-});
+import { guarded, readJson, readerKeyOf } from "../annotations/_guard";
 
 export async function POST(req: Request) {
   const db = getDb();
   if (!db) return Response.json({ persisted: false });
-  const parsed = GlossZ.safeParse(await req.json().catch(() => null));
+  const parsed = GlossZ.safeParse(await readJson(req));
   if (!parsed.success) return Response.json({ error: "bad-request" }, { status: 400 });
   const g = parsed.data;
-  const readerId = await ensureReaderId();
-  await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
-  await db
-    .insert(glosses)
-    .values({ id: g.id, documentId: g.documentId, readerId, action: g.action, anchor: g.anchor, turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, createdAt: new Date(g.createdAt) })
-    .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null }, setWhere: eq(glosses.readerId, readerId) });
-  return Response.json({ persisted: true });
+  return guarded("gloss upsert", async () => {
+    const readerId = await ensureReaderId();
+    await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
+    const written = await db
+      .insert(glosses)
+      .values({ id: g.id, documentId: g.documentId, readerId, action: g.action, anchor: g.anchor, turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, createdAt: new Date(g.createdAt) })
+      .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null }, setWhere: eq(glosses.readerId, readerId) })
+      .returning({ id: glosses.id });
+    // Nothing written: the id belongs to another reader. Never overwrite it and never claim success.
+    if (!written.length) return Response.json({ error: "id-conflict" }, { status: 409 });
+    return Response.json({ persisted: true, readerKey: readerKeyOf(readerId) });
+  });
 }

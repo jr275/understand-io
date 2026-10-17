@@ -56,7 +56,14 @@ export interface Anchor {
   quote: string;
   prefix?: string;
   suffix?: string;
+  /** Tail of the block before the anchor's first block (neighbour context, optional: absent in older data). */
+  prevBlock?: string;
+  /** Head of the block after the anchor's last block (neighbour context, optional: absent in older data). */
+  nextBlock?: string;
 }
+
+/** Longest note (UTF-16 units) the library accepts; the note editors enforce it so a note is never kept locally but refused by the server. */
+export const NOTE_MAX_LENGTH = 5000;
 
 export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type AnnotationKind = "highlight" | "underline" | "note";
@@ -70,6 +77,12 @@ export interface Annotation {
   anchor: Anchor;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Client-only sync marker: the `updatedAt` of the newest version the server has confirmed. A synced item
+   * that later vanishes from the server was deleted on another device (and is dropped), unless it was edited
+   * since (`updatedAt > syncedAt`). Never sent to the server; absent on data stored before this field existed.
+   */
+  syncedAt?: number;
 }
 
 export type GlossAction =
@@ -97,6 +110,8 @@ export interface Gloss {
   model?: string;
   usage?: { input: number; output: number; cost?: number } | null;
   createdAt: number;
+  /** Client-only: set when the server confirmed this version of the gloss (see Annotation.syncedAt). */
+  syncedAt?: number;
   status?: "streaming" | "done" | "error";
   error?: string;
 }

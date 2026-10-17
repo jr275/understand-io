@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type ReactNode } from "react";
+import { Fragment, memo, type ReactNode } from "react";
 import { MessageCirclePlus } from "lucide-react";
 import type { Block as BlockT, Run } from "@/lib/content/types";
 import type { Segment } from "@/lib/anchors";
@@ -62,7 +62,8 @@ export const Block = memo(function Block({ block, first, cursor, speaking, flash
         // Nest marks: outermost gloss/note, then highlight, then transient marks.
         const order = ["gloss", "note", "ul", "hl", "hit", "speak", "pending"];
         const marks = [...seg.marks].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
-        return marks.reduceRight<ReactNode>(
+        // The key sits on a Fragment per segment: a mark that spans several segments (e.g. a highlight with a selection inside it) would otherwise give its sibling segments the same key.
+        const nested = marks.reduceRight<ReactNode>(
           (child, m) => (
             <span
               key={m.id}
@@ -78,6 +79,7 @@ export const Block = memo(function Block({ block, first, cursor, speaking, flash
           ),
           <span key={`s${i}`}>{inner}</span>,
         );
+        return <Fragment key={i}>{nested}</Fragment>;
       })
     : runs.map((r, i) => styleRun(r, r.text, i));
 

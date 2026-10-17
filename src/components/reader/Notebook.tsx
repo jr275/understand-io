@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { Copy, Download, Trash2, X } from "lucide-react";
 import type { Anchor, Annotation, Block, Gloss, GlossDocument } from "@/lib/content/types";
-import { plainAnswer, renderGlossBody } from "./glossMarkdown";
+import type { Resolved } from "@/lib/anchors";
+import { renderGlossBody } from "./glossMarkdown";
+import { notebookMarkdown } from "./notebookMarkdown";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   doc: GlossDocument;
   blocks: Block[];
-  annotations: Annotation[];
-  glosses: Gloss[];
+  /** Annotations and glosses with the place their passage has now (null anchor + `orphaned` status when it could not be found). */
+  annotations: Resolved<Annotation>[];
+  glosses: Resolved<Gloss>[];
   onJump: (a: Anchor) => void;
   onOpenGloss: (id: string) => void;
   onRemoveAnnotation: (id: string) => void;
@@ -25,31 +28,19 @@ type Tab = "all" | "questions" | "highlights";
 export function Notebook(p: Props) {
   const [tab, setTab] = useState<Tab>("all");
   if (!p.open) return null;
+  // Paragraph numbers come from where the passage is now, not from the stored (possibly stale) anchor.
   const nOf = (a: Anchor | null) => (a ? p.blocks.find((b) => b.id === a.start.b)?.n : undefined);
   const items = [
-    ...p.glosses.filter((g) => g.status !== "streaming").map((g) => ({ kind: "gloss" as const, at: g.createdAt, g })),
-    ...p.annotations.map((a) => ({ kind: "ann" as const, at: a.createdAt, a })),
+    ...p.glosses.filter((r) => r.item.status !== "streaming").map((r) => ({ kind: "gloss" as const, at: r.item.createdAt, g: r.item, anchor: r.anchor })),
+    ...p.annotations.map((r) => ({ kind: "ann" as const, at: r.item.createdAt, a: r.item, anchor: r.anchor, orphaned: r.status === "orphaned" })),
   ]
     .filter((i) => (tab === "all" ? true : tab === "questions" ? i.kind === "gloss" : i.kind === "ann"))
     .sort((x, y) => y.at - x.at);
-  const qCount = p.glosses.filter((g) => g.status !== "streaming").length;
+  const qCount = p.glosses.filter((r) => r.item.status !== "streaming").length;
   const hCount = p.annotations.length;
+  const lostCount = p.annotations.filter((r) => r.status === "orphaned").length;
 
-  const markdown = () => {
-    const lines = [`# ${p.doc.title}`, p.doc.author ? `*${p.doc.author}*` : "", ""];
-    for (const g of p.glosses) {
-      const n = nOf(g.anchor);
-      lines.push(`## ${g.action}${n ? ` (¶${n})` : ""}`);
-      if (g.anchor) lines.push(`> ${g.anchor.quote}`, "");
-      for (const t of g.turns) lines.push(`**${t.role === "user" ? "Q" : "A"}:** ${plainAnswer(t.content)}`, "");
-    }
-    if (p.annotations.length) lines.push("## Highlights and notes", "");
-    for (const a of p.annotations) {
-      const n = nOf(a.anchor);
-      lines.push(`- ${a.kind}${n ? ` (¶${n})` : ""}: “${a.anchor.quote}”${a.note ? ` — ${a.note}` : ""}`);
-    }
-    return lines.join("\n");
-  };
+  const markdown = () => notebookMarkdown({ doc: p.doc, blocks: p.blocks, annotations: p.annotations, glosses: p.glosses.filter((r) => r.item.status !== "streaming") });
 
   return (
     <aside aria-label="Notebook" className="fixed bottom-2.5 left-2.5 right-2.5 top-[calc(var(--topbar-h)+6px)] z-[45] flex flex-col overflow-hidden rounded-[18px] border border-rule bg-raised shadow-pop sm:left-auto sm:w-[420px]" style={{ animation: "sheet-in 0.38s var(--ease-out)" }}>
@@ -59,6 +50,7 @@ export function Notebook(p: Props) {
             <h2 className="font-serif text-[23px] font-[420] leading-none tracking-[-0.015em] text-ink [font-variation-settings:'opsz'_36]">Notebook</h2>
             <p className="mt-1.5 text-[12.5px] leading-none text-ink-3">
               {qCount} question{qCount === 1 ? "" : "s"}, {hCount} highlight{hCount === 1 ? "" : "s"}
+              {lostCount ? <span className="text-rubric-text">, {lostCount} not found in the text</span> : null}
             </p>
           </div>
           <button type="button" aria-label="Copy as Markdown" data-tip="Copy as Markdown" disabled={!items.length} className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink disabled:pointer-events-none disabled:opacity-35" onClick={() => void navigator.clipboard?.writeText(markdown())}>
@@ -109,25 +101,30 @@ export function Notebook(p: Props) {
             {items.map((it, i) =>
               it.kind === "gloss" ? (
                 <li key={it.g.id} className="rise" style={{ animationDuration: ".45s", animationDelay: `${i * 35}ms` }}>
-                  <GlossItem g={it.g} n={nOf(it.g.anchor)} onOpen={() => p.onOpenGloss(it.g.id)} onDelete={() => p.onDeleteGloss(it.g.id)} onCite={p.onCite} />
+                  <GlossItem g={it.g} n={nOf(it.anchor)} onOpen={() => p.onOpenGloss(it.g.id)} onDelete={() => p.onDeleteGloss(it.g.id)} onCite={p.onCite} />
                 </li>
               ) : (
                 <li key={it.a.id} className="rise" style={{ animationDuration: ".45s", animationDelay: `${i * 35}ms` }}>
-                  <article className="group relative rounded-[14px] border border-rule bg-bg px-4 pb-3.5 pt-3.5 transition-colors hover:border-rule-strong">
-                    <button type="button" className="block w-full pr-7 text-left" onClick={() => p.onJump(it.a.anchor)}>
+                  <article className="group relative rounded-[14px] border border-rule bg-bg px-4 pb-3.5 pt-3.5 transition-colors hover:border-rule-strong" data-orphan={it.orphaned ? it.a.id : undefined}>
+                    <button type="button" className="block w-full pr-7 text-left" disabled={it.orphaned} onClick={() => it.anchor && p.onJump(it.anchor)}>
                       <span className="flex items-center gap-2 text-[11.5px] leading-none text-ink-3">
-                        {nOf(it.a.anchor) ? <span className="cite pointer-events-none !m-0 !text-[11px]">¶{nOf(it.a.anchor)}</span> : null}
+                        {nOf(it.anchor) ? <span className="cite pointer-events-none !m-0 !text-[11px]">¶{nOf(it.anchor)}</span> : null}
                         <span className="font-medium text-ink-2">{it.a.kind === "note" ? "Note" : it.a.kind === "underline" ? "Underline" : "Highlight"}</span>
                         <span className="text-ink-4">{ago(it.a.createdAt)}</span>
+                        {it.orphaned ? <span className="rounded-full bg-sunk px-2 py-1 font-medium text-rubric-text">Couldn&rsquo;t find this passage</span> : null}
                       </span>
                       <span className="mt-2.5 block font-serif text-[15.5px] leading-[1.5] text-ink">
-                        <mark className={`${it.a.kind === "underline" ? "m-ul" : it.a.kind === "note" ? "m-note" : "m-hl"} text-inherit`} data-c={it.a.color ?? "yellow"}>
-                          {it.a.anchor.quote}
-                        </mark>
+                        {it.orphaned ? (
+                          <span className="text-ink-3">{it.a.anchor.quote}</span>
+                        ) : (
+                          <mark className={`${it.a.kind === "underline" ? "m-ul" : it.a.kind === "note" ? "m-note" : "m-hl"} text-inherit`} data-c={it.a.color ?? "yellow"}>
+                            {it.a.anchor.quote}
+                          </mark>
+                        )}
                       </span>
                       {it.a.note ? <span className="mt-2 block text-[13.5px] leading-[1.5] text-ink-2">{it.a.note}</span> : null}
                     </button>
-                    <button type="button" aria-label="Remove" data-tip="Remove" className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100" onClick={() => p.onRemoveAnnotation(it.a.id)}>
+                    <button type="button" aria-label="Remove" data-tip="Remove" className={`absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 ${it.orphaned ? "opacity-100" : "opacity-0"}`} onClick={() => p.onRemoveAnnotation(it.a.id)}>
                       <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </article>

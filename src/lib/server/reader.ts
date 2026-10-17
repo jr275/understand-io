@@ -38,10 +38,15 @@ const COOKIE_OPTS = {
   maxAge: 60 * 60 * 24 * 365 * 2,
 };
 
+/** The cookie value for a reader id: `id.signature`. The format is fixed; changing it would log every existing reader out. */
+export function readerCookieValue(id: string) {
+  return `${id}.${sign(id)}`;
+}
+
 /** Point this browser at a specific reader id (used when an account signs in). */
 export async function setReaderCookie(id: string) {
   const jar = await cookies();
-  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
+  jar.set(READER_COOKIE, readerCookieValue(id), COOKIE_OPTS);
 }
 
 export function newReaderId() {
@@ -69,6 +74,6 @@ export async function ensureReaderId(): Promise<string> {
   const existing = verifyReaderCookie(jar.get(READER_COOKIE)?.value);
   if (existing) return existing;
   const id = newReaderId();
-  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
+  jar.set(READER_COOKIE, readerCookieValue(id), COOKIE_OPTS);
   return id;
 }

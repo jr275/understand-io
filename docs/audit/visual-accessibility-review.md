@@ -4,7 +4,7 @@ _Measured on 2026-10-17 against the dev server on port 3100, Playwright Chromium
 
 ## 1. Automated accessibility scan (axe-core 4.14 through Playwright)
 
-`scripts/a11y-scan.mts` visits 15 states in each of two themes (paper and night): landing, landing with the paste dialog, library, add panel, open book, reader, appearance, key panel, keys dialog, selection toolbar, notebook, listen bar, voice search, and the phone-width reader and landing. That is 30 scans. The same scan runs as the regression test `tests/e2e/a11y.spec.ts`.
+`scripts/a11y-scan.mts` visits 15 states in each of two themes (paper and night) and produced the table below: landing, landing with the paste dialog, library, add panel, open book, reader, appearance, key panel, keys dialog, selection toolbar, notebook, listen bar, voice search, and the phone-width reader and landing. That is 30 scans. The same states run as the regression test `tests/e2e/a11y.spec.ts`, which now covers **all five themes** (Paper, Night, Sepia, Snow, Ink; four tests each, and it asserts that `data-theme` really is the theme under test).
 
 | Rule | Violating nodes at start | Now |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ Not exercised: a real screen reader (VoiceOver, NVDA), switch access, or voice c
 
 ## 3. Contrast and themes
 
-Five themes exist (Paper, Sepia, Snow, Night, Ink). Axe covers Paper and Night. Sepia, Snow and Ink were not scanned; their tokens were adjusted with the same lightness rule but are unmeasured.
+Five themes exist (Paper, Sepia, Snow, Night, Ink). Axe now covers all five and reports no violation in any of the states listed above (Sepia, Snow and Ink were first scanned at the end of the audit and passed without further changes).
 
 ## 4. Forced colors and reduced motion
 
@@ -75,7 +75,7 @@ Screens not covered by the pixel comparison (no reference capture exists for the
 
 | ID | Item | Severity |
 | --- | --- | --- |
-| A11Y-1 | Sepia, Snow and Ink themes are not contrast-scanned | P3 |
+| A11Y-1 | (closed) Sepia, Snow and Ink were not contrast-scanned; they are now and pass | P3 |
 | A11Y-2 | No screen-reader pass | P2 (human check) |
 | A11Y-3 | Lens toolbar has no roving tabindex (earlier report) | P3 |
 | BUILD-1 | `next/font` cannot compute fallback metrics for Atkinson Hyperlegible Next, so there is a small layout shift while it loads | P3 |

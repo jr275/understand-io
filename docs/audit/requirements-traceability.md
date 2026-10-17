@@ -34,7 +34,7 @@ _Source of requirements: `docs/product-specification.md` (scope, additions, qual
 | REF-13 | Margin gloss streamed model answers, citations, follow-up | BLOCKED | no `TOGETHER_API_KEY` and no user key in this environment; see REF-13 |
 | REF-14 | Whole-text question and "Gloss this text" | BLOCKED | same |
 | REF-15 | Notebook: tabs, cards, delete, Markdown copy/download | VERIFIED WORKING | U `notebook-markdown.test.ts`; E `reader.spec.ts`, `annotations.spec.ts` |
-| REF-16 | Appearance: themes, pens, typefaces, size, spacing, numbers, map, focus, listen | VERIFIED WORKING | E `landing.spec.ts`, `reader.spec.ts`; contrast `a11y.spec.ts` |
+| REF-16 | Appearance: themes, pens, typefaces, size, spacing, numbers, map, focus, listen | VERIFIED WORKING | E `landing.spec.ts`, `reader.spec.ts`; contrast `a11y.spec.ts` in all five themes |
 | REF-17 | API key panel stores the key only in the browser and sends it per request | VERIFIED WORKING | U `serverKeyAbuse.test.ts`; E `api.spec.ts` (402 without a key); live use of a key is BLOCKED (REF-13) |
 | REF-18 | Keyboard shortcuts `/ J K Enter [ ] B N F Esc ?` plus L, Space, V, Shift+H, Shift+U | VERIFIED WORKING | E `reader.spec.ts`, `search-and-speech.spec.ts`, `a11y.spec.ts` (every Tab stop shows focus) |
 | REF-19 | Map rail, scroll progress bar, topbar title on scroll | VERIFIED WORKING | E DOM assertions in `reader.spec.ts` |
@@ -103,7 +103,7 @@ _Source of requirements: `docs/product-specification.md` (scope, additions, qual
 | NFR-5 | Reader isolation (no cross-reader read, write or delete) | VERIFIED WORKING | I/E `import-and-isolation.spec.ts`, `annotations-api.spec.ts` |
 | NFR-6 | Parser limits (HTML, PDF) | VERIFIED WORKING | U `parserLimits.test.ts` |
 | NFR-7 | Error hygiene: no SQL, document text or secrets in responses or logs | VERIFIED WORKING | U `importErrors.test.ts`, `db-outage.test.ts`; E `import-and-isolation.spec.ts` (text-route messages) |
-| NFR-8 | WCAG 2.2 AA automated checks in both themes, visible focus on every Tab stop | VERIFIED WORKING | E `a11y.spec.ts` (axe: 368 violating nodes at start, 334 of them contrast; 0 now); manual screen-reader pass is H |
+| NFR-8 | WCAG 2.2 AA automated checks in all five themes, visible focus on every Tab stop | VERIFIED WORKING | E `a11y.spec.ts` (axe: 368 violating nodes at start, 334 of them contrast; 0 now, in all five themes); manual screen-reader pass is H |
 | NFR-9 | Library and reader survive a PostgreSQL outage | VERIFIED WORKING | U `db-outage.test.ts`; E-level outage run recorded in `external-integrations.md` |
 | NFR-10 | Production configuration guardrails (cookie secret, `APP_URL`) | VERIFIED WORKING | U `authHardening.test.ts`; never run behind a real production deployment (not allowed by the brief) |
 | NFR-11 | No console errors or failed requests on primary journeys | VERIFIED WORKING | E assertions in `landing.spec.ts`, `reader.spec.ts`, and the dev-only script-tag error regression test |

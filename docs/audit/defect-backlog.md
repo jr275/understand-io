@@ -105,7 +105,7 @@ Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17
 | ANNOT-18 | P3 | mark segmentation O(blocks^2) | Fixed | unit threshold only (not measured in a browser) |
 | ANNOT-19 | P3 | keyboard, touch and focus | Partial | Space no longer starts a question inside the lens. Existing marks are still not focusable, focus never moves into the lens, the lens does not reposition on scroll |
 | ANNOT-20 | P3 | small UI and state issues | Partial | note draft resets on open. Empty note still saved; toast still optimistic; unknown `?hl=` id skips progress resume |
-| ANNOT-21 | P3 | route robustness | Partial | 503 on outage for annotation, gloss and progress routes; 409 for foreign ids. No FK on `document_id`; `documents/[id]` PATCH and DELETE not outage-guarded |
+| ANNOT-21 | P3 | route robustness | Partial | 503 on outage for annotation, gloss, progress and document PATCH/DELETE routes; 409 for foreign ids. Still no foreign key on `document_id` and no orphan-row cleanup (needs a migration) |
 | ANNOT-22 | P3 | defensive gaps in anchor helpers | Fixed | unit |
 
 ## Security (details in `security-review.md`)
@@ -122,7 +122,7 @@ Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17
 | SEC-8 | P3 | CSRF only SameSite | Fixed | Content-Type not enforced; production proxy behaviour not observed |
 | SEC-9 | P3 | no security headers | Partial | no script-src CSP; production headers not observed |
 | SEC-10 | P3 | SSRF address gaps | Fixed | |
-| SEC-11 | P3 | raw errors returned, verbose logs | Fixed | final stretch closed the annotation-route gap; `documents/[id]` PATCH/DELETE unguarded |
+| SEC-11 | P3 | raw errors returned, verbose logs | Fixed | final stretch closed the annotation-route gap and guarded `documents/[id]` PATCH and DELETE (outage test) |
 | SEC-12 | P3 | cookie design | Partial | bare-id signature, no `__Host-`, no revocation, dev fallback secret |
 | SEC-13 | P3 | `next` and `APP_URL` handling | Fixed | |
 | SEC-14 | INFO | upsert and numeric edges | Fixed | |
@@ -137,10 +137,10 @@ Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17
 | IMP-2 | P3 | "Nothing to read." for malformed JSON, oversize and other errors | Fixed | e2e names the real problem |
 | IMP-3 | P3 | the same text imported twice creates two documents | Open | by design so far; no de-duplication |
 | IMP-4 | P2 | sites that block servers (403) gave "That page answered 403." | Fixed | capture bookmarklet, honest message (`importStatus.test.ts`, e2e); needs the reader's own browser tab |
-| IMP-5 | P3 | PDF text lost paragraph breaks, so headings fused with paragraphs | Fixed | `pdf-paragraphs.test.ts` with a real PDF fixture. **New cost**: on a real paper (arXiv 1706.03762) blocks went from 62 to 258, with 103 shorter than 40 characters; 23 are real headings, many are table, figure or math fragments that used to hide inside neighbouring paragraphs |
+| IMP-5 | P3 | PDF text lost paragraph breaks, so headings fused with paragraphs | Fixed | `pdf-paragraphs.test.ts` with a real PDF fixture. Cost and its mitigation: on a real paper (arXiv 1706.03762) blocks went from 62 to 258 with 103 shorter than 40 characters. Runs of three or more tiny pieces are now merged back (`mergeFragmentRuns`): 189 blocks and 29 shorter than 40 characters, of which 26 are headings, formulas or table rows. A second paper (arXiv 1810.04805): 297 blocks and 44 short before the merge, 280 and 24 after. Figure text is still its own blocks, only fewer |
 | DB-1 | P1 | library returned 500 and an overlay when PostgreSQL was unreachable; SQL and document leaked in errors | Fixed | `db-outage.test.ts` against a dead port; real app run on a dead port |
 | DEV-1 | P3 | dev-only "Encountered a script tag" React error | Fixed | jsdom test with a control |
-| A11Y-1 | P2 | 368 axe violations (334 contrast) | Fixed | `a11y.spec.ts`; Sepia, Snow and Ink themes were not scanned |
+| A11Y-1 | P2 | 368 axe violations (334 contrast) | Fixed | `a11y.spec.ts` in all five themes |
 | A11Y-2 | P3 | text fields without a visible focus indicator | Fixed | focus scan e2e |
 | A11Y-3 | P2 | four `aria-modal` dialogs let Tab leave and never returned focus | Fixed | final stretch: `useModalFocus`, 4 e2e (fail without it) |
 | A11Y-4 | P2 | no screen-reader pass at all | Open | human check |

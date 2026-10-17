@@ -12,7 +12,7 @@ async function violations(page: Page) {
   return r.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`);
 }
 
-for (const theme of ["paper", "night"] as const) {
+for (const theme of ["paper", "night", "sepia", "snow", "ink"] as const) {
   test.describe(`axe — ${theme} theme`, () => {
     test.use({ reducedMotion: "reduce" });
     test.beforeEach(async ({ page }) => {
@@ -22,6 +22,7 @@ for (const theme of ["paper", "night"] as const) {
     test("landing, with and without the paste dialog", async ({ page }) => {
       await page.goto("/");
       await expect(page.getByLabel("Article link")).toBeVisible();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme); // the scan really ran in this theme
       expect(await violations(page)).toEqual([]);
       await page.getByRole("button", { name: "Paste text" }).click();
       await expect(page.getByRole("dialog", { name: "Paste text" })).toBeVisible();

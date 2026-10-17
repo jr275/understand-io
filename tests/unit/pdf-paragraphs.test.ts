@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { documentFromPdf, textWithParagraphGaps } from "@/lib/content/pdf";
+import { documentFromPdf, mergeFragmentRuns, textWithParagraphGaps } from "@/lib/content/pdf";
 
 const line = (str: string, y: number) => [{ str, transform: [1, 0, 0, 1, 72, y] }, { str: "", hasEOL: true }];
 
@@ -28,5 +28,25 @@ describe("a real PDF whose paragraphs are separated by blank lines", () => {
     expect(texts[1]).toMatch(/^Chalk is a soft white limestone/);
     expect(texts[2]).toMatch(/^When a piece of chalk is crushed/);
     expect(texts[3]).toMatch(/^The white cliffs along the south coast/);
+  });
+});
+
+describe("mergeFragmentRuns (text from figures and tables)", () => {
+  const prose = "This is an ordinary paragraph of the paper, long enough to be prose and not a fragment of a figure.";
+  it("joins three or more tiny pieces in a row into one block", () => {
+    const text = [prose, "The", "Law will", "never be", "perfect ,", prose].join("\n\n");
+    expect(mergeFragmentRuns(text).split("\n\n")).toEqual([prose, "The Law will never be perfect ,", prose]);
+  });
+  it("leaves a heading between paragraphs, and two short pieces in a row, alone", () => {
+    const text = [prose, "Abstract", prose, "Conclusion", "References", prose].join("\n\n");
+    expect(mergeFragmentRuns(text)).toBe(text);
+  });
+  it("never counts numbered headings or list items as fragments", () => {
+    const text = [prose, "3 Model", "3.1 Encoder", "3.2 Attention", "- one", "- two", "- three", prose].join("\n\n");
+    expect(mergeFragmentRuns(text)).toBe(text);
+  });
+  it("is the identity on text with no short pieces", () => {
+    expect(mergeFragmentRuns([prose, prose].join("\n\n"))).toBe([prose, prose].join("\n\n"));
+    expect(mergeFragmentRuns("")).toBe("");
   });
 });

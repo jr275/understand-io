@@ -43,6 +43,15 @@ describe("routes during a database outage", () => {
     expect((await PUT(json("PUT", { documentId: "sample:x", ratio: 0.5, updatedAt: now }))).status).toBe(503);
   });
 
+  it("document PATCH and DELETE answer 503 too, not an uncaught error", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { PATCH, DELETE } = await import("@/app/api/documents/[id]/route");
+    expect((await PATCH(json("PATCH", { topic: "history" }), ctx("doc_outage_1"))).status).toBe(503);
+    const del = await DELETE(new Request("http://x.test/api", { method: "DELETE" }), ctx("doc_outage_1"));
+    expect(del.status).toBe(503);
+    expect(await del.json()).toEqual({ error: "database-unavailable" });
+  });
+
   it("the document data GET answers 200 with persisted:false and empty lists", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { GET } = await import("@/app/api/documents/[id]/data/route");

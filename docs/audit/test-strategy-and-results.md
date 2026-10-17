@@ -8,12 +8,12 @@ _Final run on 2026-10-17 against the working tree at the commit that follows 098
 | --- | --- | --- |
 | `pnpm typecheck` | 0 | clean |
 | `pnpm lint` | 0 | clean, no warnings |
-| `pnpm test` (Vitest) | 0 | 32 files, **663 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
-| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **98 passed** (96 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
+| `pnpm test` (Vitest) | 0 | 32 files, **668 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
+| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **110 passed** (108 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
 | `pnpm build` | 0 | compiled; one warning: no fallback font metrics for Atkinson Hyperlegible Next (BUILD-1) |
 | `pnpm audit --prod` | 0 | no known vulnerabilities |
 
-At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by this audit: 621 unit and 66 end-to-end.
+At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by this audit: 626 unit and 78 end-to-end.
 
 No test was skipped, deleted, loosened or marked flaky to obtain these results. Where a test was wrong it was fixed and the reason recorded in the commit (for example a security test that depended on a NUL byte reaching the database now uses a lone surrogate, because NUL is refused earlier).
 
@@ -25,7 +25,7 @@ No test was skipped, deleted, loosened or marked flaky to obtain these results. 
 | Unit | Vitest, node environment by default, jsdom per file where a DOM is needed | pure logic: anchors, retrieval, stemming, sentence splitting, safe fetch address rules, limits, cookie and OAuth helpers, the speech controller against fake engines, the voice panel against fake devices, route handlers against a real driver pointed at a dead port | that a real browser, microphone, speaker, model or OAuth provider behaves like the fake |
 | Integration through HTTP | Playwright `request` fixture against the running app and the real local PostgreSQL | ownership, validation, status codes, last-write-wins, upload limits, security headers, CSRF guard | production infrastructure |
 | End to end | Playwright (Chromium desktop 1440x900 and Pixel 7) | real UI journeys, keyboard behaviour, dialogs, speech with a fake engine, voice search with typed input, a11y | other browsers; real audio; real speech recognition |
-| Accessibility | axe-core through Playwright in two themes plus a keyboard focus scan and dialog focus tests | WCAG A and AA rules axe can see, visible focus, focus traps | screen-reader experience, cognitive load |
+| Accessibility | axe-core through Playwright in all five themes (`a11y.spec.ts`; the standalone scan script covers two) plus a keyboard focus scan and dialog focus tests | WCAG A and AA rules axe can see, visible focus, focus traps | screen-reader experience, cognitive load |
 | Visual | pixelmatch against saved reference screenshots, current tokens versus original tokens | measured distance and the cost of the contrast fix | design quality |
 | Retrieval evaluation | `scripts/eval-retrieval.mts` over 41 labelled queries | regression signal for ranking and confidence labels | accuracy claims (the set is small) |
 | Real browser | Chrome 155 driven through the extension | the real speech engine's events and flags, the capture bookmarklet on a live page | audible sound, microphone |
@@ -40,11 +40,11 @@ No test was skipped, deleted, loosened or marked flaky to obtain these results. 
 
 ### Regression discipline
 
-Each fix in the review set came with a test that was run against the old code and failed there (the commit messages say how many). In this final stretch the same check was done by disabling the fix: the four dialog-focus tests, the two Stop-focus tests, the typed-over-spoken voice test and the randomised anchor test (by breaking resolution) all fail without their fixes.
+Each fix in the review set came with a test that was run against the old code and failed there (the commit messages say how many). In this final stretch the same check was done by disabling the fix: the four dialog-focus tests, the two Stop-focus tests, the document-route outage test, the typed-over-spoken voice test and the randomised anchor test (by breaking resolution) all fail without their fixes.
 
 ## Test inventory
 
-### Unit (32 files, 663 tests)
+### Unit (32 files, 668 tests)
 
 | File | Tests | Area |
 | --- | --- | --- |
@@ -55,16 +55,16 @@ Each fix in the review set came with a test that was run against the old code an
 | retrieval | 134 | stemmer vocabulary, stop words, spoken queries, confidence, labelled evaluation |
 | search | 8 | BM25 basics |
 | anchors, anchors-resolve, anchors-dom, anchors-property | 7, 30, 13, 201 | anchoring, resolution, DOM selection, randomised contract |
-| annotate, annotation-schema, annotation-routes-outage, library-sync, notebook-markdown | 7, 41, 4, 13, 3 | annotation logic, validation, outage, sync, export |
+| annotate, annotation-schema, annotation-routes-outage, library-sync, notebook-markdown | 7, 41, 5, 13, 3 | annotation logic, validation, outage, sync, export |
 | safeFetch, safeFetchRanges, safeFetchPinning | 5, 5, 6 | SSRF address rules, ranges, connect-time pinning |
 | serverKeyAbuse, parserLimits, importErrors, importStatus, uploadKind, guarded-errors | 16, 13, 4, 3, 4, 3 | limits, parser bounds, error hygiene, file sniffing |
 | auth, authHardening, accountMerge | 3, 8, 9 | OAuth helpers, production guards, account merge planner (some cases need the database) |
-| content, pdf-paragraphs | 10, 4 | extraction, PDF paragraph gaps (real PDF fixture) |
+| content, pdf-paragraphs | 10, 8 | extraction, PDF paragraph gaps (real PDF fixture), merging of figure fragments |
 | db-outage, theme-boot | 5, 4 | outage with the real driver, no React script-tag error |
 
-### End to end (98 runs)
+### End to end (110 runs)
 
-a11y 15, annotations 8, annotations-api 6, api 6, import-and-isolation 3, landing 10, library 3, mobile 2, reader 9, search-and-speech 27, security 9.
+a11y 27, annotations 8, annotations-api 6, api 6, import-and-isolation 3, landing 10, library 3, mobile 2, reader 9, search-and-speech 27, security 9.
 
 ## Known weaknesses of the test suite
 

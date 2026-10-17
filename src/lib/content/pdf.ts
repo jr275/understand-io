@@ -101,10 +101,12 @@ export function textWithParagraphGaps(items: readonly unknown[]): string {
 
 async function readPdf(pdf: Pdf, filename: string): Promise<GlossDocument> {
   const pages = await pageTexts(pdf, Date.now() + PDF_LIMITS.ms);
-  const joined = pages
-    .map((p) => rebuildParagraphs(p))
-    .filter(Boolean)
-    .join("\n\n");
+  const joined = mergeFragmentRuns(
+    pages
+      .map((p) => rebuildParagraphs(p))
+      .filter(Boolean)
+      .join("\n\n"),
+  );
   const blocks = blocksFromText(joined);
   if (!blocks.length) throw new ReadError("No text could be read from that PDF (it may be scanned images).");
   const meta = await pdf.getMetadata().catch(() => null);
@@ -145,5 +147,28 @@ export function rebuildParagraphs(page: string) {
     } else cur = cur ? `${cur.replace(/-$/, "")}${cur.endsWith("-") ? "" : " "}${l}` : l;
   }
   if (cur) out.push(cur);
+  return out.join("\n\n");
+}
+
+/**
+ * Text that sits inside figures, diagrams and tables comes out of a PDF as many tiny pieces ("The", "Law will", "never be", ...), and the
+ * paragraph gaps turn each into a block of its own. Three or more short pieces in a row are not prose or headings (a heading stands
+ * between paragraphs), so they are joined back into one block. Numbered headings ("3.2 Attention") and list items never count as pieces.
+ */
+export function mergeFragmentRuns(text: string, shortBelow = 40, minRun = 3): string {
+  const paras = text.split(/\n\s*\n/);
+  const piece = (p: string) => p.length < shortBelow && !/^\d+(\.\d+)*\.?\s+\p{L}/u.test(p) && !/^[-*•#>]/.test(p);
+  const out: string[] = [];
+  for (let i = 0; i < paras.length; ) {
+    let j = i;
+    while (j < paras.length && piece(paras[j].trim())) j++;
+    if (j - i >= minRun) {
+      out.push(paras.slice(i, j).map((x) => x.trim()).join(" "));
+      i = j;
+    } else {
+      out.push(paras[i]);
+      i++;
+    }
+  }
   return out.join("\n\n");
 }

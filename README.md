@@ -106,7 +106,7 @@ when a key is configured.
 The full list is `docs/audit/defect-backlog.md`. The ones you are likely to meet:
 
 - Retrieval by words misses paraphrases; meaning search is only as good as the model and has not been measured.
-- PDFs with figures and tables produce many short blocks.
+- PDFs with figures and tables still produce some short blocks.
 - Annotations on texts that exist only in your browser (`local:` documents) do not sync between devices.
 - Existing highlights are not reachable with the keyboard (the Notebook lists them and can delete them).
 - The development database fills up with test data whenever the end-to-end suite runs.

@@ -6,7 +6,7 @@ _Written 2026-10-17. Everything here comes from commands run and files read in t
 
 **Verdict: functionally usable with known limitations.** It is not a release candidate, and it is not production-ready.
 
-What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 663 unit tests, 98 end-to-end tests, the production build and the dependency audit all pass.
+What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 668 unit tests, 110 end-to-end tests, the production build and the dependency audit all pass.
 
 What is not proven, and why it matters to you:
 
@@ -18,7 +18,7 @@ What is not proven, and why it matters to you:
 
 Not "production-ready": there is no CI, no monitoring, the rate limiter is per process, the server has never run behind real TLS or a real host, and the items above are unverified. A passing build is not a readiness claim.
 
-Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 663 and 98.
+Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 668 and 110.
 
 ## B. Verified environment
 
@@ -47,8 +47,8 @@ All run on 2026-10-17 in this folder; exit codes are real.
 | --- | --- | --- | --- | --- | --- |
 | `pnpm typecheck` | exit 0 | clean | none | n/a | none |
 | `pnpm lint` | exit 0 | clean, 0 warnings | `test-results/` and scratch outputs are ignored | n/a | none |
-| `pnpm test` | exit 0 | 32 files, 663 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
-| `pnpm test:e2e` | exit 0 | 98 passed (96 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
+| `pnpm test` | exit 0 | 32 files, 668 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
+| `pnpm test:e2e` | exit 0 | 110 passed (108 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
 | `pnpm build` | exit 0 | compiled; warning: no fallback font metrics for Atkinson Hyperlegible Next | none | n/a | production server behaviour (`next start`, TLS, CDN) not exercised |
 | `pnpm audit --prod` | exit 0 | no known vulnerabilities | dev dependencies not audited | n/a | reflects the advisory database at run time |
 | `pnpm exec tsx scripts/eval-retrieval.mts` | exit 0 | top-1 57.7 %, top-3 69.2 % on 26 sample-document queries; absent concepts showing hits 1 of 7; 215 of 215 offsets exact | meaning re-rank not evaluated | none | 41 hand-written queries: a regression signal, not an accuracy claim |
@@ -66,7 +66,7 @@ Status words are the six allowed values. Full 71-row matrix with sources, tests,
 | Library and document lifecycle | VERIFIED WORKING | `library.spec`, `reader.spec`, `a11y.spec`; Colour sort and topic persistence untested | Colour sort test |
 | URL import | VERIFIED WORKING | live fetches of public pages, `api.spec`, `safeFetch*` tests | sites that answer 403 need the bookmarklet |
 | Bookmarklet import | VERIFIED WORKING | `landing.spec` handshake tests; run for real on a live Atlantic article in Chrome | none |
-| PDF and text import | VERIFIED WORKING | `content.test`, `pdf-paragraphs.test`, `import-and-isolation.spec`; real arXiv PDF imported | figure and table text becomes short blocks (IMP-5) |
+| PDF and text import | VERIFIED WORKING | `content.test`, `pdf-paragraphs.test`, `import-and-isolation.spec`; real arXiv PDF imported | figure and table text still forms some short blocks (IMP-5) |
 | PostgreSQL persistence | VERIFIED WORKING | I/E specs write and read real rows; outage reproduced with the real driver | no disposable test database |
 | Read-aloud controls | VERIFIED WORKING | 74 unit tests, 27 e2e speech and voice tests, real Chrome 155 run of the rewritten controller (pause, skip while paused, resume, back, stop, 0 errors) | other browsers |
 | Audible output | BLOCKED | none: no independent human verification has occurred | a person must listen (`docs/audit/tts-validation.md`, Level 3) |
@@ -82,7 +82,7 @@ Status words are the six allowed values. Full 71-row matrix with sources, tests,
 | User data isolation | VERIFIED WORKING | `import-and-isolation.spec`, `annotations-api.spec` (409, invisible reads) | none |
 | Responsive behavior | PARTIALLY IMPLEMENTED | `mobile.spec`, axe at 375 px (Pixel 7 emulation) | real phone, touch |
 | Visual fidelity | PARTIALLY IMPLEMENTED | pixel diff 0.42 % to 16.40 %; painted art and logo are stand-ins | none required |
-| Accessibility | VERIFIED WORKING (automated: 0 axe violations in 30 states, visible focus, dialog focus) | `a11y.spec` | no screen-reader pass; three themes unscanned |
+| Accessibility | VERIFIED WORKING (automated: 0 axe violations in every state of all five themes, visible focus, dialog focus) | `a11y.spec` | no screen-reader pass |
 | Security review | PARTIALLY IMPLEMENTED | 9 of 16 findings fixed, 5 partial, 2 information | shared limiter, anonymous growth cap, CSP script-src |
 | Production build | VERIFIED WORKING | `pnpm build` exit 0 | production host not exercised |
 | Database outage tolerance | VERIFIED WORKING | `db-outage.test`, `annotation-routes-outage.test`, real app on a dead port | none |
@@ -143,7 +143,7 @@ Unverified or blocked:
 Partial or by design:
 
 - Passage retrieval by words alone misses paraphrases: on the labelled set seven answerable queries now answer "no match" (three before) and top-1 is 57.7 %. The 0.4 coverage cutoff is not calibrated.
-- PDF import now separates headings and paragraphs, at a cost: on a real paper the block count went from 62 to 258, of which 103 are shorter than 40 characters. 23 are real headings; many are table, figure and math fragments that used to hide inside neighbouring paragraphs.
+- PDF import now separates headings and paragraphs, at a cost: on a real paper the block count went from 62 to 258, of which 103 were shorter than 40 characters. Merging runs of tiny pieces brought it to 189 blocks with 29 short ones (26 of them headings, formulas or table rows). Figure and table text still produces some short blocks.
 - Annotations on `local:` documents never sync. Edits inside an annotated quote orphan the mark instead of guessing. A newer edit on one device beats a deletion on another.
 - Resume after a reload starts from the paragraph on screen, not mid-sentence; where reading stopped is not remembered.
 - `/?url=` and `/?save=` fill the field and wait for Read (security change from the reference).
@@ -184,7 +184,7 @@ Across all 71 requirements: 47 verified working, 6 partially implemented, 7 impl
 1. Run Google sign-in with real credentials, including the library merge and a second browser.
 2. Repeat the human checks in Safari and on a phone.
 3. Add CI that runs typecheck, lint, unit and end-to-end tests with a disposable database.
-4. Do a screen-reader pass (VoiceOver) and scan the Sepia, Snow and Ink themes.
+4. Do a screen-reader pass (VoiceOver).
 5. Decide the behaviour for ANNOT-17 (`local:` documents) and make existing marks keyboard-reachable.
 
 **Required before production deployment**
@@ -192,10 +192,9 @@ Across all 71 requirements: 47 verified working, 6 partially implemented, 7 impl
 2. Run the server on a staging host behind TLS and observe the headers, the cross-site guard, the secure cookie and `APP_URL` enforcement; apply migration 0002 there.
 3. Add a `script-src` CSP by moving the theme bootstrap to a hash or nonce (SEC-9); sign the reader cookie with a purpose label (SEC-12).
 4. Add logging, error tracking, backups and a restore procedure.
-5. Guard the `documents/[id]` routes like the annotation routes (SEC-11).
 
 **Optional improvements**
-1. Merge short PDF fragments into neighbours when they have no sentence punctuation (IMP-5).
+1. Decide what to do with the remaining figure and table fragments in PDFs (IMP-5), for example a font-size signal from pdf.js.
 2. Calibrate the retrieval cutoff on a larger labelled set; add an inverted index if documents get very large (RETR-10).
 3. Remember where reading stopped (TTS-9); add a setting to turn off single-key shortcuts.
 4. Run `prettier --write` as one repository-wide commit with a `.prettierignore`, then add a check script (HYG-1).

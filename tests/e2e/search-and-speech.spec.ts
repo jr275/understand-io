@@ -47,6 +47,86 @@ test.describe("voice search (typed transcript; recognition itself needs a microp
     await dialog.getByLabel("What to look for").press("Enter");
     await expect(dialog.getByText(/Possible matches/)).toBeVisible();
   });
+
+  test("an ambiguous one-word question is never called a confident match", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("v");
+    const dialog = page.getByRole("dialog", { name: "Ask by voice" });
+    await dialog.getByLabel("What to look for").fill("the sea");
+    await dialog.getByLabel("What to look for").press("Enter");
+    await expect(dialog.getByText(/Possible matches/)).toBeVisible();
+    await expect(dialog.getByText(/none is a confident hit/)).toBeVisible();
+  });
+
+  test("concepts the text does not contain give no results at all, not a list of near misses", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("v");
+    const dialog = page.getByRole("dialog", { name: "Ask by voice" });
+    await dialog.getByLabel("What to look for").fill("where does he discuss the stock market and interest rates");
+    await dialog.getByLabel("What to look for").press("Enter");
+    await expect(dialog.getByText(/No passage in this text matches/)).toBeVisible();
+    await expect(dialog.getByRole("listitem")).toHaveCount(0);
+  });
+
+  test("the question field has focus on open, Tab stays inside the dialog, and focus returns on close", async ({ page }) => {
+    await openReader(page);
+    await page.getByLabel("Ask anything about the whole text").focus();
+    await page.getByRole("button", { name: /voice|microphone/i }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Ask by voice" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("What to look for")).toBeFocused();
+    for (let i = 0; i < 8; i++) {
+      await page.keyboard.press("Tab");
+      expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /voice|microphone/i }).first()).toBeFocused();
+  });
+
+  test("scrolling the page while the panel is open does not close or disturb it", async ({ page }) => {
+    await openReader(page);
+    await page.keyboard.press("v");
+    const dialog = page.getByRole("dialog", { name: "Ask by voice" });
+    await dialog.getByLabel("What to look for").fill("coccoliths");
+    await page.mouse.move(700, 500);
+    await page.mouse.wheel(0, 400);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(300);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("What to look for")).toHaveValue("coccoliths");
+  });
+
+  test("opening the panel while the text is being read aloud pauses the reading", async ({ page }) => {
+    await installFakeSpeech(page);
+    await openReader(page);
+    await page.keyboard.press("l");
+    const region = page.getByRole("region", { name: "Reading aloud" });
+    await expect(region.getByRole("button", { name: "Pause" })).toBeVisible();
+    await page.keyboard.press("v");
+    await expect(page.getByRole("dialog", { name: "Ask by voice" })).toBeVisible();
+    await expect(region.getByRole("button", { name: "Resume" })).toBeVisible();
+    const spokenWhilePaused = (await spokenText(page)).length;
+    await page.waitForTimeout(900);
+    expect((await spokenText(page)).length).toBe(spokenWhilePaused);
+  });
+
+  test("'…and read it' reads that passage only, then stops", async ({ page }) => {
+    await installFakeSpeech(page, { msPerUtterance: 120 });
+    await openReader(page);
+    await page.keyboard.press("v");
+    const dialog = page.getByRole("dialog", { name: "Ask by voice" });
+    await dialog.getByLabel("What to look for").fill("find the part about coccoliths and read it");
+    await dialog.getByLabel("What to look for").press("Enter");
+    await expect(dialog.getByText(/Matches for/)).toBeVisible();
+    const excerpt = (await dialog.getByRole("listitem").first().locator("button").first().textContent())!;
+    await dialog.getByRole("listitem").first().getByRole("button", { name: "Read this passage aloud" }).click();
+    await expect.poll(async () => (await spokenText(page)).length, { timeout: 4000 }).toBeGreaterThan(0);
+    await expect(page.getByRole("region", { name: "Reading aloud" })).toHaveCount(0, { timeout: 8000 }); // it ends by itself
+    const spoken = await spokenText(page);
+    expect(spoken.length).toBeLessThanOrEqual(4); // a one- or two-sentence passage, not the rest of the text
+    expect(excerpt.replace(/\s+/g, " ")).toContain(spoken[0].slice(0, 25));
+  });
 });
 
 test.describe("read aloud (mock speech engine)", () => {

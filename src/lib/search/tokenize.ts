@@ -1,31 +1,67 @@
-const STOP = new Set(
-  (
-    "a an and are as at be but by for from has have he her his i if in into is it its of on or " +
-    "she so that the their them then there these they this to was we were what when where which " +
-    "who will with would you your " +
-    "o a os as um uma de do da dos das em no na nos nas por para com que se não é são ao à " +
-    "sobre onde qual quais como quem e ou mas"
-  ).split(/\s+/),
+import { porterStem } from "./porter";
+
+/** Strip accents and lowercase, so lookups never depend on how a word was typed or dictated. */
+const fold = (w: string) => w.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+const STOP_EN =
+  "a about above after again against all also am an and any are as at be because been before being below between both but by can could did do does doing done down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself just me more most my myself no nor not of off on once only or other our ours ourselves out over own same shall she should so some such than that the their theirs them themselves then there these they this those through to too under until up us very was we were what when where which while who whom whose why will with would you your yours yourself yourselves";
+// Stored with accents removed: input is folded before the lookup, so "não" must be listed as "nao".
+const STOP_PT =
+  "a ao aos as ate com como da das de dela dele deles do dos e ela ele eles em entre era essa esse essas esses esta estas este estes foi ha isso mais mas na nas nao no nos o os ou para pela pelas pelo pelos por qual quais quando quem que sao se sem ser seu seus sobre sua suas tambem tem um uma uns umas ja so muito onde";
+const STOP = new Set(`${STOP_EN} ${STOP_PT}`.split(/\s+/));
+
+/**
+ * Words that belong to the spoken request, not to the topic ("can you please show me where the author mentions ...").
+ * They are dropped from queries only: in the text they are ordinary words.
+ */
+const QUERY_FILLER = new Set(
+  "please okay ok um uh hey well so tell show find take bring give go back say says said saying talk talks talking mention mentions mentioned author authors writer text passage part section paragraph place bit sentence read aloud something anything want need like look looking search locate whats pode mostrar mostre encontre localize procure autor texto trecho parte fala falam diz".split(/\s+/),
 );
 
-/** Lowercase, strip accents and punctuation, drop stop words, light stemming. */
-export function tokenize(text: string, keepStop = false): string[] {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+type Lang = "en" | "pt" | "es" | string;
+const baseLang = (lang?: string) => (lang ?? "en").slice(0, 2).toLowerCase();
+
+/** Light Portuguese stemmer on accent-folded words: plurals, feminine/masculine endings and a few derivational endings. */
+export function ptStem(input: string): string {
+  let w = input;
+  if (w.length <= 3) return w;
+  if (/(oes|aes|aos)$/.test(w)) w = w.slice(0, -3) + "ao";
+  else if (/ais$/.test(w)) w = w.slice(0, -3) + "al";
+  else if (/eis$/.test(w)) w = w.slice(0, -3) + "el";
+  else if (/ns$/.test(w)) w = w.slice(0, -2) + "m";
+  else if (/res$/.test(w) && w.length > 5) w = w.slice(0, -2);
+  else if (/s$/.test(w) && !/ss$/.test(w)) w = w.slice(0, -1);
+  w = w.replace(/(amente|mente)$/, "").replace(/(idade|ismo|ista)$/, "");
+  if (w.length > 5 && w.endsWith("ao")) w = w.slice(0, -2);
+  if (w.length > 4 && /[aoe]$/.test(w)) w = w.slice(0, -1);
+  return w;
+}
+
+/** Stem one already-folded word for the given language. */
+export function stem(word: string, lang: Lang = "en"): string {
+  const l = baseLang(lang);
+  if (word.length <= 3) return word;
+  if (l === "pt") return ptStem(word);
+  if (l === "es") return word.replace(/(ciones|cion|mente)$/, "").replace(/(es|s)$/, "");
+  return porterStem(word);
+}
+
+/** Lowercase, strip accents and punctuation, drop stop words, stem. */
+export function tokenize(text: string, keepStop = false, lang: Lang = "en"): string[] {
+  return fold(text)
     .replace(/[^\p{L}\p{N}\s'’-]/gu, " ")
     .split(/[\s'’-]+/)
     .filter((t) => t.length > 1 && (keepStop || !STOP.has(t)))
-    .map(stem);
+    .map((t) => stem(t, lang));
 }
 
-export function stem(t: string): string {
-  if (t.length <= 4) return t;
-  // Portuguese/Spanish endings first (input is already accent-stripped), then English.
-  const pt = t.replace(/(coes|cao|mente|ismo|istas?|idades?)$/, "").replace(/(ores|ais|eis|oes|ens)$/, "");
-  if (pt !== t) return pt;
-  return t.replace(/(ations?|ively|ingly|ements?|nesses?)$/, "").replace(/(ing|edly|ed|ies|es|ly|s)$/, (m) => (m === "ies" ? "y" : ""));
+/** Tokens of a search query: like `tokenize`, and also without the words of the spoken request itself. */
+export function queryTokens(text: string, lang: Lang = "en"): string[] {
+  return fold(text)
+    .replace(/[^\p{L}\p{N}\s'’-]/gu, " ")
+    .split(/[\s'’-]+/)
+    .filter((t) => t.length > 1 && !STOP.has(t) && !QUERY_FILLER.has(t))
+    .map((t) => stem(t, lang));
 }
 
 const ABBREVIATIONS = new Set(["mr", "mrs", "ms", "dr", "st", "prof", "sr", "jr", "vs", "fig", "figs", "cf", "viz", "co", "inc", "ltd", "bart", "gen", "col", "capt", "sgt", "lt", "rev", "hon", "esq", "mt", "ft", "approx", "dept", "est", "ave"]);

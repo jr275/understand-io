@@ -58,6 +58,8 @@ export class SpeechController {
   private keepAlive: number | undefined;
   private watchdog: number | undefined;
   private restartOnResume = false;
+  /** An utterance that was due to be spoken while the reader had paused: it speaks when they resume. */
+  private deferred: (() => void) | null = null;
   private attached = false;
   private onVoices = () => {
     this.voices = window.speechSynthesis.getVoices();
@@ -234,6 +236,7 @@ export class SpeechController {
       this.current.onboundary = null;
       this.current = null;
     }
+    this.deferred = null;
     window.clearTimeout(this.watchdog);
     this.hardCancel();
   }
@@ -290,10 +293,14 @@ export class SpeechController {
     // Small delay after cancel() avoids Chrome swallowing the first utterance.
     window.setTimeout(() => {
       if (myToken !== this.token) return;
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-      window.speechSynthesis.speak(u);
-      this.armKeepAlive();
-      this.armWatchdog(myToken, text);
+      const speak = () => {
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume(); // a flag left over from an earlier pause would silence it
+        window.speechSynthesis.speak(u);
+        this.armKeepAlive();
+        this.armWatchdog(myToken, text);
+      };
+      if (this.snap.state === "paused") this.deferred = speak; // paused during the short delay: say it on resume, not now
+      else speak();
     }, 30);
   }
 
@@ -365,6 +372,12 @@ export class SpeechController {
   resume() {
     if (this.snap.state !== "paused") return;
     this.emit({ state: "playing" });
+    if (this.deferred) {
+      const speak = this.deferred;
+      this.deferred = null;
+      speak();
+      return;
+    }
     if (this.restartOnResume) {
       this.restartOnResume = false;
       this.speakChunk();

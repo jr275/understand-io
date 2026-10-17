@@ -9,7 +9,10 @@ const blocks = (chalk as { blocks: Block[] }).blocks;
 describe("tokenize", () => {
   it("drops stop words, strips accents and stems lightly", () => {
     expect(tokenize("The chalks were crushed into the Cliffs")).toEqual(["chalk", "crush", "cliff"]);
-    expect(tokenize("conclusões da análise")).toEqual(["conclus", "analise"]);
+    // Portuguese is stemmed with Portuguese rules when asked to. This test used to expect "conclusões" -> "conclus" next to
+    // "conclusão" -> "conclusao", i.e. a plural that could never match its singular; singular and plural now give one stem.
+    expect(tokenize("conclusões da análise", false, "pt-BR")).toEqual(["conclus", "analis"]);
+    expect(tokenize("conclusão", false, "pt-BR")).toEqual(["conclus"]);
   });
   it("splits sentences without breaking abbreviations", () => {
     const s = sentences("Dr. Wallich looked. H.M.S. Bulldog sailed on! Then what?");

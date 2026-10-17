@@ -208,6 +208,41 @@ describe("SpeechController", () => {
     });
   });
 
+  describe("pausing at awkward moments", () => {
+    it("a pause during the short delay before a sentence is spoken holds that sentence until resume", () => {
+      const c = make();
+      c.playFrom();
+      c.pause(); // inside the 30 ms window: nothing has been handed to the engine yet
+      tick();
+      expect(spoken).toEqual([]);
+      expect(c.snapshot().state).toBe("paused");
+      c.resume();
+      tick();
+      expect(spoken).toEqual(["One."]);
+      expect(calls.at(-1)!.pausedAtSpeak).toBe(false);
+      expect(c.snapshot().state).toBe("playing");
+    });
+    it("skipping while that sentence is held drops it", () => {
+      const c = make();
+      c.playFrom();
+      c.pause();
+      tick();
+      c.skip(1);
+      c.resume();
+      tick();
+      expect(spoken).toEqual(["Two."]);
+    });
+    it("stopping while it is held leaves nothing queued", () => {
+      const c = make();
+      c.playFrom();
+      c.pause();
+      tick();
+      c.stop();
+      tick(200);
+      expect(spoken).toEqual([]);
+    });
+  });
+
   describe("errors and stale callbacks (TTS-2, TTS-15, TTS-23)", () => {
     it("an error invalidates the utterance: a late end must not keep speaking under the error state", () => {
       const c = make();

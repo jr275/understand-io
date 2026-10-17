@@ -8,6 +8,7 @@ import { anchorBlockIds, anchorFromSelection, makeAnchor, rangeForAnchor, resolv
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
 import { SpeechController } from "@/lib/speech/controller";
 import { newId } from "@/lib/content/slug";
+import { guessLang } from "@/lib/content/lang";
 import { useSettings } from "@/lib/store/settings";
 import { addAnnotation, persistGloss, rememberDocument, removeAnnotation, removeGloss, setProgress, syncDocumentData, updateAnnotation, upsertGloss, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
@@ -62,7 +63,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   /* ---------- speech ---------- */
   const [speech] = useState(() => new SpeechController());
   const snap = useSyncExternalStore(speech.store.subscribe, speech.store.getSnapshot, speech.store.getSnapshot);
-  const docLang = useMemo(() => guessLang(doc), [doc]);
+  const docLang = useMemo(() => guessLang(doc.blocks), [doc]);
   useEffect(() => {
     speech.setBlocks(blocks);
   }, [speech, blocks]);
@@ -440,12 +441,18 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     speech.playFrom(readingStart());
   }, [speech, readingStart, readAloudUnavailable]);
   const readPassage = useCallback(
-    (start: { b: string; o: number }, end: { b: string; o: number }) => {
+    (start: { b: string; o: number }, end: { b: string; o: number }, thenContinue = true) => {
       if (!speech.supported) return readAloudUnavailable();
-      speech.playRange(start, end, true);
+      speech.playRange(start, end, thenContinue);
     },
     [speech, readAloudUnavailable],
   );
+
+  /** Open the voice panel; read-aloud steps aside first, because the microphone would hear it and search for what it said. */
+  const openVoice = useCallback(() => {
+    speech.pause();
+    setVoiceOpen(true);
+  }, [speech]);
 
   /* ---------- keyboard ---------- */
   useEffect(() => {
@@ -535,7 +542,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           break;
         case "v":
         case "V":
-          setVoiceOpen(true);
+          openVoice();
           break;
         case "?":
           setKeysOpen((v) => !v);
@@ -544,7 +551,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading]);
+  }, [pending, voiceOpen, keysOpen, activeId, nbOpen, settings.focus, setSettings, blocks, cursor, glosses, clearSelection, scrollToBlock, blockAnchor, blockEl, jumpToAnchor, createGloss, snap.state, speech, startReading, openVoice]);
 
   /* ---------- marks per block ---------- */
   const marks = useMemo(() => {
@@ -624,7 +631,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const onHitRead = useCallback(
     (h: Hit) => {
       onHitJump(h);
-      readPassage({ b: h.blockId, o: h.start }, { b: h.blockId, o: h.end });
+      // "Read that passage" reads that passage; it does not carry on through the rest of the text.
+      readPassage({ b: h.blockId, o: h.start }, { b: h.blockId, o: h.end }, false);
     },
     [onHitJump, readPassage],
   );
@@ -792,7 +800,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
               <QuickAdd />
             </footer>
 
-            <Composer ref={composerRef} onAsk={(q) => createGloss("whole", null, q)} web={settings.search} onWebToggle={() => setSettings({ search: !settings.search })} onVoice={() => setVoiceOpen(true)} />
+            <Composer ref={composerRef} onAsk={(q) => createGloss("whole", null, q)} web={settings.search} onWebToggle={() => setSettings({ search: !settings.search })} onVoice={openVoice} />
           </div>
           <div className="rg-gutter" aria-hidden="true" />
           <div className="rg-margin min-w-0">
@@ -880,19 +888,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         followSpeech.current = true;
         speech.skip(d);
       }} onRate={(r) => setSettings({ rate: r })} onVoice={(v) => setSettings({ voice: v })} docLang={docLang} />
-      {voiceOpen ? <VoiceSearch open onClose={() => setVoiceOpen(false)} blocks={blocks} lang={docLang} onJump={onHitJump} onRead={onHitRead} serverKey={!!serverInfo?.serverKey} /> : null}
+      {voiceOpen ? <VoiceSearch open onClose={() => setVoiceOpen(false)} blocks={blocks} lang={docLang} onJump={onHitJump} onRead={onHitRead} onListenStart={() => speech.pause()} serverKey={!!serverInfo?.serverKey} /> : null}
       <KeysDialog open={keysOpen} onClose={() => setKeysOpen(false)} />
       <Toasts bottom={snap.state === "idle" || snap.state === "unsupported" ? 84 : 150} />
     </div>
   );
-}
-
-function guessLang(doc: GlossDocument) {
-  const sample = doc.blocks.filter((b) => b.type === "p").slice(0, 20).map((b) => b.text).join(" ").toLowerCase();
-  const pt = (sample.match(/\b(que|não|uma|para|com|dos|das|como|mais|são)\b/g) ?? []).length;
-  const en = (sample.match(/\b(the|and|of|to|that|with|is|are|was|for)\b/g) ?? []).length;
-  if (pt > en) return "pt-BR";
-  const es = (sample.match(/\b(el|los|las|una|por|como|pero|más|está)\b/g) ?? []).length;
-  if (es > en) return "es-ES";
-  return "en-US";
 }

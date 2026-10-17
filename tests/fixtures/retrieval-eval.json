@@ -1,0 +1,62 @@
+{
+  "description": "Voice-search retrieval eval. Each query is the raw utterance as the recogniser would hand it to VoiceSearch.search(). 'expected' = acceptable block ids (any-of). expectAll = occurrences of a repeated phrase (recall@3 is also computed). expectContent = case-insensitive regex that the sliced text of the matching hit must contain. Ground truth was written by reading the sample documents, not by looking at system output.",
+  "corpora": {
+    "chalk": { "file": "src/content/samples/on-a-piece-of-chalk.json" },
+    "thinking": { "file": "src/content/samples/on-thinking-for-oneself.json" },
+    "walden": { "file": "src/content/samples/walden-reading.json" },
+    "pt-synthetic": {
+      "note": "Supplementary, author-written Portuguese blocks (NOT one of the sample documents). The shipped samples are English-only, so this is the only way to exercise the PT tokenizer/stemmer/parser on a PT document.",
+      "blocks": [
+        { "id": "p1", "type": "p", "n": 1, "text": "A inflação corroeu o poder de compra das famílias durante a última década, e os salários não acompanharam os preços." },
+        { "id": "p2", "type": "p", "n": 2, "text": "Os riscos financeiros aumentam quando as empresas dependem de crédito de curto prazo para financiar investimentos de longo prazo." },
+        { "id": "p3", "type": "p", "n": 3, "text": "Em conclusão, o estudo mostra que a diversificação da carteira reduz a volatilidade sem sacrificar o retorno esperado." },
+        { "id": "p4", "type": "p", "n": 4, "text": "A floresta amazônica abriga milhões de espécies e regula o clima do continente." },
+        { "id": "p5", "type": "p", "n": 5, "text": "Não existe consenso entre os economistas sobre o efeito dos juros altos na desigualdade." },
+        { "id": "p6", "type": "p", "n": 6, "text": "O autor argumenta que a educação pública é o instrumento mais eficaz para reduzir a pobreza." }
+      ]
+    }
+  },
+  "queries": [
+    { "id": "Q01", "corpus": "chalk", "category": "exact_phrase", "query": "Find the part that says a great chapter of the history of the world is written in the chalk", "expected": ["p8"], "expectContent": "great chapter of the history of the world" },
+    { "id": "Q02", "corpus": "chalk", "category": "exact_phrase", "query": "Where does it say that the carbonic acid flies away and the lime is left", "expected": ["p10"], "expectContent": "carbonic acid flies away" },
+    { "id": "Q03", "corpus": "chalk", "category": "paraphrase", "query": "Find the passage where he explains that the chalk is basically hardened mud from an ancient ocean", "expected": ["p21", "p26", "p31"], "expectContent": "mud|sea-bottom" },
+    { "id": "Q04", "corpus": "chalk", "category": "synonym", "query": "Find the part about the sea floor", "expected": ["p18", "p19", "p20", "p21", "p24", "p25"], "expectContent": "(sea|ocean)[- ]?(bottom|floor)|bottom of the (deep )?(sea|ocean)|deep[- ]sea|ocean floor" },
+    { "id": "Q05", "corpus": "chalk", "category": "synonym", "query": "Find the part about dinosaurs", "expected": ["p32", "p50"], "expectContent": "reptile" },
+    { "id": "Q06", "corpus": "chalk", "category": "conclusion_question", "query": "What is the conclusion that the author reaches about how the chalk was formed", "expected": ["p26", "p28"], "expectContent": "conclusion" },
+    { "id": "Q07", "corpus": "chalk", "category": "conclusion_question", "query": "What is the conclusion of the essay", "expected": ["p58", "p59"], "expectContent": "great ending|natural causes|same way" },
+    { "id": "Q08", "corpus": "chalk", "category": "argument_question", "query": "How does he argue that the chalk was laid down under the sea", "expected": ["p26", "p28", "p29", "p30", "p31"], "expectContent": "sea" },
+    { "id": "Q09", "corpus": "chalk", "category": "technical_concept", "query": "What are coccoliths", "expected": ["p27", "p62"], "expectContent": "coccolith" },
+    { "id": "Q10", "corpus": "chalk", "category": "technical_concept", "query": "Globigerina ooze", "expected": ["p61"], "expectContent": "ooze" },
+    { "id": "Q11", "corpus": "chalk", "category": "repeated_text", "query": "the Globigerinoe of the chalk", "expected": ["p16", "p21", "p26"], "expectAll": true, "expectContent": "Globigerinoe of the chalk" },
+    { "id": "Q12", "corpus": "chalk", "category": "repeated_text", "query": "before the chalk was deposited", "expected": ["p48", "p49", "p56"], "expectAll": true, "expectContent": "before the chalk was deposited" },
+    { "id": "Q13", "corpus": "chalk", "category": "ambiguous", "query": "the sea", "expected": [], "ambiguous": true },
+    { "id": "Q14", "corpus": "chalk", "category": "absent_concept", "query": "Where does he discuss the stock market and interest rates", "expected": [], "expectNoMatch": true, "note": "'rates' partially overlaps ('rate' in p37)" },
+    { "id": "Q15", "corpus": "chalk", "category": "absent_concept", "query": "Explain machine learning algorithms", "expected": [], "expectNoMatch": true, "note": "'learning' stems to 'learn', present in p9/p12" },
+    { "id": "Q16", "corpus": "chalk", "category": "portuguese", "query": "Encontre a parte sobre os crocodilos e leia esse trecho", "expected": ["p56", "p57", "p58"], "expectContent": "crocodile", "readAloud": true, "note": "PT query against an EN document (cross-lingual)" },
+    { "id": "Q17", "corpus": "chalk", "category": "portuguese", "query": "Encontre a parte sobre Terebratulina", "expected": ["p51", "p52"], "expectContent": "Terebratulina", "note": "PT framing, Latin proper noun shared by both languages" },
+    { "id": "Q18", "corpus": "chalk", "category": "spoken_framing", "query": "Can you please show me where the author mentions the Pyramids", "expected": ["p28"], "expectContent": "Pyramids" },
+    { "id": "Q19", "corpus": "thinking", "category": "exact_phrase", "query": "Where does it say the pen is to thought what the stick is to walking", "expected": ["p54"], "expectContent": "pen is to thought" },
+    { "id": "Q20", "corpus": "thinking", "category": "paraphrase", "query": "Where does the author say that reading too much weakens the mind", "expected": ["p4", "p18"], "expectContent": "read" },
+    { "id": "Q21", "corpus": "thinking", "category": "synonym", "query": "What does he say about the press and the media", "expected": ["p50", "p51", "p52", "p53"], "expectContent": "newspaper|journal|leading article" },
+    { "id": "Q22", "corpus": "thinking", "category": "conclusion_question", "query": "What does the author conclude about reading versus thinking", "expected": ["p3", "p7", "p12"], "expectContent": "read" },
+    { "id": "Q23", "corpus": "thinking", "category": "argument_question", "query": "Why does he say history is not a science", "expected": ["p43"], "expectContent": "science" },
+    { "id": "Q24", "corpus": "thinking", "category": "technical_concept", "query": "similes and metaphors as a way of gaining knowledge", "expected": ["p58", "p59"], "expectContent": "simile|metaphor" },
+    { "id": "Q25", "corpus": "thinking", "category": "repeated_text", "query": "a man who thinks for himself", "expected": ["p10", "p11", "p19"], "expectAll": true, "expectContent": "thinks for himself" },
+    { "id": "Q26", "corpus": "thinking", "category": "ambiguous", "query": "What does he say about the mind", "expected": [], "ambiguous": true },
+    { "id": "Q27", "corpus": "thinking", "category": "absent_concept", "query": "Find the part about blockchain cryptocurrency", "expected": [], "expectNoMatch": true },
+    { "id": "Q28", "corpus": "thinking", "category": "absent_concept", "query": "Where does the author talk about photosynthesis in plants", "expected": [], "expectNoMatch": true, "note": "'plants' overlaps p6/p7" },
+    { "id": "Q29", "corpus": "thinking", "category": "exact_phrase", "query": "Find the reference to Faust", "expected": ["p66"], "expectContent": "Faust" },
+    { "id": "Q30", "corpus": "walden", "category": "exact_phrase", "query": "Where does it mention the firmament with its stars behind the clouds", "expected": ["p4"], "expectContent": "firmament with its stars" },
+    { "id": "Q31", "corpus": "walden", "category": "paraphrase", "query": "Where does he complain that most people only read easy, trivial books", "expected": ["p7", "p8"], "expectContent": "easy reading|paltry" },
+    { "id": "Q32", "corpus": "walden", "category": "absent_concept", "query": "Find the part about the French Revolution", "expected": [], "expectNoMatch": true, "note": "'French' occurs in p9 ('French paper')" },
+    { "id": "Q33", "corpus": "walden", "category": "absent_concept", "query": "Where is the section on nuclear fission", "expected": [], "expectNoMatch": true },
+    { "id": "Q34", "corpus": "walden", "category": "portuguese", "query": "Encontre o trecho sobre Homero", "expected": ["p2", "p3", "p5", "p6"], "expectContent": "Homer", "note": "PT 'Homero' vs EN 'Homer'" },
+    { "id": "Q35", "corpus": "walden", "category": "ambiguous", "query": "find the part about books", "expected": [], "ambiguous": true },
+    { "id": "S1", "corpus": "pt-synthetic", "category": "portuguese", "query": "Localize o parágrafo sobre os riscos financeiros", "expected": ["p2"], "expectContent": "riscos financeiros" },
+    { "id": "S2", "corpus": "pt-synthetic", "category": "portuguese", "query": "Encontre a conclusão e leia esse trecho", "expected": ["p3"], "expectContent": "conclusão", "readAloud": true },
+    { "id": "S3", "corpus": "pt-synthetic", "category": "portuguese", "query": "Onde o autor argumenta sobre a educação pública", "expected": ["p6"], "expectContent": "educação pública" },
+    { "id": "S4", "corpus": "pt-synthetic", "category": "portuguese", "query": "Qual é a conclusão do texto", "expected": ["p3"], "expectContent": "conclusão" },
+    { "id": "S5", "corpus": "pt-synthetic", "category": "portuguese", "query": "Não existe consenso sobre os juros altos", "expected": ["p5"], "expectContent": "consenso" },
+    { "id": "S6", "corpus": "pt-synthetic", "category": "portuguese", "query": "Encontre a parte sobre criptomoedas", "expected": [], "expectNoMatch": true }
+  ]
+}

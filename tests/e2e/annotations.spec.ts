@@ -241,4 +241,38 @@ test.describe("annotations in the reader", () => {
     await page.keyboard.press("w");
     await expect(page.getByLabel("Your question about the selected passage")).toHaveValue("w");
   });
+
+  test("ANNOT-1 (real server): deleting a highlight on one device is not undone by another device that still has it", async ({ browser, baseURL }) => {
+    const a = await browser.newContext({ baseURL });
+    const pageA = await a.newPage();
+    try {
+      await openReader(pageA);
+      await selectInBlock(pageA, "p2", 0, 40);
+      await pageA.keyboard.press("Shift+H");
+      await expect(pageA.locator(".m-hl")).toHaveCount(1);
+      const synced = () => pageA.evaluate(() => (JSON.parse(localStorage.getItem("gloss:v1")!).annotations["sample:on-a-piece-of-chalk"] as { syncedAt?: number }[])[0]?.syncedAt ?? null);
+      await expect.poll(synced, { message: "the server confirmed the highlight" }).not.toBeNull();
+      // Device B: the same reader (cookie) and the same local copy, as if the browser profile had been synced there.
+      const b = await browser.newContext({ baseURL, storageState: await a.storageState() });
+      const pageB = await b.newPage();
+      try {
+        // Device A deletes it (and the server confirms).
+        await pageA.keyboard.press("n");
+        await pageA.getByRole("complementary", { name: "Notebook" }).getByRole("button", { name: "Remove" }).click({ force: true });
+        await expect(pageA.locator(".m-hl")).toHaveCount(0);
+        await expect.poll(async () => ((await (await a.request.get("/api/documents/sample%3Aon-a-piece-of-chalk/data")).json()).annotations as unknown[]).length).toBe(0);
+        // Device B opens the text: its stale copy must disappear, not come back to the server.
+        await openReader(pageB);
+        await expect(pageB.locator(".m-hl")).toHaveCount(0);
+        await pageB.waitForTimeout(800); // a wrong re-upload would be on its way by now
+        const server = await (await b.request.get("/api/documents/sample%3Aon-a-piece-of-chalk/data")).json();
+        expect(server.annotations).toEqual([]);
+        expect(await pageB.evaluate(() => JSON.parse(localStorage.getItem("gloss:v1")!).annotations["sample:on-a-piece-of-chalk"])).toEqual([]);
+      } finally {
+        await b.close();
+      }
+    } finally {
+      await a.close();
+    }
+  });
 });

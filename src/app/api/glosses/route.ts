@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { glosses, readers } from "@/lib/db/schema";
 import { GlossZ } from "@/lib/anchors/schema";
 import { ensureReaderId } from "@/lib/server/reader";
-import { guarded, readJson } from "../annotations/_guard";
+import { guarded, readJson, readerKeyOf } from "../annotations/_guard";
 
 export async function POST(req: Request) {
   const db = getDb();
@@ -21,6 +21,6 @@ export async function POST(req: Request) {
       .returning({ id: glosses.id });
     // Nothing written: the id belongs to another reader. Never overwrite it and never claim success.
     if (!written.length) return Response.json({ error: "id-conflict" }, { status: 409 });
-    return Response.json({ persisted: true });
+    return Response.json({ persisted: true, readerKey: readerKeyOf(readerId) });
   });
 }

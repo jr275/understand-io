@@ -250,15 +250,30 @@ function isRemote(documentId: string) {
   return !documentId.startsWith("local:");
 }
 
+/**
+ * Every confirmation from the server names the reader it came from. The first one is remembered; a different one later (the cookie
+ * now names another reader, e.g. after a sign-in) invalidates every `syncedAt` mark, so items are re-uploaded instead of dropped.
+ */
+function readerPatch(s: LibraryState, key?: string): Partial<LibraryState> {
+  if (!key || s.syncReader === key) return {};
+  if (!s.syncReader) return { syncReader: key };
+  const forget = <T extends { syncedAt?: number }>(all: Record<string, T[]>) => Object.fromEntries(Object.entries(all).map(([k, v]) => [k, v.map((x) => ({ ...x, syncedAt: undefined }))]));
+  return { syncReader: key, annotations: forget(s.annotations), glosses: forget(s.glosses) };
+}
+
 /** Record that the server holds the version of annotation `id` whose `updatedAt` is `version`. */
-function markSynced(documentId: string, id: string, version: number) {
-  set((s) => ({ annotations: { ...s.annotations, [documentId]: (s.annotations[documentId] ?? []).map((a) => (a.id === id ? { ...a, syncedAt: Math.max(a.syncedAt ?? 0, version) } : a)) } }));
+function markSynced(documentId: string, id: string, version: number, readerKey?: string) {
+  set((s) => {
+    const rp = readerPatch(s, readerKey);
+    const annotations = rp.annotations ?? s.annotations;
+    return { ...rp, annotations: { ...annotations, [documentId]: (annotations[documentId] ?? []).map((a) => (a.id === id ? { ...a, syncedAt: Math.max(a.syncedAt ?? 0, version) } : a)) } };
+  });
 }
 
 function pushAnnotation(a: Annotation) {
   return enqueue(a.id, async () => {
-    const r = await api<{ persisted?: boolean }>("/api/annotations", { method: "POST", body: JSON.stringify(wire(a)) });
-    if (r?.persisted === true) markSynced(a.documentId, a.id, a.updatedAt);
+    const r = await api<{ persisted?: boolean; readerKey?: string }>("/api/annotations", { method: "POST", body: JSON.stringify(wire(a)) });
+    if (r?.persisted === true) markSynced(a.documentId, a.id, a.updatedAt, r.readerKey);
   });
 }
 
@@ -278,15 +293,15 @@ export function updateAnnotation(documentId: string, id: string, patchIn: Partia
   if (!isRemote(documentId)) return;
   const body = { ...(patch.color ? { color: patch.color } : {}), ...(patch.note !== undefined ? { note: patch.note } : {}), ...(patch.kind ? { kind: patch.kind } : {}), updatedAt };
   void enqueue(id, async () => {
-    const r = await call<{ persisted?: boolean }>(`/api/annotations/${id}`, { method: "PATCH", body: JSON.stringify(body) }, [404]);
+    const r = await call<{ persisted?: boolean; readerKey?: string }>(`/api/annotations/${id}`, { method: "PATCH", body: JSON.stringify(body) }, [404]);
     if (r?.status === 404) {
       // The row does not exist yet (its create never reached the server): send the whole current version instead.
       const cur = (getLibrary().annotations[documentId] ?? []).find((a) => a.id === id);
       if (cur) {
-        const full = await api<{ persisted?: boolean }>("/api/annotations", { method: "POST", body: JSON.stringify(wire(cur)) });
-        if (full?.persisted === true) markSynced(documentId, id, cur.updatedAt);
+        const full = await api<{ persisted?: boolean; readerKey?: string }>("/api/annotations", { method: "POST", body: JSON.stringify(wire(cur)) });
+        if (full?.persisted === true) markSynced(documentId, id, cur.updatedAt, full.readerKey);
       }
-    } else if (r?.data?.persisted === true) markSynced(documentId, id, updatedAt);
+    } else if (r?.data?.persisted === true) markSynced(documentId, id, updatedAt, r.data.readerKey);
   });
 }
 
@@ -312,10 +327,14 @@ export function upsertGloss(g: Gloss) {
 export function persistGloss(g: Gloss) {
   if (!isRemote(g.documentId) || g.status !== "done") return;
   void enqueue(g.id, async () => {
-    const r = await api<{ persisted?: boolean }>("/api/glosses", { method: "POST", body: JSON.stringify(wire(g)) });
+    const r = await api<{ persisted?: boolean; readerKey?: string }>("/api/glosses", { method: "POST", body: JSON.stringify(wire(g)) });
     if (r?.persisted !== true) return;
     // Only mark the version that was sent (a follow-up may have replaced `turns` in the meantime).
-    set((s) => ({ glosses: { ...s.glosses, [g.documentId]: (s.glosses[g.documentId] ?? []).map((x) => (x.id === g.id && x.turns === g.turns ? { ...x, syncedAt: Date.now() } : x)) } }));
+    set((s) => {
+      const rp = readerPatch(s, r.readerKey);
+      const glosses = rp.glosses ?? s.glosses;
+      return { ...rp, glosses: { ...glosses, [g.documentId]: (glosses[g.documentId] ?? []).map((x) => (x.id === g.id && x.turns === g.turns ? { ...x, syncedAt: Date.now() } : x)) } };
+    });
   });
 }
 

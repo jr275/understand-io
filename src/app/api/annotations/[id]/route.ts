@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { annotations } from "@/lib/db/schema";
 import { AnnotationPatchZ, IdZ } from "@/lib/anchors/schema";
 import { getReaderId } from "@/lib/server/reader";
-import { guarded, readJson } from "../_guard";
+import { guarded, readJson, readerKeyOf } from "../_guard";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -21,11 +21,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       .set({ ...(p.color ? { color: p.color } : {}), ...(p.note !== undefined ? { note: p.note } : {}), ...(p.kind ? { kind: p.kind } : {}), updatedAt })
       .where(and(eq(annotations.id, id), eq(annotations.readerId, readerId), lte(annotations.updatedAt, updatedAt)))
       .returning({ id: annotations.id });
-    if (written.length) return Response.json({ persisted: true, applied: true });
+    if (written.length) return Response.json({ persisted: true, applied: true, readerKey: readerKeyOf(readerId) });
     const [row] = await db.select({ id: annotations.id }).from(annotations).where(and(eq(annotations.id, id), eq(annotations.readerId, readerId))).limit(1);
     // No such row for this reader: the client falls back to a full POST. Otherwise the stored copy is newer.
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    return Response.json({ persisted: true, applied: false });
+    return Response.json({ persisted: true, applied: false, readerKey: readerKeyOf(readerId) });
   });
 }
 

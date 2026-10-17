@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { describeDbError, isConnectionError } from "@/lib/server/dbErrors";
 
 /** Largest JSON body the annotation, gloss and progress routes read (a gloss may carry 40 turns of 20 000 characters). */
 const MAX_BODY = 1_200_000;
+
+/** Opaque, stable per reader, not reversible to the reader id: lets the client notice that the cookie now names another reader (sign-in). */
+export const readerKeyOf = (readerId: string) => createHash("sha256").update(`reader-key:${readerId}`).digest("hex").slice(0, 16);
 
 export const unavailable = () => Response.json({ error: "database-unavailable" }, { status: 503 });
 

@@ -42,7 +42,7 @@ function makeServer() {
       const a = body as unknown as Annotation;
       const cur = server.annotations.get(a.id);
       if (!cur || cur.updatedAt <= a.updatedAt) server.annotations.set(a.id, { ...a, syncedAt: undefined });
-      return json({ persisted: true });
+      return json({ persisted: true, readerKey: server.readerKey });
     }
     if (path === "/api/glosses" && method === "POST") {
       const g = body as unknown as Gloss;
@@ -54,7 +54,7 @@ function makeServer() {
       const cur = server.annotations.get(m[1]);
       if (!cur) return json({ error: "not-found" }, 404);
       if (cur.updatedAt <= (body!.updatedAt as number)) server.annotations.set(m[1], { ...cur, ...(body as Partial<Annotation>) });
-      return json({ persisted: true });
+      return json({ persisted: true, readerKey: server.readerKey });
     }
     if (m && method === "DELETE") {
       if (!server.deletePersisted) return json({ persisted: false });
@@ -83,10 +83,10 @@ const ann = (over: Partial<Annotation> = {}): Annotation => ({
   ...over,
 });
 
-async function freshStore(seed?: { annotations?: Annotation[]; glosses?: Gloss[]; deleted?: { kind: "annotation" | "gloss" | "document"; id: string }[] }) {
+async function freshStore(seed?: { annotations?: Annotation[]; glosses?: Gloss[]; deleted?: { kind: "annotation" | "gloss" | "document"; id: string }[]; noReader?: boolean }) {
   vi.resetModules();
   window.localStorage.clear();
-  if (seed) window.localStorage.setItem("gloss:v1", JSON.stringify({ docs: {}, progress: {}, annotations: { [DOC]: seed.annotations ?? [] }, glosses: { [DOC]: seed.glosses ?? [] }, hidden: [], deleted: seed.deleted ?? [], syncReader: "reader-a" }));
+  if (seed) window.localStorage.setItem("gloss:v1", JSON.stringify({ docs: {}, progress: {}, annotations: { [DOC]: seed.annotations ?? [] }, glosses: { [DOC]: seed.glosses ?? [] }, hidden: [], deleted: seed.deleted ?? [], syncReader: seed.noReader ? undefined : "reader-a" }));
   return import("@/lib/store/library");
 }
 const posts = (s: ReturnType<typeof makeServer>) => s.calls.filter((c) => c.method === "POST" && c.path === "/api/annotations");
@@ -158,6 +158,25 @@ describe("ANNOT-1: a delete made on another device is not undone by this one", (
     await lib.syncDocumentData(DOC);
     await flush();
     expect(lib.getLibrary().annotations[DOC]).toEqual([]);
+  });
+
+  it("learns the reader from the server's answers to writes, and forgets the marks when a later answer names another reader", async () => {
+    const server = makeServer();
+    const lib = await freshStore({ annotations: [], noReader: true });
+    lib.addAnnotation(ann({ id: "ann_000000001" }));
+    lib.addAnnotation(ann({ id: "ann_000000002", updatedAt: 1_100 }));
+    await flush();
+    let [x, y] = lib.getLibrary().annotations[DOC];
+    expect([x.syncedAt, y.syncedAt]).toEqual([1_000, 1_100]);
+    expect(lib.getLibrary().syncReader).toBe("reader-a");
+    // The cookie now names another reader (a sign-in): the next confirmation invalidates the old marks.
+    server.readerKey = "reader-b";
+    lib.updateAnnotation(DOC, "ann_000000001", { kind: "note", note: "n" });
+    await flush();
+    [x, y] = lib.getLibrary().annotations[DOC];
+    expect(lib.getLibrary().syncReader).toBe("reader-b");
+    expect(x.syncedAt).toBe(x.updatedAt);
+    expect(y.syncedAt).toBeUndefined(); // belongs to the old reader's server copy: must be re-uploaded, not dropped
   });
 
   it("applies the same rule to glosses", async () => {

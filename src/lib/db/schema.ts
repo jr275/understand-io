@@ -116,5 +116,5 @@ export const accounts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("accounts_provider_subject_idx").on(t.provider, t.subject), index("accounts_reader_idx").on(t.readerId)],
+  (t) => [uniqueIndex("accounts_provider_subject_idx").on(t.provider, t.subject), uniqueIndex("accounts_reader_idx").on(t.readerId)],
 );

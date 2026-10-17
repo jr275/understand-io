@@ -15,6 +15,13 @@
       "when": 1792198247874,
       "tag": "0001_heavy_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792224552522,
+      "tag": "0002_rich_vargas",
+      "breakpoints": true
     }
   ]
 }

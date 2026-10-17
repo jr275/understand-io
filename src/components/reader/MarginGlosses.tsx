@@ -2,8 +2,8 @@
 
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ArrowUp, ChevronsDownUp, Copy, RotateCcw, Trash2, X } from "lucide-react";
-import type { Annotation, Block, Gloss } from "@/lib/content/types";
-import { rangeForAnchor } from "@/lib/anchors";
+import { NOTE_MAX_LENGTH, type Annotation, type Block, type Gloss } from "@/lib/content/types";
+import { clampNote, rangeForAnchor } from "@/lib/anchors";
 import { plainAnswer, renderGlossBody } from "./glossMarkdown";
 
 export interface MarginItem {
@@ -319,9 +319,11 @@ function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHov
           setEditing(false);
         }}
       >
-        <textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={3} aria-label="Edit note" className="w-full resize-none bg-transparent font-serif text-[15px] leading-[1.45] text-ink outline-none" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } if (e.key === "Escape") { e.stopPropagation(); setEditing(false); } }} />
+        <textarea autoFocus value={text} maxLength={NOTE_MAX_LENGTH} onChange={(e) => setText(clampNote(e.target.value))} rows={3} aria-label="Edit note" className="w-full resize-none bg-transparent font-serif text-[15px] leading-[1.45] text-ink outline-none" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } if (e.key === "Escape") { e.stopPropagation(); setEditing(false); } }} />
         <div className="mt-1 flex items-center justify-between text-[11.5px] text-ink-4">
-          <span>↵ to keep</span>
+          <span>
+            ↵ to keep · <span data-testid="note-counter" className={`tabular-nums ${text.length >= NOTE_MAX_LENGTH - 200 ? "text-[var(--rubric)]" : ""}`}>{text.length}/{NOTE_MAX_LENGTH}</span>
+          </span>
           <span className="flex gap-1">
             <button type="button" className="rounded px-2 py-0.5 hover:bg-sunk hover:text-ink" onClick={() => setEditing(false)}>Cancel</button>
             <button type="submit" className="rounded bg-ink px-2 py-0.5 text-bg">Keep</button>

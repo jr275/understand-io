@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Annotation, Gloss, GlossDocument, ReadingProgress } from "@/lib/content/types";
+import { clampNote } from "@/lib/anchors";
 import { toast } from "./toast";
 
 /**
@@ -266,8 +267,9 @@ export function addAnnotation(a: Annotation) {
   if (isRemote(a.documentId)) void pushAnnotation(a);
 }
 
-export function updateAnnotation(documentId: string, id: string, patch: Partial<Annotation>) {
+export function updateAnnotation(documentId: string, id: string, patchIn: Partial<Annotation>) {
   ensure();
+  const patch = patchIn.note !== undefined ? { ...patchIn, note: clampNote(patchIn.note) } : patchIn;
   const prev = (state.annotations[documentId] ?? []).find((a) => a.id === id);
   if (!prev) return;
   // Strictly newer than the version being replaced, even if the clock went backwards.

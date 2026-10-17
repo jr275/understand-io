@@ -1,6 +1,16 @@
 import type { Anchor, AnchorPoint, Block } from "@/lib/content/types";
 
+import { NOTE_MAX_LENGTH } from "@/lib/content/types";
+
 const CONTEXT = 32;
+
+/** Cut a note to the stored limit without leaving half of a surrogate pair at the end (the server refuses lone surrogates). */
+export function clampNote(s: string, max = NOTE_MAX_LENGTH): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
 
 /** Order blocks by position so anchors can span several blocks. */
 export function blockIndex(blocks: Block[]) {

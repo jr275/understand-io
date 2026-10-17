@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ArrowUpRight, Headphones, Keyboard, NotebookPen } from "lucide-react";
 import type { Anchor, Annotation, Gloss, GlossAction, GlossDocument, HighlightColor } from "@/lib/content/types";
-import { anchorBlockIds, anchorFromSelection, makeAnchor, rangeForAnchor, resolveAnchor, segmentBlock } from "@/lib/anchors";
+import { anchorBlockIds, anchorFromSelection, clampNote, makeAnchor, rangeForAnchor, resolveAnchor, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
 import { SpeechController } from "@/lib/speech/controller";
 import { newId } from "@/lib/content/slug";
@@ -266,7 +266,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const annotate = useCallback(
     (kind: Annotation["kind"], color: HighlightColor, note?: string) => {
       if (!pending) return;
-      const a: Annotation = { id: newId(), documentId, kind, color, note, anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
+      const a: Annotation = { id: newId(), documentId, kind, color, note: note === undefined ? undefined : clampNote(note), anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
       addAnnotation(a);
       clearSelection();
       if (kind === "note") setActiveId(a.id);

@@ -56,7 +56,14 @@ export interface Anchor {
   quote: string;
   prefix?: string;
   suffix?: string;
+  /** Tail of the block before the anchor's first block (neighbour context, optional: absent in older data). */
+  prevBlock?: string;
+  /** Head of the block after the anchor's last block (neighbour context, optional: absent in older data). */
+  nextBlock?: string;
 }
+
+/** Longest note (UTF-16 units) the library accepts; the note editors enforce it so a note is never kept locally but refused by the server. */
+export const NOTE_MAX_LENGTH = 5000;
 
 export type HighlightColor = "yellow" | "green" | "blue" | "pink";
 export type AnnotationKind = "highlight" | "underline" | "note";

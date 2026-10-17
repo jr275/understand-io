@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Headphones, Mic, MicOff, Search, X } from "lucide-react";
-import type { Block } from "@/lib/content/types";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { ArrowRight, ArrowUp, Headphones, Mic, MicOff, Search, Square, X } from "lucide-react";
+import type { Block, GlossTurn } from "@/lib/content/types";
+import { AnswerSpeaker } from "@/lib/speech/answerSpeaker";
+import { renderGlossBody } from "./glossMarkdown";
 import { createIndex, parseSpokenQuery, type Hit, type SearchResult } from "@/lib/search/bm25";
 import { tokenize } from "@/lib/search/tokenize";
 import { FAILOVER_CODES, describeMicError, getRecognitionCtor, recordAudio, startRecognition } from "@/lib/speech/recognition";
@@ -18,6 +20,19 @@ interface Props {
   /** Called when the microphone is about to be used, so read-aloud can step aside (it would be heard and searched for). */
   onListenStart?: () => void;
   serverKey: boolean;
+  /** Start in this mode when the panel opens. */
+  initialMode?: "find" | "ask";
+  /** Ask a question about the text. `again` continues the conversation the panel is showing. */
+  onAsk?: (question: string, again: boolean) => void;
+  /** The conversation the panel is showing (a margin answer created from this panel), with the paragraph numbers its model was given. */
+  conversation?: { id: string; turns: GlossTurn[]; status?: "streaming" | "done" | "error"; error?: string; cites: Set<number> | null } | null;
+  onNewConversation?: () => void;
+  onShowAnswer?: (id: string) => void;
+  onCite?: (n: number) => void;
+  /** The panel is about to read an answer aloud: read-aloud of the text must stop first (they share one voice engine). */
+  onAnswerSpeak?: () => void;
+  /** Voice settings for spoken answers. */
+  voice?: { rate: number; voiceURI: string | null; lang: string };
 }
 
 type Phase = "idle" | "starting" | "listening" | "transcribing" | "searching" | "done";
@@ -33,7 +48,13 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], [tabin
  * every callback that belongs to it is ignored (so a late recognition result cannot search, speak or change the screen) and
  * the microphone is released.
  */
-export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onListenStart, serverKey }: Props) {
+export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onListenStart, serverKey, initialMode = "find", onAsk, conversation = null, onNewConversation, onShowAnswer, onCite, voice, onAnswerSpeak }: Props) {
+  const [mode, setMode] = useState<"find" | "ask">(initialMode);
+  const modeRef = useRef(mode);
+  const [speakOn, setSpeakOn] = useState(true);
+  const [speaker] = useState(() => new AnswerSpeaker());
+  const speakState = useSyncExternalStore(speaker.subscribe, speaker.getState, speaker.getState);
+  const spokenKey = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
@@ -49,9 +70,10 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
   const typedWhileListening = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
-  const cb = useRef({ onClose, onRead, onJump, onListenStart });
+  const cb = useRef({ onClose, onRead, onJump, onListenStart, onAsk, conversation });
   useEffect(() => {
-    cb.current = { onClose, onRead, onJump, onListenStart };
+    cb.current = { onClose, onRead, onJump, onListenStart, onAsk, conversation };
+    modeRef.current = mode;
   });
   const index = useMemo(() => createIndex(blocks), [blocks]);
   const supported = typeof window !== "undefined" && !!getRecognitionCtor();
@@ -69,7 +91,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
     stopRef.current = null;
   }, []);
 
-  const search = useCallback(
+  const searchPassages = useCallback(
     async (raw: string) => {
       const seq = ++searchSeq.current;
       const { topic, readAloud } = parseSpokenQuery(raw);
@@ -105,6 +127,28 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       if (readAloud && final.hits[0] && final.confidence === "high") cb.current.onRead(final.hits[0]);
     },
     [index, serverKey],
+  );
+
+  /** A question about the text (not a search for a passage): the answer is written in the margin and shown here, and can be read aloud. */
+  const doAsk = useCallback(
+    (raw: string) => {
+      const q = raw.trim();
+      if (!q || !cb.current.onAsk) return;
+      speaker.stop();
+      setResult(null);
+      setTranscript(q);
+      setDraft("");
+      setPhase("done");
+      cb.current.onAsk(q, !!cb.current.conversation);
+    },
+    [speaker],
+  );
+  const search = useCallback(
+    async (raw: string) => {
+      if (modeRef.current === "ask") return doAsk(raw);
+      await searchPassages(raw);
+    },
+    [doAsk, searchPassages],
   );
 
   const startServerCapture = useCallback(
@@ -201,6 +245,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
   );
 
   const listen = useCallback(async () => {
+    speaker.stop(); // the microphone must not hear the voice
     abortSession();
     const mine = sessionRef.current;
     const live = () => mounted.current && mine === sessionRef.current;
@@ -270,7 +315,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       return;
     }
     await startServerCapture(mine);
-  }, [supported, canServerTranscribe, lang, abortSession, search, startServerCapture]);
+  }, [supported, canServerTranscribe, lang, abortSession, search, startServerCapture, speaker]);
 
   // Unmount: nothing keeps listening, and no late result can run.
   useEffect(() => {
@@ -278,8 +323,23 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
     return () => {
       mounted.current = false;
       abortSession();
+      speaker.stop();
     };
-  }, [abortSession]);
+  }, [abortSession, speaker]);
+
+  // A finished answer is read aloud once, if the reader wants that. Nothing is spoken (or recorded) without their having asked.
+  const lastAnswer = conversation && conversation.status === "done" ? [...conversation.turns].reverse().find((t) => t.role === "assistant")?.content ?? "" : "";
+  useEffect(() => {
+    if (!open || mode !== "ask" || !conversation || conversation.status !== "done" || !speakOn || !lastAnswer) return;
+    const key = `${conversation.id}:${conversation.turns.length}`;
+    if (spokenKey.current === key) return;
+    spokenKey.current = key;
+    onAnswerSpeak?.();
+    speaker.speak(lastAnswer, { rate: voice?.rate, voiceURI: voice?.voiceURI, lang: voice?.lang ?? lang });
+  }, [open, mode, conversation, speakOn, lastAnswer, speaker, voice, lang, onAnswerSpeak]);
+  useEffect(() => {
+    if (!speakOn || mode !== "ask") speaker.stop();
+  }, [speakOn, mode, speaker]);
 
   // A hidden page cannot be listened to reliably, and the reader would not know the microphone is on.
   useEffect(() => {
@@ -332,7 +392,15 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
   const shown = interim || transcript;
   const busy = phase === "starting" || phase === "listening";
   const status =
-    phase === "starting"
+    mode === "ask" && conversation && phase === "done"
+      ? conversation.status === "streaming"
+        ? "Writing the answer"
+        : conversation.status === "error"
+          ? "The answer failed"
+          : speakState === "speaking"
+            ? "Reading the answer aloud"
+            : "The answer is ready"
+      : phase === "starting"
       ? "Waiting for the microphone"
       : phase === "listening"
         ? "Listening"
@@ -352,12 +420,38 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ask by voice" className="pop relative w-full max-w-[560px] p-5" style={{ ["--origin" as string]: "top center" }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-serif text-[21px] leading-tight text-ink">Where does it talk about…</p>
-            <p className="mt-1 text-[13px] text-ink-3">Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches.</p>
+            <p className="font-serif text-[21px] leading-tight text-ink">{mode === "ask" ? "Ask about this text" : "Where does it talk about…"}</p>
+            <p className="mt-1 text-[13px] text-ink-3">{mode === "ask" ? "Ask aloud, or type. The answer is written from this text, with references you can check, and can be read to you." : "Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches."}</p>
           </div>
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />
           </button>
+        </div>
+
+        <div role="group" aria-label="What to do" className="mt-3 inline-flex rounded-[10px] bg-sunk p-[3px]">
+          {(
+            [
+              ["find", "Find a passage"],
+              ["ask", "Ask a question"],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={mode === m}
+              className={`h-7 rounded-[8px] px-3 text-[12.5px] font-medium transition-colors ${mode === m ? "bg-pill text-ink shadow-[0_1px_2px_rgb(0_0_0/0.1)]" : "text-ink-3 hover:text-ink"}`}
+              onClick={() => {
+                if (m === mode) return;
+                abortSession();
+                setPhase("idle");
+                setError(null);
+                setResult(null);
+                setMode(m);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         <div className="mt-4 flex items-center gap-2">
@@ -398,8 +492,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                 if (busy) typedWhileListening.current = true;
                 setDraft(e.target.value);
               }}
-              placeholder={phase === "starting" ? "Waiting for the microphone…" : phase === "listening" ? "Listening…" : phase === "transcribing" ? "Transcribing…" : "Find the part that talks about…"}
-              aria-label="What to look for"
+              placeholder={phase === "starting" ? "Waiting for the microphone…" : phase === "listening" ? "Listening…" : phase === "transcribing" ? "Transcribing…" : mode === "ask" ? "Ask about this text…" : "Find the part that talks about…"}
+              aria-label={mode === "ask" ? "Your question about the text" : "What to look for"}
               className="h-11 min-w-0 flex-1 bg-transparent font-serif text-[16px] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"
             />
             {!supported && phase === "listening" ? (
@@ -409,8 +503,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                 ))}
               </span>
             ) : null}
-            <button type="submit" aria-label="Search" className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-ink text-bg">
-              <Search size={14} aria-hidden="true" />
+            <button type="submit" aria-label={mode === "ask" ? "Ask" : "Search"} className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-ink text-bg">
+              {mode === "ask" ? <ArrowUp size={14} aria-hidden="true" /> : <Search size={14} aria-hidden="true" />}
             </button>
           </form>
         </div>
@@ -433,7 +527,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
 
         {phase === "searching" ? <div className="loading-bar mt-5" aria-label="Searching" /> : null}
 
-        {result && phase === "done" ? (
+        {mode === "find" && result && phase === "done" ? (
           <div className="mt-4">
             <p className="text-[12.5px] text-ink-3">
               {result.confidence === "none" ? (
@@ -500,10 +594,91 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
             ) : null}
           </div>
         ) : null}
-        <p className="mt-4 text-[11.5px] leading-snug text-ink-4">Try: “find the part about the sea floor” · “where does the author explain the main argument” · “encontre a conclusão e leia esse trecho”.</p>
+        {mode === "ask" ? (
+          <div className="mt-4" data-conversation>
+            {!conversation ? (
+              <p className="text-[13px] leading-relaxed text-ink-3">Ask anything about this text, for example “what does the author mean by that term?” or “what is the main argument?”. Nothing is sent until you ask.</p>
+            ) : (
+              <div aria-busy={conversation.status === "streaming"} className="space-y-4">
+                {conversation.turns.map((t, i) =>
+                  t.role === "user" ? (
+                    <p key={i} className="font-serif text-[16px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">
+                      {t.content}
+                    </p>
+                  ) : (
+                    <div key={i} className="gloss-body !text-[14.5px]">
+                      {t.content ? renderGlossBody(t.content, (n) => { onCite?.(n); onClose(); }, conversation.status === "streaming" && i === conversation.turns.length - 1, conversation.cites) : conversation.status === "streaming" ? <p className="text-ink-3">Writing…</p> : null}
+                    </div>
+                  ),
+                )}
+                {conversation.status === "error" ? (
+                  <p role="alert" className="rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
+                    {conversation.error ?? "That did not work."}
+                  </p>
+                ) : null}
+                {speakState === "error" && speaker.error ? (
+                  <p role="alert" className="rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
+                    {speaker.error}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-1.5 border-t border-rule pt-3 text-[12.5px]">
+                  {conversation.status === "done" && lastAnswer ? (
+                    speakState === "speaking" ? (
+                      <button type="button" className="flex h-8 items-center gap-1.5 rounded-full bg-[var(--rubric)] px-3 font-medium text-white" onClick={() => speaker.stop()}>
+                        <Square size={12} aria-hidden="true" /> Stop speaking
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="flex h-8 items-center gap-1.5 rounded-full bg-sunk px-3 font-medium text-ink hover:bg-pill"
+                        onClick={() => {
+                          onAnswerSpeak?.();
+                          speaker.speak(lastAnswer, { rate: voice?.rate, voiceURI: voice?.voiceURI, lang: voice?.lang ?? lang });
+                        }}
+                      >
+                        <Headphones size={13} aria-hidden="true" /> Read this answer aloud
+                      </button>
+                    )
+                  ) : null}
+                  <button
+                    type="button"
+                    className="h-8 rounded-full px-3 font-medium text-ink-2 hover:bg-sunk hover:text-ink"
+                    onClick={() => {
+                      onShowAnswer?.(conversation.id);
+                      onClose();
+                    }}
+                  >
+                    Show in the margin
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 rounded-full px-3 font-medium text-ink-2 hover:bg-sunk hover:text-ink"
+                    onClick={() => {
+                      speaker.stop();
+                      spokenKey.current = null;
+                      setTranscript("");
+                      onNewConversation?.();
+                    }}
+                  >
+                    New question
+                  </button>
+                  <button type="button" className="h-8 rounded-full px-3 font-medium text-ink-2 hover:bg-sunk hover:text-ink" onClick={onClose}>
+                    Back to reading
+                  </button>
+                </div>
+                <p className="text-[12px] leading-snug text-ink-3">Ask again below to follow up on this answer.</p>
+              </div>
+            )}
+            <label className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2">
+              <input type="checkbox" checked={speakOn} onChange={(e) => setSpeakOn(e.target.checked)} />
+              Read answers aloud when they are ready
+            </label>
+          </div>
+        ) : null}
+        {mode === "find" ? <p className="mt-4 text-[11.5px] leading-snug text-ink-4">Try: “find the part about the sea floor” · “where does the author explain the main argument” · “encontre a conclusão e leia esse trecho”.</p> : null}
         <p className="mt-2 text-[11.5px] leading-snug text-ink-4">
           {supported ? "Your voice is processed by your browser's speech service (Chrome, Edge and Safari send the audio to their provider)." : canServerTranscribe ? "Your voice is sent to Together AI to be transcribed." : "Voice needs a speech service this browser does not have; typing works everywhere."}
-          {hasKey ? " Ranking by meaning sends your question and a few short excerpts of this text to Together AI." : ""}
+          {mode === "ask" ? " Asking sends your question and the paragraphs most relevant to it to Together AI, which writes the answer. The microphone only runs after you press its button, and no audio is kept by this app." : hasKey ? " Ranking by meaning sends your question and a few short excerpts of this text to Together AI." : ""}
         </p>
       </section>
     </div>

@@ -235,10 +235,9 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
 
   if (!active && !bare) {
     return (
-      <article
+      <div
         ref={refCb}
         data-gloss={g.id}
-        aria-label={`${label}, paragraph ${n ?? "—"}. Open note.`}
         role="button"
         tabIndex={0}
         className={`gloss is-collapsed ${hover ? "is-hover" : ""}`}
@@ -256,7 +255,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
           {n ? <span className="shrink-0 text-[11px] tabular-nums text-ink-4">¶{n}</span> : null}
         </div>
         <p className="mt-1 line-clamp-2 text-[13px] leading-[1.45] text-ink-3">{g.error ? g.error : plainAnswer(answer) || (streaming ? "Writing…" : "")}</p>
-      </article>
+      </div>
     );
   }
 

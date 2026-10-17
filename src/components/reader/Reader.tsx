@@ -639,6 +639,24 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     [glosses, runGloss],
   );
 
+  /* ---------- questions asked in the voice panel ---------- */
+  const [voiceGlossId, setVoiceGlossId] = useState<string | null>(null);
+  const askByVoice = useCallback(
+    (q: string, again: boolean) => {
+      const existing = again && voiceGlossId ? allGlosses.find((x) => x.id === voiceGlossId) : undefined;
+      if (existing) return void followUp(existing.id, q);
+      const g: Gloss = { id: newId(), documentId, action: "whole", anchor: null, turns: [{ role: "user", content: q }, { role: "assistant", content: "" }], createdAt: Date.now(), status: "streaming" };
+      upsertGloss(g);
+      setVoiceGlossId(g.id);
+      void runGloss(g, q);
+    },
+    [voiceGlossId, allGlosses, followUp, documentId, runGloss],
+  );
+  const voiceConversation = useMemo(() => {
+    const g = voiceGlossId ? glosses.find((x) => x.id === voiceGlossId) : undefined;
+    return g ? { id: g.id, turns: g.turns, status: g.status, error: g.error, cites: g.result?.kind === "stream" ? new Set(g.result.context.map((id) => blocks.find((b) => b.id === id)?.n).filter((n): n is number => typeof n === "number")) : null } : null;
+  }, [voiceGlossId, glosses, blocks]);
+
   const retry = useCallback(
     (id: string) => {
       const g = glosses.find((x) => x.id === id);
@@ -689,10 +707,15 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   );
 
   /** Open the voice panel; read-aloud steps aside first, because the microphone would hear it and search for what it said. */
-  const openVoice = useCallback(() => {
-    speech.pause();
-    setVoiceOpen(true);
-  }, [speech]);
+  const [voiceMode, setVoiceMode] = useState<"find" | "ask">("find");
+  const openVoice = useCallback(
+    (mode: "find" | "ask" = "find") => {
+      speech.pause();
+      setVoiceMode(mode);
+      setVoiceOpen(true);
+    },
+    [speech],
+  );
 
   useEffect(() => {
     if (!backTo) return;
@@ -1088,7 +1111,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
               <QuickAdd />
             </footer>
 
-            <Composer ref={composerRef} onAsk={(q) => createGloss("whole", null, q)} web={settings.search} onWebToggle={() => setSettings({ search: !settings.search })} onVoice={openVoice} />
+            <Composer ref={composerRef} onAsk={(q) => createGloss("whole", null, q)} web={settings.search} onWebToggle={() => setSettings({ search: !settings.search })} onVoice={() => openVoice("ask")} />
           </div>
           <div className="rg-gutter" aria-hidden="true" />
           <div className="rg-margin min-w-0">
@@ -1245,7 +1268,26 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         followSpeech.current = true;
         speech.skip(d);
       }} onRate={(r) => setSettings({ rate: r })} onVoice={(v) => setSettings({ voice: v })} docLang={docLang} />
-      {voiceOpen ? <VoiceSearch open onClose={() => setVoiceOpen(false)} blocks={blocks} lang={docLang} onJump={onHitJump} onRead={onHitRead} onListenStart={() => speech.pause()} serverKey={!!serverInfo?.serverKey} /> : null}
+      {voiceOpen ? (
+        <VoiceSearch
+          open
+          onClose={() => setVoiceOpen(false)}
+          blocks={blocks}
+          lang={docLang}
+          onJump={onHitJump}
+          onRead={onHitRead}
+          onListenStart={() => speech.pause()}
+          serverKey={!!serverInfo?.serverKey}
+          initialMode={voiceMode}
+          onAsk={askByVoice}
+          conversation={voiceConversation}
+          onNewConversation={() => setVoiceGlossId(null)}
+          onShowAnswer={(id) => setActiveId(id)}
+          onCite={onCite}
+          voice={{ rate: settings.rate, voiceURI: settings.voice, lang: docLang }}
+          onAnswerSpeak={() => speech.stop()}
+        />
+      ) : null}
       <KeysDialog open={keysOpen} onClose={() => setKeysOpen(false)} />
       <Toasts bottom={snap.state === "idle" || snap.state === "unsupported" ? 84 : 150} />
     </div>

@@ -74,7 +74,8 @@ test.describe("voice search (typed transcript; recognition itself needs a microp
     await page.getByRole("button", { name: /voice|microphone/i }).first().click();
     const dialog = page.getByRole("dialog", { name: "Ask by voice" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByLabel("What to look for")).toBeFocused();
+    // Opened from the composer's microphone, the panel is ready for a question (the V key opens it for finding a passage).
+    await expect(dialog.getByLabel("Your question about the text")).toBeFocused();
     for (let i = 0; i < 8; i++) {
       await page.keyboard.press("Tab");
       expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);

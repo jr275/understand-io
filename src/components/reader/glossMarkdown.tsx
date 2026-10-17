@@ -52,7 +52,7 @@ function inline(s: string, onCite: (n: number) => void, valid: Set<number> | nul
       const n = Number(tok.replace(/\D/g, ""));
       if (valid && !valid.has(n)) {
         out.push(
-          <span key={k++} className="cite is-unverified" data-unverified={n} role="img" aria-label={`Paragraph ${n} was not among the paragraphs the model was given, so this citation cannot be checked`} data-tip="Not among the paragraphs the model was given" style={{ textDecoration: "line-through", opacity: 0.6, cursor: "help" }}>
+          <span key={k++} className="cite is-unverified" data-unverified={n} role="img" aria-label={`Paragraph ${n} was not among the paragraphs the model was given, so this citation cannot be checked`} data-tip="Not among the paragraphs the model was given" style={{ textDecoration: "line-through", color: "var(--ink-3)", cursor: "help" }}>
             ¶{n}
           </span>,
         );

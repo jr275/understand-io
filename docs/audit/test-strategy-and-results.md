@@ -8,12 +8,12 @@ _Final run on 2026-10-17 against the working tree at the commit that follows 098
 | --- | --- | --- |
 | `pnpm typecheck` | 0 | clean |
 | `pnpm lint` | 0 | clean, no warnings |
-| `pnpm test` (Vitest) | 0 | 32 files, **668 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
-| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **112 passed** (110 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
+| `pnpm test` (Vitest) | 0 | 39 files, **752 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
+| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **145 passed** (143 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
 | `pnpm build` | 0 | compiled; one warning: no fallback font metrics for Atkinson Hyperlegible Next (BUILD-1) |
 | `pnpm audit --prod` | 0 | no known vulnerabilities |
 
-At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by this audit: 626 unit and 80 end-to-end.
+At the start of the audit the same commands gave 42 unit tests and 32 end-to-end tests. Tests added by the audit and the second brief: 710 unit and 113 end-to-end.
 
 No test was skipped, deleted, loosened or marked flaky to obtain these results. Where a test was wrong it was fixed and the reason recorded in the commit (for example a security test that depended on a NUL byte reaching the database now uses a lone surrogate, because NUL is refused earlier).
 
@@ -44,7 +44,7 @@ Each fix in the review set came with a test that was run against the old code an
 
 ## Test inventory
 
-### Unit (32 files, 668 tests)
+### Unit (39 files, 752 tests)
 
 | File | Tests | Area |
 | --- | --- | --- |
@@ -55,20 +55,24 @@ Each fix in the review set came with a test that was run against the old code an
 | retrieval | 134 | stemmer vocabulary, stop words, spoken queries, confidence, labelled evaluation |
 | search | 8 | BM25 basics |
 | anchors, anchors-resolve, anchors-dom, anchors-property | 7, 30, 13, 201 | anchoring, resolution, DOM selection, randomised contract |
-| annotate, annotation-schema, annotation-routes-outage, library-sync, notebook-markdown | 7, 41, 5, 13, 3 | annotation logic, validation, outage, sync, export |
+| annotate, annotation-schema, annotation-routes-outage, library-sync, notebook-markdown | 7, 49, 5, 13, 3 | annotation logic, validation, outage, sync, export |
 | safeFetch, safeFetchRanges, safeFetchPinning | 5, 5, 6 | SSRF address rules, ranges, connect-time pinning |
-| serverKeyAbuse, parserLimits, importErrors, importStatus, uploadKind, guarded-errors | 16, 13, 4, 3, 4, 3 | limits, parser bounds, error hygiene, file sniffing |
+| serverKeyAbuse, parserLimits, importErrors, importStatus, uploadKind, guarded-errors | 16, 13, 4, 3, 8, 3 | limits, parser bounds, error hygiene, file sniffing |
 | auth, authHardening, accountMerge | 3, 8, 9 | OAuth helpers, production guards, account merge planner (some cases need the database) |
 | content, pdf-paragraphs | 10, 8 | extraction, PDF paragraph gaps (real PDF fixture), merging of figure fragments |
 | db-outage, theme-boot | 5, 4 | outage with the real driver, no React script-tag error |
+| ai-evidence, ai-ops, ai-route | 11, 16, 8 | quote checking, structured operations with a fake model (retry, long text, coverage, passage, translation), the /api/ai route with a mocked `generateText` |
+| answer-speaker, voice-ask | 9, 12 | spoken answers (fake engine), ask mode of the voice panel (fake recogniser and engine) |
+| find, gloss-render | 10, 6 | literal search and sections, citation checking and labels in rendered answers |
 
-### End to end (112 runs)
+### End to end (145 runs)
 
-a11y 27, annotations 8, annotations-api 6, api 6, import-and-isolation 3, landing 10, library 3, mobile 2, reader 11, search-and-speech 27, security 9.
+a11y 27, annotations 8, annotations-api 7, api 6, find 8, import-and-isolation 3, landing 11, library 3, mobile 2, position 2, reader 11, search-and-speech 27, security 9, understand 14, voice-ask 7.
 
 ## Known weaknesses of the test suite
 
 - One shared development database. Tests add rows and never remove them.
+- The model is never called in any test: the AI features are checked through a fake model (unit) and a stand-in for the routes (browser). A live model has never been used.
 - Playwright runs with one worker against `next dev`, not `next start`; production-only behaviour (HSTS, the secure cookie flag, `APP_URL` enforcement) is unit-tested but not seen end to end.
 - Test titles occasionally promise more than the assertion proves: the forced-colours test only checks that the highlight has a non-transparent background; the "Finished reading" announcement is not asserted.
 - The retrieval thresholds are set just below measured values on a small hand-written set.

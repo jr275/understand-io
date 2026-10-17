@@ -36,6 +36,7 @@ Browser (Chrome/Edge/Safari)                    Next.js 16 server (one Node proc
 | `GET/POST /api/glosses`, `DELETE /api/glosses/[id]` | route | Saved AI answers |
 | `POST /api/gloss` | route | Streamed AI answer. Needs a key (reader's or server's) |
 | `POST /api/search` | route | Passage search; BM25 plus optional embedding re-rank. Needs a key only for the re-rank |
+| `POST /api/ai` | route | Structured operations: summaries (five kinds), key concepts, comprehension questions, translation. One JSON answer, validated, with quotes checked against the document and a coverage statement. Needs a key |
 | `POST /api/speech/transcribe` | route | Whisper fallback. Needs a key |
 | `GET/POST /api/progress` | route | Reading progress |
 | `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/me`, `/api/auth/signout` | route | Google OAuth (PKCE) when `GOOGLE_CLIENT_ID/SECRET` are set; 503 with an explanation otherwise |
@@ -49,7 +50,7 @@ Browser (Chrome/Edge/Safari)                    Next.js 16 server (one Node proc
 
 ## Persistence
 
-Tables (Drizzle schema in `src/lib/db/schema.ts`): `readers`, `documents` (blocks as jsonb), `reading_progress`, `annotations` (anchor jsonb), `glosses`, `settings`, `accounts`. Migrations `0000_bouncy_king_bedlam`, `0001_heavy_the_order`, `0002_rich_vargas` (unique `accounts.reader_id`) are applied in order. No migration that could already have been applied was edited.
+Tables (Drizzle schema in `src/lib/db/schema.ts`): `readers`, `documents` (blocks as jsonb), `reading_progress`, `annotations` (anchor jsonb), `glosses` (turns, and a nullable `result` jsonb for structured AI results), `settings`, `accounts`. Migrations `0000_bouncy_king_bedlam`, `0001_heavy_the_order`, `0002_rich_vargas` (unique `accounts.reader_id`) and `0003_confused_colleen_wing` (additive `glosses.result`; recovery: `ALTER TABLE glosses DROP COLUMN result`) are applied in order. No migration that could already have been applied was edited.
 
 ## Import pipeline
 
@@ -70,6 +71,14 @@ Error hygiene: only `ReadError` and `UnsafeUrlError` messages reach the reader. 
 ## Voice search
 
 `VoiceSearch` creates a capture **session** for each listening attempt. A session binds the browser recogniser (or the MediaRecorder fallback) to a token; once the session ends, is replaced or the panel closes, every callback of it is ignored and the microphone is released. Transcript text goes to a pure retrieval pipeline: sentence windows → BM25 (with a Porter stemmer for English and a light Portuguese stemmer) → idf-weighted coverage gives `high | low | none` → optional embedding re-rank that can reorder but never raise confidence. Nothing leaves the browser unless the browser's own recogniser sends audio to its vendor (disclosed in the panel) or the server fallback is used.
+
+## Structured AI operations (second brief)
+
+`lib/ai/ops.ts` gives each operation its own prompt and output schema. The model answers one JSON object; `ask()` parses it tolerantly, validates it with zod and retries once with a correction before failing plainly. Texts up to about 28,000 characters are read in one call; longer ones section by section (at most 8 sections of about 9,000 characters, then one call that combines the notes), so a request makes at most 9 model calls. `lib/ai/evidence.ts` then checks every quote the model offers against the paragraph it names (case, spacing, quote and dash style forgiven; offsets taken from the document) and downgrades any statement that claims to be from the text without a verified quote. `coverageOf` records which paragraphs were read. The result is stored in `glosses.result` and shown by `InsightsPanel`. Streamed margin answers keep the paragraph ids they were given (`result.kind = stream`) so their ¶ citations can be checked, now and after a reload. Literal search (`lib/search/find.ts`) never calls a model.
+
+## Voice conversation
+
+`VoiceSearch` has two modes. "Find a passage" is the retrieval described above. "Ask a question" hands the question to the reader, which creates a margin answer (action `whole`) through the same streaming pipeline and gives the panel its conversation (turns, status, the paragraphs the model was given). `AnswerSpeaker` reads a finished answer with the browser voice, only when the reader leaves "Read answers aloud" on, after read-aloud of the text has been stopped (one voice engine), and never while the microphone is capturing.
 
 ## Annotations
 

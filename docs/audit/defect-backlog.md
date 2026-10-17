@@ -13,9 +13,10 @@ Severity: P0 data loss or security breach in normal use; P1 a main feature broke
 | Annotations (ANNOT-1..22) | 22 | 18 | 3 | 1 | 0 |
 | Security (SEC-1..16) | 16 | 9 | 5 | 0 | 2 |
 | Import, build, hygiene, accessibility, found in testing | 15 | 9 | 2 | 4 | 0 |
-| **All** | **107** | **80** | **18** | **6** | **3** |
+| Second brief: AI, import, interface (below) | 10 | 7 | 1 | 2 | 0 |
+| **All** | **117** | **87** | **19** | **8** | **3** |
 
-Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync), IMP-3 (duplicate imports), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
+Open items by priority: AI-4 (the live model has never answered, needs a key), A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync), IMP-3 (duplicate imports), IMP-7 (a text link is titled by its file name), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
 
 ## Read aloud (fixes: commit 2b76932, later 5edb3fa and the Stop-focus commit)
 
@@ -148,3 +149,19 @@ Open items by priority: A11Y-4 (no screen-reader pass, needs a person), ANNOT-17
 | BUILD-1 | P3 | next/font cannot compute fallback metrics for Atkinson Hyperlegible Next | Open | small layout shift while the font loads; one build warning |
 | HYG-1 | P3 | 115 files not Prettier-formatted; no format check script | Partial | not fixed on purpose: a repository-wide reformat should be its own commit; `prettier --write` must not be run per file (it diverged from the codebase style) |
 | TEST-1 | P3 | dev database shared with the e2e suite; no CI | Partial | documented in `external-integrations.md` and `test-strategy-and-results.md` |
+
+## Found and handled in the second brief (intelligent reading)
+
+| ID | Sev | Finding | Status | Guard / remaining |
+| --- | --- | --- | --- | --- |
+| AI-1 | P1 | a model's ¶ citation always became a link, including to paragraphs the model was never given | Fixed | the paragraphs given are stored with each answer; others are struck through and do not link (`gloss-render.test`, `understand.spec`) |
+| AI-2 | P2 | an overview built from a sample of paragraphs was presented as the gist of the whole text | Fixed | every overview says "Based on N of M paragraphs ... the rest was not read"; structured results carry a coverage statement (`ai-ops.test`, `understand.spec`) |
+| AI-3 | P2 | nothing distinguished what the text says from the model's interpretation or outside knowledge | Partial | structured results: a statement claimed to be from the text needs a verified quote or is shown as flagged interpretation (deterministic, tested). Streamed margin answers rely on the model using "My reading:" / "Outside the text:" labels, which a live model may ignore (unverified) |
+| AI-4 | P2 | the live model has never answered in this environment (no key): JSON validity rate, summary and translation quality, label compliance are unmeasured | Open | needs a key and a reader |
+| IMP-6 | P2 | a PDF link served as octet-stream, or without a `.pdf` ending, was not imported; text links were not read | Fixed | `classifyFetched` (`uploadKind.test`); live imports of a PDF URL and a text URL |
+| IMP-7 | P3 | a text link (for example a Project Gutenberg `.txt`) is titled by its file name | Open | minor; the first line is not trusted as a title |
+| UI-1 | P2 | the collapsed margin note was an `<article role="button">` whose name did not contain its visible text (axe aria-allowed-role and label-in-name) | Fixed | `voice-ask.spec` axe test with a margin answer on screen |
+| UI-2 | P3 | top-bar buttons with a count badge named themselves with an aria-label that left out the visible number | Fixed | named by content (`understand.spec` axe tests) |
+| UI-3 | P3 | the unverified-citation style lowered contrast below AA | Fixed | same axe tests |
+| POS-1 | P3 | resume after reload was implemented but never tested | Fixed | `position.spec` |
+

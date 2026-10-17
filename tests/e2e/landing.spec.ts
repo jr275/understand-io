@@ -19,6 +19,16 @@ test.describe("landing", () => {
     expect(errors).toEqual([]);
   });
 
+  test("the top bar carries no partner logo on any page", async ({ page }) => {
+    for (const path of ["/", "/library", "/read/on-a-piece-of-chalk"]) {
+      await page.goto(path);
+      const banner = page.getByRole("banner");
+      await expect(banner.getByRole("link", { name: /Understand\.io/ })).toBeVisible();
+      await expect(banner.locator('a[href*="together.ai"], [aria-label="Together AI"]')).toHaveCount(0);
+      await expect(banner.getByText("together.ai")).toHaveCount(0);
+    }
+  });
+
   test("enables Read for a URL and opens a sample from a chip", async ({ page }) => {
     await page.goto("/");
     await page.getByLabel("Article link").fill("https://example.com/article");

@@ -7,6 +7,8 @@ search**, and **text annotations** (highlights, underlines, notes).
 Paste a link, a PDF or some text → a clean numbered reading view → select any line and ask about
 it; the answer lands in the margin, citing paragraphs. Texts live on a shelf grouped by topic.
 
+**Understand.io reads with you:** summaries in five kinds (quick, executive, detailed, key ideas, a single passage), key concepts and questions that test your understanding, translation of a selection or of the text a page at a time (the original stays beside it), search inside the text with a section menu, read-aloud, and questions asked aloud or typed with answers in text and speech. Every AI result says which paragraphs it read, quotes the text where it can and checks those quotes against it, and labels what is the model's own reading. The AI features need a Together AI key (yours, in the key panel); reading, highlighting, notes, search and read-aloud need nothing. What is sent where: [`docs/privacy-and-providers.md`](docs/privacy-and-providers.md).
+
 ## Prerequisites
 
 | Need | Version | Notes |
@@ -34,7 +36,7 @@ highlights, notes, glosses and settings are kept in the browser. Never commit `.
 ```bash
 createdb gloss                    # once, with PostgreSQL running (Homebrew: brew services start postgresql@16)
 # .env.local:  DATABASE_URL=postgres://localhost:5432/gloss
-pnpm db:migrate                   # applies drizzle/0000 .. 0002 in order
+pnpm db:migrate                   # applies drizzle/0000 .. 0003 in order
 ```
 
 Migrations are never edited once applied. A schema change is `pnpm db:generate` followed by `pnpm db:migrate`.
@@ -82,7 +84,7 @@ when a key is configured.
 
 `/` ask about the whole text · `J`/`K` next/previous paragraph · `Enter` ask about the current paragraph ·
 `[` `]` previous/next gloss · `B` gloss this text · `N` notebook · `F` focus · `L` listen ·
-`Space` pause/resume · `V` ask by voice · `⇧H` highlight · `⇧U` underline · `?` all keys
+`Space` pause/resume · `V` ask by voice · `S` find in the text · `I` Understand (summaries, translation) · `⇧H` highlight · `⇧U` underline · `?` all keys
 
 Single-key shortcuts can be switched off in Appearance ("Single-key shortcuts") for people who use speech input or an unsteady keyboard.
 
@@ -97,8 +99,8 @@ Single-key shortcuts can be switched off in Appearance ("Single-key shortcuts") 
 
 ## Provider limitations
 
-- Margin answers, whole-text answers, meaning re-rank and server transcription need a Together AI key (server `TOGETHER_API_KEY` or a reader's own).
-  Without one the app answers "needs a key" and never fakes output. These paths have not been run against the live provider.
+- Margin answers, whole-text answers, summaries, concepts, comprehension questions, translation, meaning re-rank and server transcription need a Together AI key (server `TOGETHER_API_KEY` or a reader's own).
+  Without one the app answers "needs a key" and never fakes output. **These paths have not been run against the live provider**: they are tested with a fake model, which proves the checking, storage and display but not the quality of any answer.
 - Google sign-in needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and (in production) `APP_URL`. The real round trip has not been run.
 - Some publishers (theatlantic.com, medium.com, nytimes.com) refuse server-side fetches. Use the "Read in Understand" bookmarklet from the Add panel
   or paste the text.
@@ -108,6 +110,7 @@ Single-key shortcuts can be switched off in Appearance ("Single-key shortcuts") 
 The full list is `docs/audit/defect-backlog.md`. The ones you are likely to meet:
 
 - Retrieval by words misses paraphrases; meaning search is only as good as the model and has not been measured.
+- AI answers are only as good as the model; quotes are checked against the text, but a summary can still be wrong. Whole-text translation goes a page at a time.
 - PDFs with figures and tables still produce some short blocks.
 - Annotations on texts that exist only in your browser (`local:` documents) do not sync between devices.
 - Existing highlights are not reachable with the keyboard (the Notebook lists them and can delete them).
@@ -125,7 +128,7 @@ The full list is `docs/audit/defect-backlog.md`. The ones you are likely to meet
 
 ## Quality evidence
 
-`docs/final-qa-report.md` (verdict, matrix, metrics), `docs/implementation-status.md` (71 requirements with exact statuses) and `docs/audit/` (traceability, runtime architecture, per-feature validation, security, integrations, accessibility, test strategy, defect backlog).
+`docs/final-qa-report.md` (verdict, matrix, metrics), `docs/implementation-status.md` (91 requirements with exact statuses) and `docs/audit/` (traceability, runtime architecture, per-feature validation, security, integrations, accessibility, test strategy, defect backlog).
 Checks that need a person (hearing the audio, speaking into the microphone, a phone, Google sign-in, a Together key) are written as short checklists in the validation documents.
 
 ## Docs
@@ -135,3 +138,5 @@ Checks that need a person (hearing the audio, speaking into the microphone, a ph
 - [`docs/design-system.md`](docs/design-system.md) — tokens, type, spacing, components
 - [`docs/architecture.md`](docs/architecture.md) (original plan) and [`docs/audit/runtime-architecture.md`](docs/audit/runtime-architecture.md) (as built)
 - [`docs/implementation-status.md`](docs/implementation-status.md) — honest per-feature status and test evidence
+- [`docs/evolution-report.md`](docs/evolution-report.md) — the intelligent-reading work by phase: what was built, how it was tested, what is not verified
+- [`docs/privacy-and-providers.md`](docs/privacy-and-providers.md) — what is sent where

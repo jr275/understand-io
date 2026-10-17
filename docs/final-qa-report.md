@@ -6,7 +6,7 @@ _Written 2026-10-17. Everything here comes from commands run and files read in t
 
 **Verdict: functionally usable with known limitations.** It is not a release candidate, and it is not production-ready.
 
-What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 668 unit tests, 112 end-to-end tests, the production build and the dependency audit all pass.
+What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 752 unit tests, 145 end-to-end tests, the production build and the dependency audit all pass.
 
 What is not proven, and why it matters to you:
 
@@ -18,7 +18,9 @@ What is not proven, and why it matters to you:
 
 Not "production-ready": there is no CI, no monitoring, the rate limiter is per process, the server has never run behind real TLS or a real host, and the items above are unverified. A passing build is not a readiness claim.
 
-Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 668 and 112.
+Over both briefs: 117 findings were tracked; 87 are fixed with a test or a recorded run, 19 are partial with the residual named, 8 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 752 and 145.
+
+**Second brief (intelligent reading, see `docs/evolution-report.md`).** The reader now has summaries in five kinds, key concepts, comprehension questions, translation of a selection and of the text part by part, literal search with section navigation, checked citations, honest coverage statements, a way back to where you were, and a conversation by voice with spoken answers. The partner logo is gone and any readable link or PDF can be opened. **None of the AI features has been run against a live model**: there is no key here, so what is verified is the pipeline around the model (request, validation, quote checking, coverage, storage, display, navigation, errors) with a fake model, not the quality of any answer.
 
 ## B. Verified environment
 
@@ -47,8 +49,8 @@ All run on 2026-10-17 in this folder; exit codes are real.
 | --- | --- | --- | --- | --- | --- |
 | `pnpm typecheck` | exit 0 | clean | none | n/a | none |
 | `pnpm lint` | exit 0 | clean, 0 warnings | `test-results/` and scratch outputs are ignored | n/a | none |
-| `pnpm test` | exit 0 | 32 files, 668 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
-| `pnpm test:e2e` | exit 0 | 112 passed (110 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
+| `pnpm test` | exit 0 | 39 files, 752 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
+| `pnpm test:e2e` | exit 0 | 145 passed (143 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
 | `pnpm build` | exit 0 | compiled; warning: no fallback font metrics for Atkinson Hyperlegible Next | none | n/a | production server behaviour (`next start`, TLS, CDN) not exercised |
 | `pnpm audit --prod` | exit 0 | no known vulnerabilities | dev dependencies not audited | n/a | reflects the advisory database at run time |
 | `pnpm exec tsx scripts/eval-retrieval.mts` | exit 0 | top-1 57.7 %, top-3 69.2 % on 26 sample-document queries; absent concepts showing hits 1 of 7; 215 of 215 offsets exact | meaning re-rank not evaluated | none | 41 hand-written queries: a regression signal, not an accuracy claim |
@@ -87,10 +89,17 @@ Status words are the six allowed values. Full 71-row matrix with sources, tests,
 | Production build | VERIFIED WORKING | `pnpm build` exit 0 | production host not exercised |
 | Database outage tolerance | VERIFIED WORKING | `db-outage.test`, `annotation-routes-outage.test`, real app on a dead port | none |
 | Dialog keyboard focus | VERIFIED WORKING | 4 e2e (found and fixed in this audit) | none |
+| Open any readable link or PDF by URL | VERIFIED WORKING | `classifyFetched` unit tests; live imports of an arXiv PDF URL and a Gutenberg text URL; an image URL refused | sites that answer 403 need the bookmarklet |
+| Summaries (5 kinds), concepts, comprehension questions | VERIFIED WORKING for the pipeline; BLOCKED for the live model | `ai-ops`, `ai-route` (fake model), `understand.spec` (stand-in) | a key, to see real output |
+| Evidence checking and coverage statements | VERIFIED WORKING | `ai-evidence`, `ai-ops` | none |
+| Translation (selection; whole text part by part) | VERIFIED WORKING for the pipeline; BLOCKED for quality | `ai-ops`, `understand.spec` | a key and a bilingual reader |
+| Checked citations in margin answers | VERIFIED WORKING | `gloss-render`, `understand.spec` | the model's use of its labels is unverified |
+| Find in the text, sections, back to where you were, resume | VERIFIED WORKING | `find`, `find.spec`, `position.spec` | none |
+| Ask by voice or typed, spoken answers | VERIFIED WORKING for the flow (fakes); BLOCKED for audio and microphone | `voice-ask` unit and e2e | a person with speakers and a microphone, and a key |
 
 ## E. Defects
 
-Complete list with severity and status: `docs/audit/defect-backlog.md` (107 entries). The ones that mattered most, with root cause, correction and regression test:
+Complete list with severity and status: `docs/audit/defect-backlog.md` (117 entries). The ones that mattered most, with root cause, correction and regression test:
 
 | ID | Sev | Root cause | Correction | Regression test | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -110,10 +119,13 @@ Complete list with severity and status: `docs/audit/defect-backlog.md` (107 entr
 | VOICE-7 typed text overwritten by a late spoken result | P2 | final handler ignored typing | typed text wins, spoken result dropped | `voice-search.test` | Fixed (this stretch) |
 | SEC-11 DB errors with note text logged by annotation routes | P3 | guard rethrew non-outage errors | code-only log, fixed 500 | `guarded-errors.test` | Fixed (this stretch) |
 | TTS-12 focus lost when Stop closed the listen bar | P2 | bar unmounted with focus inside | focus to listen button or the text | 2 e2e (fail without it) | Fixed (this stretch); shortcut off-switch still open |
+| AI-1 a model's ¶ citation always linked, even to paragraphs it was never given | P1 | citations were trusted | the paragraphs given are stored per answer and others are struck through; evidence quotes are checked against the document | `gloss-render.test`, `ai-evidence.test` | Fixed |
+| AI-2 an overview of a sample was presented as the whole text | P2 | no coverage statement | every AI result says which paragraphs were read | `ai-ops.test`, `understand.spec` | Fixed |
+| IMP-6 PDF links served as octet-stream, and text links, were not imported | P2 | the server's label was trusted | links classified by bytes and type | `uploadKind.test`, live imports | Fixed |
 | IMP-1 a GIF imported as a text document | P2 | no content sniffing | content sniffing | `uploadKind.test`, e2e | Fixed |
 | IMP-5 PDF paragraphs fused with headings | P2 | line-end text without paragraph gaps | break on vertical gaps larger than 1.5 times normal | `pdf-paragraphs.test` | Fixed, with a cost (see G) |
 
-Open: A11Y-4 (no screen-reader pass), ANNOT-17, IMP-3, RETR-10, A11Y-5, BUILD-1.
+Open: AI-4 (no live model run), A11Y-4 (no screen-reader pass), ANNOT-17, IMP-3, IMP-7, RETR-10, A11Y-5, BUILD-1.
 
 ## F. External dependencies
 
@@ -132,7 +144,9 @@ Secrets: `.env.local` is git-ignored and absent from history; no secret value wa
 
 Unverified or blocked:
 
-- Audible read-aloud output (BLOCKED, human).
+- Every AI feature against a live model: summaries, concepts, comprehension questions, translation, margin answers, the model's own labels, JSON validity rate (BLOCKED, key).
+- Translation quality and language detection (BLOCKED, key and a bilingual reader).
+- Audible read-aloud output and audible spoken answers (BLOCKED, human).
 - Microphone permission flow and real recognition (IMPLEMENTED, NOT VERIFIED, human).
 - Server transcription, embedding re-rank, margin and whole-text answers (BLOCKED, key).
 - Google sign-in round trip and the anonymous-to-account library merge (BLOCKED, credentials).
@@ -149,7 +163,10 @@ Partial or by design:
 - `/?url=` and `/?save=` fill the field and wait for Read (security change from the reference).
 - Existing marks are not keyboard-focusable; the lens does not take focus.
 - The development database is shared with the test suite.
-- Not built, by specification: Painted covers, web search in answers, MCP agent connection, server-side TTS.
+- Whole-text translation is part by part (about a page at a time), not one request for the whole text.
+- Streamed margin answers rely on the model using its labels ("My reading:", "Outside the text:"); citations are checked regardless.
+- Texts beyond about 72,000 characters are summarized in parts, and the result says which paragraphs it read.
+- Not built, by specification: Painted covers, web search in answers (the composer's "Web" toggle is an inert placeholder), MCP agent connection, server-side TTS.
 
 ## H. Completion metrics
 
@@ -157,25 +174,27 @@ Each percentage is `VERIFIED WORKING` over a defined set, counting each requirem
 
 | Metric | Set | Verified | % | Not counted as complete |
 | --- | --- | --- | --- | --- |
-| Route coverage | 6 entry points | 5 | 83 % | 1 partial (`?hl=`) |
-| Existing product functionality | 26 | 14 | 54 % | 3 partial, 4 not verified, 2 blocked, 3 not implemented |
-| Visual fidelity | no defensible set | n/a | n/a | measured pixel difference instead (0.42 % to 16.40 %) |
-| Text-to-speech | 12 | 8 | 67 % | 2 partial, 1 blocked (audible), 1 not implemented (server TTS) |
-| Voice capture and transcription | 5 | 2 | 40 % | 2 not verified, 1 blocked |
-| Passage retrieval | 5 | 4 | 80 % | 1 blocked (meaning re-rank) |
-| Annotations and persistence | 9 | 7 | 78 % | 1 partial, 1 not verified (touch) |
-| AI provider integration | 6 | 2 | 33 % | 4 blocked |
-| Authentication | 3 | 1 | 33 % | 1 not verified, 1 blocked |
-| Automated test coverage of requirements | 71 | 54 have a test | 76 % | 17 have none; a test is not verification |
-| Security review | 16 | 9 | 56 % | 5 partial, 2 information |
-| Operational readiness | 10 | 6 | 60 % | CI, monitoring, shared limiter and backups, deployment not implemented |
-| Line or branch code coverage | none | n/a | n/a | not measured |
+| Existing product functionality | 26 | 15 | 58 % | partially implemented 3; implemented, not verified 3; blocked 2; not implemented 3 |
+| Text-to-speech | 12 | 8 | 67 % | partially implemented 2; blocked 1; not implemented 1 |
+| Voice capture and transcription | 5 | 2 | 40 % | implemented, not verified 2; blocked 1 |
+| Passage retrieval | 5 | 4 | 80 % | blocked 1 |
+| Annotations and persistence | 9 | 7 | 78 % | partially implemented 1; implemented, not verified 1 |
+| AI provider integration | 8 | 2 | 25 % | blocked 6 |
+| Intelligent reading features (second brief) | 20 | 16 | 80 % | partially implemented 1; blocked 3 |
+| Authentication | 3 | 1 | 33 % | implemented, not verified 1; blocked 1 |
+| Route coverage | 6 | 5 | 83 % | partially implemented 1 (`?hl=` deep link). Note: `/?url=` and `/?save=` now only fill the field and wait for Read, a deliberate security deviation from the reference |
+| Automated test coverage of requirements | 91 | 72 | 79 % | requirements with no automated test: REF-2, REF-3, REF-5, REF-7, REF-14, REF-24, REF-25, REF-26, TTS-R10, TTS-R11, TTS-R12, AN-R2, AN-R9, NFR-12, NFR-13, NFR-14, UND-18, UND-19, UND-20. A requirement with a test is not necessarily verified (see Status) |
+| Security review | 16 | 9 | 56 % | partially fixed 5 (SEC-1, 2, 7, 9, 12), information only 2 (SEC-15, 16) |
+| Operational readiness | 10 | 6 | 60 % | not implemented: CI, logging and monitoring, shared limiter and backups, deployment |
+| Visual fidelity | n/a | n/a | n/a | measured instead: pixel difference against the reference at six screens (0.42 % to 16.40 %), see `docs/audit/visual-accessibility-review.md`. A percentage of "fidelity" is not claimed |
+| Code coverage (lines, branches) | n/a | n/a | n/a | not claimed |
 
-Across all 71 requirements: 47 verified working, 6 partially implemented, 7 implemented but not verified, 6 blocked, 1 not observable, 4 not implemented.
+Across all 91 requirements: 64 verified working, 7 partially implemented, 6 implemented but not verified, 9 blocked, 1 not observable, 4 not implemented.
 
 ## I. Recommended next actions
 
 **Required before basic user testing**
+0. To try the new AI features you need a key (`docs/audit/external-integrations.md`): paste your own Together AI key in the key panel; open a text, press `I`, and press each button; select a sentence and use Translate and Summarize; press `V`, choose Ask a question. Read what comes back and report anything wrong, especially quotes that do not match, summaries that claim too much, and translations that read badly.
 1. Open http://localhost:3100 and follow the human checks: read-aloud (`docs/audit/tts-validation.md`), voice search (`docs/audit/voice-search-validation.md`), annotations on a phone (`docs/audit/annotation-validation.md`). About fifteen minutes in total.
 2. If you want margin answers and meaning search: add a Together key (see `docs/audit/external-integrations.md`) and run Explain, a whole-text question, a paraphrase voice query.
 

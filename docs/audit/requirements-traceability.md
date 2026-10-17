@@ -38,7 +38,7 @@ _Source of requirements: `docs/product-specification.md` (scope, additions, qual
 | REF-17 | API key panel stores the key only in the browser and sends it per request | VERIFIED WORKING | U `serverKeyAbuse.test.ts`; E `api.spec.ts` (402 without a key); live use of a key is BLOCKED (REF-13) |
 | REF-18 | Keyboard shortcuts `/ J K Enter [ ] B N F Esc ?` plus L, Space, V, Shift+H, Shift+U | VERIFIED WORKING | E `reader.spec.ts`, `search-and-speech.spec.ts`, `a11y.spec.ts` (every Tab stop shows focus) |
 | REF-19 | Map rail, scroll progress bar, topbar title on scroll | VERIFIED WORKING | E DOM assertions in `reader.spec.ts` |
-| REF-20 | Reading progress persists and resumes | IMPLEMENTED, NOT VERIFIED | logic in `Reader.tsx` and `/api/progress`; no resume test |
+| REF-20 | Reading progress persists and resumes | VERIFIED WORKING | E `position.spec.ts` (scroll, reload, the saved paragraph is on screen); the server copy of progress is covered by the data route tests |
 | REF-21 | Mobile: hint toast, numbers hidden under 720 px, full-width composer, bottom-sheet glosses | PARTIALLY IMPLEMENTED | E `mobile.spec.ts` covers toast and layout; touch interaction on a real phone is H |
 | REF-22 | Persistence of settings, highlights, notes, glosses across reloads | VERIFIED WORKING | E + I `reader.spec.ts`, `annotations*.spec.ts`, `library-sync` unit tests |
 | REF-23 | Sign in / accounts | IMPLEMENTED, NOT VERIFIED | Google OAuth (PKCE) coded and unit-tested for state, merge and hardening (`auth.test.ts`, `authHardening.test.ts`, `accountMerge.test.ts`); the disabled-state UI is E-verified; the real round trip needs credentials (H) |
@@ -110,3 +110,30 @@ _Source of requirements: `docs/product-specification.md` (scope, additions, qual
 | NFR-12 | Production build | VERIFIED WORKING | S `pnpm build`; one font-metric warning (BUILD-1) |
 | NFR-13 | Google OAuth round trip | BLOCKED | no client id or secret |
 | NFR-14 | Real-device and real-browser matrix (Safari, Firefox, iOS, Android) | NOT OBSERVABLE | only Chrome 155 and Playwright Chromium were available |
+
+## F. Evolution: intelligent reading and understanding (second brief)
+
+The model is not reachable in this environment (no key). Rows marked VERIFIED WORKING for these features mean the code we own is verified: the request the app builds, the validation and checking of the answer, storage, display, navigation and the error paths, using a fake model in unit tests and a stand-in for the route in the browser. Whether a live model returns good answers is the separate BLOCKED rows.
+
+| ID | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| UND-1 | The top bar carries no partner logo | VERIFIED WORKING | E `landing.spec.ts` (all three pages) |
+| UND-2 | Open any readable link: web pages, PDFs by URL (even served as octet-stream or without an extension), plain text and markdown by URL; other types refused with a clear message | VERIFIED WORKING | U `uploadKind.test.ts` (`classifyFetched`); live imports of an arXiv PDF URL (189 blocks), a Project Gutenberg text URL and an image URL (refused) through the running server |
+| UND-3 | Five summary kinds (quick, executive, detailed, key ideas, passage) as validated JSON, each with a coverage statement | VERIFIED WORKING | U `ai-ops.test.ts`, `ai-route.test.ts`; E `understand.spec.ts` (stand-in) |
+| UND-4 | Every quote offered as evidence is checked against the paragraph it names; unverifiable statements are shown as flagged interpretation | VERIFIED WORKING | U `ai-evidence.test.ts`, `ai-ops.test.ts` |
+| UND-5 | Long texts are read section by section within a bounded number of calls, and a partial reading says which paragraphs were read, with "Summarize the rest" | VERIFIED WORKING | U `ai-ops.test.ts`; E |
+| UND-6 | Key concepts and comprehension questions (answers hidden until asked) | VERIFIED WORKING | U, E |
+| UND-7 | Translation of a selection with the original beside it, literal versus natural rendering, notes on idioms and terms, document never replaced | VERIFIED WORKING | U `ai-ops.test.ts`; E `understand.spec.ts` |
+| UND-8 | Translation of the whole text, part by part with "Translate the next part" | PARTIALLY IMPLEMENTED | E verifies the flow; by design it is not one request for the whole text, and long texts are translated a page at a time |
+| UND-9 | Margin answers: ¶ citations are checked against the paragraphs the model was given, the model's own labels render as badges, an overview states how many paragraphs it read | VERIFIED WORKING | U `gloss-render.test.ts`; E `understand.spec.ts` |
+| UND-10 | AI results persist with the document (new `glosses.result` column), survive reload, validate on write | VERIFIED WORKING | U `annotation-schema.test.ts`; I `annotations-api.spec.ts` (real PostgreSQL round trip); E reload |
+| UND-11 | Literal search inside the document with marks, count, next and previous, and a separate "Search by meaning" | VERIFIED WORKING | U `find.test.ts`; E `find.spec.ts`, axe |
+| UND-12 | Section navigation from the headings | VERIFIED WORKING | U, E |
+| UND-13 | Reading position resumes after a reload, and "Back to where you were" follows a deliberate jump | VERIFIED WORKING | E `position.spec.ts` |
+| UND-14 | Ask a question by voice or typed in the voice panel, answered in text with checked citations, follow-ups, Show in the margin | VERIFIED WORKING | U `voice-ask.test.ts` (fake recogniser and engine); E `voice-ask.spec.ts` (stand-in model) |
+| UND-15 | Spoken answers: read once when finished, at the reader's rate, never while the microphone is on, stopped on close and on request, microphone never started by asking | VERIFIED WORKING | U `answer-speaker.test.ts`, `voice-ask.test.ts`; E. Events only: audibility is TTS-R11 |
+| UND-16 | Single-key shortcuts can be switched off (WCAG 2.1.4) | VERIFIED WORKING | E `reader.spec.ts` |
+| UND-17 | Modal dialogs trap and restore keyboard focus | VERIFIED WORKING | E `a11y.spec.ts` |
+| UND-18 | The live model returns usable structured answers for every operation, and good ones (summaries, translations, concepts, questions, answers with the model's labels) | BLOCKED | no `TOGETHER_API_KEY`; the pipeline copes with bad JSON (retry then a plain error) but quality and the rate of valid JSON are unmeasured |
+| UND-19 | Translation quality, language detection and idiom notes for Portuguese and English and other languages | BLOCKED | needs a live model and a human who reads both languages |
+| UND-20 | Spoken answers are audible and a question can be spoken and recognised | BLOCKED | needs a person (see TTS-R11, VS-R1, VS-R2) |

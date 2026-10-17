@@ -70,3 +70,17 @@ spines, grouped by topic.
   the server key or a user-provided key sent per request and never stored server-side.
 - Database: PostgreSQL via Drizzle ORM. The app also runs without a database (local-only mode) so the
   reading experience never depends on infrastructure.
+
+## Addendum: intelligent reading (second brief)
+
+Principle: the reader reads, Understand.io helps to understand. Added on top of the reproduction and the three first additions:
+
+- Open any readable link, PDF (also by URL) or text; the partner logo is not shown.
+- Selection toolbar: Ask, Explain, Simplify, Translate, Summarize (the passage only), Highlight, Underline, Note, Copy quote.
+- Understand panel: summaries (quick, executive, detailed, key ideas), key concepts, "Test me" questions, translation of a text part by part; results are stored with the document and say which paragraphs were read.
+- AI honesty rules: quotes are checked against the text; a statement claimed to be from the text without a verifiable quote is shown as interpretation; the model's own labels (interpretation, outside the text, not in the text) are shown; coverage is stated; nothing is invented when the model cannot answer.
+- Literal search inside the text with a section menu; "Back to where you were" after a jump; resume on reopening.
+- Questions by voice or typing with answers in text and speech (explicit microphone, nothing recorded by the app).
+- Not in scope: a knowledge graph, spatial maps, general memory, publishing, social features.
+
+See `docs/evolution-report.md` for what was built per phase and what is not verified, and `docs/privacy-and-providers.md` for what is sent where.

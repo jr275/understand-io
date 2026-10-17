@@ -103,7 +103,7 @@ _Source of requirements: `docs/product-specification.md` (scope, additions, qual
 | NFR-5 | Reader isolation (no cross-reader read, write or delete) | VERIFIED WORKING | I/E `import-and-isolation.spec.ts`, `annotations-api.spec.ts` |
 | NFR-6 | Parser limits (HTML, PDF) | VERIFIED WORKING | U `parserLimits.test.ts` |
 | NFR-7 | Error hygiene: no SQL, document text or secrets in responses or logs | VERIFIED WORKING | U `importErrors.test.ts`, `db-outage.test.ts`; E `import-and-isolation.spec.ts` (text-route messages) |
-| NFR-8 | WCAG 2.2 AA automated checks in both themes, visible focus on every Tab stop | VERIFIED WORKING | E `a11y.spec.ts` (axe: 334 violations at start, 0 now); manual screen-reader pass is H |
+| NFR-8 | WCAG 2.2 AA automated checks in both themes, visible focus on every Tab stop | VERIFIED WORKING | E `a11y.spec.ts` (axe: 368 violating nodes at start, 334 of them contrast; 0 now); manual screen-reader pass is H |
 | NFR-9 | Library and reader survive a PostgreSQL outage | VERIFIED WORKING | U `db-outage.test.ts`; E-level outage run recorded in `external-integrations.md` |
 | NFR-10 | Production configuration guardrails (cookie secret, `APP_URL`) | VERIFIED WORKING | U `authHardening.test.ts`; never run behind a real production deployment (not allowed by the brief) |
 | NFR-11 | No console errors or failed requests on primary journeys | VERIFIED WORKING | E assertions in `landing.spec.ts`, `reader.spec.ts`, and the dev-only script-tag error regression test |

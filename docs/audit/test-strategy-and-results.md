@@ -9,7 +9,7 @@ _Final run on 2026-10-17 against the working tree at the commit that follows 098
 | `pnpm typecheck` | 0 | clean |
 | `pnpm lint` | 0 | clean, no warnings |
 | `pnpm test` (Vitest) | 0 | 39 files, **752 tests passed**, 0 failed, 0 skipped. 201 of them are seeded randomised anchor cases; 134 are table-driven retrieval cases |
-| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **145 passed** (143 desktop, 2 mobile), 0 failed, 0 skipped, 0 retried |
+| `pnpm test:e2e` (Playwright, desktop plus mobile, one worker, real dev server and real PostgreSQL) | 0 | **169 passed** (167 desktop, 2 mobile); `pnpm test:visual`: **46 passed** (pixel comparisons, separate command), 0 failed, 0 skipped, 0 retried |
 | `pnpm build` | 0 | compiled; one warning: no fallback font metrics for Atkinson Hyperlegible Next (BUILD-1) |
 | `pnpm audit --prod` | 0 | no known vulnerabilities |
 
@@ -65,9 +65,9 @@ Each fix in the review set came with a test that was run against the old code an
 | answer-speaker, voice-ask | 9, 12 | spoken answers (fake engine), ask mode of the voice panel (fake recogniser and engine) |
 | find, gloss-render | 10, 6 | literal search and sections, citation checking and labels in rendered answers |
 
-### End to end (145 runs)
+### End to end (169 runs)
 
-a11y 27, annotations 8, annotations-api 7, api 6, find 8, import-and-isolation 3, landing 11, library 3, mobile 2, position 2, reader 11, search-and-speech 27, security 9, understand 14, voice-ask 7.
+a11y 27, annotations 8, annotations-api 7, api 6, find 8, import-and-isolation 3, landing 11, library 3, mobile 2, phone-layout 20, position 2, reader 11, search-and-speech 27, security 9, understand 19, voice-ask 7. Visual (separate project): 46 comparisons in `tests/visual`.
 
 ## Known weaknesses of the test suite
 

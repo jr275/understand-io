@@ -6,7 +6,7 @@ _Written 2026-10-17. Everything here comes from commands run and files read in t
 
 **Verdict: functionally usable with known limitations.** It is not a release candidate, and it is not production-ready.
 
-What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 752 unit tests, 145 end-to-end tests, the production build and the dependency audit all pass.
+What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 752 unit tests, 169 end-to-end tests and 46 visual comparisons, the production build and the dependency audit all pass.
 
 What is not proven, and why it matters to you:
 
@@ -18,7 +18,7 @@ What is not proven, and why it matters to you:
 
 Not "production-ready": there is no CI, no monitoring, the rate limiter is per process, the server has never run behind real TLS or a real host, and the items above are unverified. A passing build is not a readiness claim.
 
-Over both briefs: 117 findings were tracked; 87 are fixed with a test or a recorded run, 19 are partial with the residual named, 8 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 752 and 145.
+Over both briefs and the visual pass: 122 findings were tracked; 92 are fixed with a test or a recorded run, 19 are partial with the residual named, 8 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 752 and 169, plus 46 visual comparisons.
 
 **Second brief (intelligent reading, see `docs/evolution-report.md`).** The reader now has summaries in five kinds, key concepts, comprehension questions, translation of a selection and of the text part by part, literal search with section navigation, checked citations, honest coverage statements, a way back to where you were, and a conversation by voice with spoken answers. The partner logo is gone and any readable link or PDF can be opened. **None of the AI features has been run against a live model**: there is no key here, so what is verified is the pipeline around the model (request, validation, quote checking, coverage, storage, display, navigation, errors) with a fake model, not the quality of any answer.
 
@@ -50,7 +50,7 @@ All run on 2026-10-17 in this folder; exit codes are real.
 | `pnpm typecheck` | exit 0 | clean | none | n/a | none |
 | `pnpm lint` | exit 0 | clean, 0 warnings | `test-results/` and scratch outputs are ignored | n/a | none |
 | `pnpm test` | exit 0 | 39 files, 752 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
-| `pnpm test:e2e` | exit 0 | 145 passed (143 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
+| `pnpm test:e2e` | exit 0 | 169 passed (167 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
 | `pnpm build` | exit 0 | compiled; warning: no fallback font metrics for Atkinson Hyperlegible Next | none | n/a | production server behaviour (`next start`, TLS, CDN) not exercised |
 | `pnpm audit --prod` | exit 0 | no known vulnerabilities | dev dependencies not audited | n/a | reflects the advisory database at run time |
 | `pnpm exec tsx scripts/eval-retrieval.mts` | exit 0 | top-1 57.7 %, top-3 69.2 % on 26 sample-document queries; absent concepts showing hits 1 of 7; 215 of 215 offsets exact | meaning re-rank not evaluated | none | 41 hand-written queries: a regression signal, not an accuracy claim |
@@ -99,7 +99,7 @@ Status words are the six allowed values. Full 71-row matrix with sources, tests,
 
 ## E. Defects
 
-Complete list with severity and status: `docs/audit/defect-backlog.md` (117 entries). The ones that mattered most, with root cause, correction and regression test:
+Complete list with severity and status: `docs/audit/defect-backlog.md` (122 entries). The ones that mattered most, with root cause, correction and regression test:
 
 | ID | Sev | Root cause | Correction | Regression test | Status |
 | --- | --- | --- | --- | --- | --- |
@@ -180,16 +180,16 @@ Each percentage is `VERIFIED WORKING` over a defined set, counting each requirem
 | Passage retrieval | 5 | 4 | 80 % | blocked 1 |
 | Annotations and persistence | 9 | 7 | 78 % | partially implemented 1; implemented, not verified 1 |
 | AI provider integration | 8 | 2 | 25 % | blocked 6 |
-| Intelligent reading features (second brief) | 20 | 16 | 80 % | partially implemented 1; blocked 3 |
+| Intelligent reading features (second brief) | 23 | 19 | 83 % | partially implemented 1; blocked 3 |
 | Authentication | 3 | 1 | 33 % | implemented, not verified 1; blocked 1 |
 | Route coverage | 6 | 5 | 83 % | partially implemented 1 (`?hl=` deep link). Note: `/?url=` and `/?save=` now only fill the field and wait for Read, a deliberate security deviation from the reference |
-| Automated test coverage of requirements | 91 | 72 | 79 % | requirements with no automated test: REF-2, REF-3, REF-5, REF-7, REF-14, REF-24, REF-25, REF-26, TTS-R10, TTS-R11, TTS-R12, AN-R2, AN-R9, NFR-12, NFR-13, NFR-14, UND-18, UND-19, UND-20. A requirement with a test is not necessarily verified (see Status) |
+| Automated test coverage of requirements | 94 | 75 | 80 % | requirements with no automated test: REF-2, REF-3, REF-5, REF-7, REF-14, REF-24, REF-25, REF-26, TTS-R10, TTS-R11, TTS-R12, AN-R2, AN-R9, NFR-12, NFR-13, NFR-14, UND-18, UND-19, UND-20. A requirement with a test is not necessarily verified (see Status) |
 | Security review | 16 | 9 | 56 % | partially fixed 5 (SEC-1, 2, 7, 9, 12), information only 2 (SEC-15, 16) |
 | Operational readiness | 10 | 6 | 60 % | not implemented: CI, logging and monitoring, shared limiter and backups, deployment |
 | Visual fidelity | n/a | n/a | n/a | measured instead: pixel difference against the reference at six screens (0.42 % to 16.40 %), see `docs/audit/visual-accessibility-review.md`. A percentage of "fidelity" is not claimed |
 | Code coverage (lines, branches) | n/a | n/a | n/a | not claimed |
 
-Across all 91 requirements: 64 verified working, 7 partially implemented, 6 implemented but not verified, 9 blocked, 1 not observable, 4 not implemented.
+Across all 94 requirements: 67 verified working, 7 partially implemented, 6 implemented but not verified, 9 blocked, 1 not observable, 4 not implemented.
 
 ## I. Recommended next actions
 
@@ -229,6 +229,7 @@ Only commands that exist in this repository and were run in this audit.
 | Typecheck | `pnpm typecheck` |
 | Lint | `pnpm lint` |
 | Unit tests | `pnpm test` |
+| Visual comparison (baselines for this machine; `pnpm test:visual:update` rewrites them) | `pnpm test:visual` |
 | Integration tests | there is no separate script: the HTTP-level specs run inside `pnpm test:e2e` (for example `pnpm exec playwright test tests/e2e/annotations-api.spec.ts tests/e2e/api.spec.ts tests/e2e/import-and-isolation.spec.ts`) |
 | End-to-end tests | `pnpm test:e2e` (starts `next dev` on 3100 unless it is already running; `PLAYWRIGHT_PORT` changes the port) |
 | Production build | `pnpm build` |

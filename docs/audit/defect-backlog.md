@@ -14,7 +14,8 @@ Severity: P0 data loss or security breach in normal use; P1 a main feature broke
 | Security (SEC-1..16) | 16 | 9 | 5 | 0 | 2 |
 | Import, build, hygiene, accessibility, found in testing | 15 | 9 | 2 | 4 | 0 |
 | Second brief: AI, import, interface (below) | 10 | 7 | 1 | 2 | 0 |
-| **All** | **117** | **87** | **19** | **8** | **3** |
+| Visual pass: phones and panels (below) | 5 | 5 | 0 | 0 | 0 |
+| **All** | **122** | **92** | **19** | **8** | **3** |
 
 Open items by priority: AI-4 (the live model has never answered, needs a key), A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync), IMP-3 (duplicate imports), IMP-7 (a text link is titled by its file name), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
 
@@ -164,4 +165,14 @@ Open items by priority: AI-4 (the live model has never answered, needs a key), A
 | UI-2 | P3 | top-bar buttons with a count badge named themselves with an aria-label that left out the visible number | Fixed | named by content (`understand.spec` axe tests) |
 | UI-3 | P3 | the unverified-citation style lowered contrast below AA | Fixed | same axe tests |
 | POS-1 | P3 | resume after reload was implemented but never tested | Fixed | `position.spec` |
+
+## Found and fixed in the visual pass (phones, panels)
+
+| ID | Sev | Finding | Status | Guard / remaining |
+| --- | --- | --- | --- | --- |
+| UI-4 | P1 | at 375 px the reader's top bar ran off the right edge: the Understand and Notebook buttons were cut off, so the Notebook could not be tapped | Fixed | wordmark text gives way to the mark under 480 px, badges sit on the button corner; `phone-layout.spec` (320, 360, 375, 412, 768 px; fails on the old layout) |
+| UI-5 | P2 | on landing and library at 375 px the wordmark, the Library button and "Sign in" collided, and "Sign in" wrapped over two lines | Fixed | sign-in control is icon-only under 480 px, still named Sign in; found by the visual baselines; `phone-layout.spec` checks on screen and no overlap |
+| UI-6 | P2 | the selection toolbar scrolled sideways with no sign of it on a phone, and the highlight colours opened only on hover (no hover on touch) | Fixed | two rows on phones, colour dots always shown; `phone-layout.spec` |
+| UI-7 | P3 | the Notebook and Understand sheets covered the whole phone screen | Fixed | they start at 14 % of the height so text stays visible above; `phone-layout.spec` |
+| UI-8 | P3 | the Understand panel stacked a large tool block above long cards with no way to scan them | Fixed | every action described before anything is made, tools tuck away afterwards, the newest result open and older ones collapsed with a preview, tabs by kind from the third result; `understand.spec`, axe, baselines |
 

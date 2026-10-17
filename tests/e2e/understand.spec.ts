@@ -8,6 +8,14 @@ import { openReader, selectInBlock } from "./helpers";
  * how evidence chips navigate. What is NOT proven here: that a live model returns good JSON; that is covered by unit tests with a fake model
  * and stays unverified against Together AI until a key is available.
  */
+
+/** Press one of the "make something" buttons. Once a result exists they tuck away behind "Make something new", so open that first when needed. */
+async function press(panel: ReturnType<Page["getByRole"]>, name: string) {
+  const b = panel.getByRole("button", { name: new RegExp(`^${name}`) });
+  if (!(await b.isVisible())) await panel.getByRole("button", { name: "Make something new" }).click();
+  await b.click();
+}
+
 interface Sent {
   op: string;
   variant?: string;
@@ -57,7 +65,7 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
     await expect(panel).toBeVisible();
-    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await press(panel, "Quick summary");
     const card = panel.locator("[data-insight]").first();
     await expect(card.getByRole("heading", { name: "Quick summary" })).toBeVisible();
     await expect(card).toContainText("Based on the whole text");
@@ -88,18 +96,77 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
     for (const name of ["Executive summary", "Detailed summary", "Key ideas"]) {
-      await panel.getByRole("button", { name: name, exact: true }).click();
+      await press(panel, name);
       await expect(panel.locator("[data-insight]").first().getByRole("heading", { name })).toBeVisible();
     }
-    await panel.getByRole("button", { name: "Test me" }).click();
+    await press(panel, "Test me");
     await expect(panel.locator("[data-insight]").first().getByRole("heading", { name: "Questions to check your understanding" })).toBeVisible();
-    await panel.getByRole("button", { name: "Key concepts" }).click();
+    await press(panel, "Key concepts");
     await expect.poll(() => requests.map((r) => `${r.op}:${r.variant ?? ""}`)).toEqual(["summarize:executive", "summarize:detailed", "summarize:ideas", "questions:", "concepts:"]);
     // Answers to comprehension questions stay hidden until asked for.
     const q = panel.locator("[data-insight]").nth(1);
+    await q.locator("button[aria-expanded]").first().click(); // older results start collapsed
     await expect(q).not.toContainText("Its own subject.");
     await q.getByRole("button", { name: "Show the answer" }).click();
     await expect(q).toContainText("Its own subject.");
+  });
+
+  test("before anything is made, each button says what it will produce; afterwards they tuck away", async ({ page }) => {
+    await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    const list = panel.getByRole("list", { name: "What you can make" });
+    await expect(list.getByRole("listitem")).toHaveCount(7);
+    await expect(list).toContainText("A few paragraphs: is this worth reading?");
+    await expect(list).toContainText("Questions that check your understanding; answers stay hidden");
+    await expect(list).toContainText("A page at a time, with the original beside it");
+    await expect(panel.getByRole("button", { name: "Make something new" })).toHaveCount(0);
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await expect(list).toHaveCount(0);
+    const more = panel.getByRole("button", { name: "Make something new" });
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await more.click();
+    await expect(more).toHaveAttribute("aria-expanded", "true");
+    await expect(panel.getByRole("button", { name: "Executive summary" })).toBeVisible();
+    await more.click();
+    await expect(panel.getByRole("button", { name: "Executive summary" })).toHaveCount(0);
+  });
+
+  test("the newest result is open, older ones are collapsed with a preview and open on demand (mouse or keyboard); tabs filter by kind", async ({ page }) => {
+    await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await press(panel, "Executive summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(2);
+    const [newest, older] = [panel.locator("[data-insight]").nth(0), panel.locator("[data-insight]").nth(1)];
+    await expect(newest.locator("button[aria-expanded]").first()).toHaveAttribute("aria-expanded", "true");
+    await expect(newest).toContainText("Based on the whole text");
+    await expect(older.locator("button[aria-expanded]").first()).toHaveAttribute("aria-expanded", "false");
+    await expect(older).not.toContainText("Based on the whole text");
+    await expect(older).toContainText("The first real paragraph says something specific."); // the preview
+    // Keyboard: the header is a button.
+    await older.locator("button[aria-expanded]").first().focus();
+    await page.keyboard.press("Enter");
+    await expect(older).toContainText("Based on the whole text");
+    await page.keyboard.press("Space");
+    await expect(older).not.toContainText("Based on the whole text");
+    // Tabs appear once there are more than two results.
+    await expect(panel.getByRole("tablist", { name: "Show" })).toHaveCount(0);
+    await press(panel, "Test me");
+    await expect(panel.locator("[data-insight]")).toHaveCount(3);
+    const tabs = panel.getByRole("tablist", { name: "Show" });
+    await expect(tabs.getByRole("tab", { name: /^Summaries/ })).toContainText("2");
+    await expect(tabs.getByRole("tab", { name: /^Learn/ })).toContainText("1");
+    await expect(tabs.getByRole("tab", { name: /^Translations/ })).toBeDisabled();
+    await tabs.getByRole("tab", { name: /^Learn/ }).click();
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await tabs.getByRole("tab", { name: /^All/ }).click();
+    await expect(panel.locator("[data-insight]")).toHaveCount(3);
   });
 
   test("the answer language is sent when chosen", async ({ page }) => {
@@ -108,7 +175,7 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
     await panel.getByLabel("Answer in").selectOption("pt");
-    await panel.getByRole("button", { name: "Key ideas" }).click();
+    await press(panel, "Key ideas");
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0].outputLang).toBe("pt");
   });
@@ -137,7 +204,7 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await openReader(page);
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
-    await panel.getByRole("button", { name: "Translate from the paragraph on screen" }).click();
+    await press(panel, "Translate from the paragraph on screen");
     const first = panel.locator("[data-insight]").first();
     await expect(first.getByRole("heading", { name: "Translation to Portuguese" })).toBeVisible();
     expect(requests[0].op).toBe("translate");
@@ -189,7 +256,7 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await openReader(page);
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
-    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await press(panel, "Quick summary");
     const card = panel.locator("[data-insight]").first();
     await expect(card.getByRole("alert")).toContainText("could not answer right now");
     await card.getByRole("button", { name: "Try again" }).click();
@@ -206,7 +273,7 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await openReader(page);
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
-    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await press(panel, "Quick summary");
     await expect(panel.getByRole("status")).toContainText("Reading the text");
     await panel.getByRole("button", { name: "Cancel" }).click();
     await expect(panel.locator("[data-insight]")).toHaveCount(0);
@@ -219,7 +286,7 @@ test.describe("Understand panel without a key (the real server)", () => {
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
     await expect(panel.getByRole("note")).toContainText("Together AI key");
-    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await press(panel, "Quick summary");
     const card = panel.locator("[data-insight]").first();
     await expect(card.getByRole("alert")).toContainText(/key/i);
     await expect(page.locator(".prose-read .blk").first()).toBeVisible();
@@ -244,10 +311,21 @@ test.describe("Understand panel accessibility", () => {
       await page.getByRole("toolbar", { name: "Actions for the selection" }).getByRole("button", { name: "Translate" }).click();
       const panel = page.getByRole("complementary", { name: "Understand" });
       await expect(panel.locator("[data-insight]")).toHaveCount(1);
-      await panel.getByRole("button", { name: "Executive summary" }).click();
+      await press(panel, "Executive summary");
       await expect(panel.locator("[data-insight]")).toHaveCount(2);
-      await panel.getByRole("button", { name: "Test me" }).click();
+      await press(panel, "Test me");
       await expect(panel.locator("[data-insight]").first().getByRole("alert")).toBeVisible();
+      const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze();
+      expect(r.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`)).toEqual([]);
+    });
+  }
+  for (const theme of ["paper", "night"] as const) {
+    test(`no axe violations in the empty state, where every button carries its description (${theme})`, async ({ page }) => {
+      await page.addInitScript((t) => localStorage.setItem("gloss:settings", JSON.stringify({ theme: t })), theme);
+      await openReader(page);
+      await page.keyboard.press("i");
+      await expect(page.getByRole("list", { name: "What you can make" })).toBeVisible();
+      await page.waitForTimeout(500);
       const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze();
       expect(r.violations.map((v) => `${v.id} (${v.impact}) x${v.nodes.length}: ${v.nodes[0]?.target.join(" ")}`)).toEqual([]);
     });
@@ -258,7 +336,7 @@ test.describe("Understand panel accessibility", () => {
     await openReader(page);
     await page.getByRole("button", { name: "Understand" }).click();
     const panel = page.getByRole("complementary", { name: "Understand" });
-    await panel.getByRole("button", { name: "Quick summary" }).click();
+    await press(panel, "Quick summary");
     await expect(panel.locator("[data-insight]")).toHaveCount(1);
     const overflow = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, panel: (() => { const p = document.querySelector('aside[aria-label="Understand"]') as HTMLElement; return p.scrollWidth - p.clientWidth; })() }));
     expect(overflow.doc).toBeLessThanOrEqual(0);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { selectInBlock } from "../e2e/helpers";
 
 /**
@@ -23,10 +23,10 @@ async function prepare(page: Page, theme: string, size: keyof typeof SIZES) {
     localStorage.setItem("gloss:settings", JSON.stringify({ theme: t }));
     localStorage.setItem("gloss:nudge", "1"); // the one-time phone hint toast
   }, theme);
-  // The framework's development indicator is not part of the product.
+  // The framework's development indicator is not part of the product, and the empty margin hint is not what these comparisons are about.
   await page.addInitScript(() => {
     const style = document.createElement("style");
-    style.textContent = "nextjs-portal{display:none!important}";
+    style.textContent = "nextjs-portal{display:none!important} .rg-margin p{visibility:hidden!important}";
     document.addEventListener("DOMContentLoaded", () => document.head.appendChild(style));
   });
   await page.route("**/api/ai", async (route) => {
@@ -57,10 +57,11 @@ async function settle(page: Page) {
   await page.waitForTimeout(1800); // the library shelf and the empty margin hint finish their entrance (timers, not CSS) after about 1.2 s
 }
 
-// Two spots render with sub-pixel differences from one run to the next (the library's filter chips, the empty margin hint); they are masked so the
-// comparison is about the design, not about anti-aliasing. The rest of the page is compared with a tolerance of 0.05 % of its pixels.
-const shot = (page: Page, name: string) =>
-  expect(page).toHaveScreenshot(`${name}.png`, { animations: "disabled", caret: "hide", maxDiffPixelRatio: 0.0005, mask: [page.locator(".lib-chip-row"), page.locator(".rg-margin")], maskColor: "#808080" });
+// The library's filter chips render with sub-pixel differences from one run to the next, so on the library they are masked. The empty margin hint
+// ("This area is for notes") does the same and is hidden everywhere (a mask would also cover whatever panel is open over that corner).
+// The rest of the page is compared with a tolerance of 0.05 % of its pixels.
+const shot = (page: Page, name: string, mask: Locator[] = []) =>
+  expect(page).toHaveScreenshot(`${name}.png`, { animations: "disabled", caret: "hide", maxDiffPixelRatio: 0.0005, mask, maskColor: "#808080" });
 
 for (const size of Object.keys(SIZES) as (keyof typeof SIZES)[]) {
   for (const theme of THEMES) {
@@ -77,7 +78,7 @@ for (const size of Object.keys(SIZES) as (keyof typeof SIZES)[]) {
         await page.goto("/library");
         await expect(page.locator("button.bk")).toHaveCount(3);
         await settle(page);
-        await shot(page, `library-${theme}-${size}`);
+        await shot(page, `library-${theme}-${size}`, [page.locator(".lib-chip-row")]);
       });
       test("reader", async ({ page }) => {
         await prepare(page, theme, size);
@@ -101,6 +102,15 @@ for (const size of Object.keys(SIZES) as (keyof typeof SIZES)[]) {
         await settle(page);
         // The age of a result changes between runs.
         await shot(page, `understand-${theme}-${size}`);
+      });
+      test("understand panel before anything is made", async ({ page }) => {
+        await prepare(page, theme, size);
+        await page.goto(SAMPLE);
+        await page.locator("[data-reader-ready]").waitFor({ state: "attached" });
+        await page.keyboard.press("i");
+        await expect(page.getByRole("list", { name: "What you can make" })).toBeVisible();
+        await settle(page);
+        await shot(page, `understand-empty-${theme}-${size}`);
       });
       test("selection toolbar", async ({ page }) => {
         await prepare(page, theme, size);

@@ -72,7 +72,8 @@ when a key is configured.
 - `pnpm dev --port 3100` / `pnpm build` / `pnpm start`
 - `pnpm typecheck` · `pnpm lint`
 - `pnpm test` — Vitest unit tests (anchoring, retrieval, parsing, speech controller, voice panel lifecycle, security helpers)
-- `pnpm test:e2e` — Playwright (starts `next dev` on port 3100 unless one is running; set `PLAYWRIGHT_PORT`)
+- `pnpm test:e2e` — Playwright functional suite (starts `next dev` on port 3100 unless one is running; set `PLAYWRIGHT_PORT`)
+- `pnpm test:visual` — pixel comparison of the main screens in five themes at desktop and phone size against baselines in `tests/visual`; the baselines belong to the machine that made them, so on another operating system run `pnpm test:visual:update` first and review the images
 - `pnpm db:generate` / `pnpm db:migrate` — Drizzle migrations
 - `pnpm exec tsx scripts/theme-paint-check.mts [baseUrl]` — measures that the saved theme is applied before first paint, on a fast and a throttled network
 - `pnpm exec tsx scripts/eval-retrieval.mts` — retrieval metrics on the labelled queries

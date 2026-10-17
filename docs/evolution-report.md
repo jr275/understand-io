@@ -113,3 +113,18 @@ What the tests are: the fake model in the unit tests and the stand-in for `/api/
 ## 10. Next steps
 
 Run the human checks in section 8; add the key and review live output; apply migration 0003 anywhere other than this machine's development database before deploying; then decide on section 9.
+
+## 11. Visual pass (after the four phases)
+
+Done without a model key. Order: phones first, then a visual regression net, then the Understand panel.
+
+**Phones.** The reader was inspected at 320, 360, 375, 412 and 768 px. The real faults found: at 375 px the top bar ran off the right edge, so the Notebook and Understand buttons could not be tapped; the selection toolbar scrolled sideways with no sign of it and its highlight colours opened only on hover; on landing and library the wordmark, the Library button and "Sign in" collided. Fixed (wordmark text gives way to the mark on narrow screens, badges on the button corner, the toolbar in two rows with the colours always shown, "Sign in" icon-only under 480 px, sheets that leave text visible). `tests/e2e/phone-layout.spec.ts` checks every top-bar control is on screen and at least 32 px, nothing overlaps, the page never scrolls sideways, panels fit and the toolbar is reachable, at five widths on three pages. It fails on the old layout.
+
+**Visual baselines.** `pnpm test:visual` compares 46 screenshots (landing, library and reader in five themes at desktop and phone size; the Understand panel empty and with a result, the selection toolbar and the find bar in two themes) with baselines stored in `tests/visual`. Content is fixed, animation off, the framework's dev indicator and the empty margin hint hidden, the library's filter chips masked (they differ by sub-pixels from run to run). Over repeated runs it is stable; reverting a deliberate header fix makes it fail. The baselines found one real bug that the layout tests had not (the sign-in wrapping). Limits: the baselines are this machine's Chromium and fonts, so on another operating system they must be regenerated and reviewed; a failing comparison says "looks different", not "wrong".
+
+**Understand panel.** Before anything is made every action is described under its name (and the key and privacy notes stay visible); afterwards the tools tuck behind "Make something new", the newest result is open and older ones are collapsed with a two-line preview (keyboard and mouse), and from the third result tabs filter by kind. No example result is shown: nothing in the product presents invented output as real.
+
+**Tests (final for this pass).** `pnpm typecheck` 0, `pnpm lint` 0, `pnpm test` 752 passed, `pnpm test:e2e` 169 passed, `pnpm test:visual` 46 passed, `pnpm build` 0, `pnpm audit --prod` 0.
+
+**Not done from the list, on purpose.** Notebook integration of AI results and the landing page copy wait until the AI features have run against a live model; the library's "many items" state and the generated covers, and the remaining accessibility polish (focusable existing marks, lens roving focus, a screen-reader pass), are still open (see `docs/audit/defect-backlog.md`).
+

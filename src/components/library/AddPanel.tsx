@@ -6,6 +6,7 @@ import { TopicGlyph } from "./TopicGlyph";
 import { rememberDocument } from "@/lib/store/library";
 import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
 import { PasteDialog } from "@/components/landing/PasteDialog";
+import { useModalFocus } from "@/lib/client/useModalFocus";
 
 type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string };
 
@@ -16,6 +17,8 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [busy, setBusy] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useModalFocus(dialogRef);
   const docRef = useRef<HTMLInputElement>(null);
   const [origin, setOrigin] = useState("");
   const imp = useImport("read");
@@ -71,7 +74,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   return (
     <div className="fixed inset-0 z-[85]">
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_62%,transparent)] backdrop-blur-[6px]" style={{ animation: "fade .3s var(--ease-out)" }} onPointerDown={onClose} />
-      <section role="dialog" aria-modal="true" aria-label="Add to the library" className="add-panel scroll-thin">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Add to the library" className="add-panel scroll-thin">
         <div className="flex items-center justify-between gap-3">
           <div className="lib-sort !ml-0" role="tablist" aria-label="Add">
             <button type="button" role="tab" aria-selected={tab === "agent"} onClick={() => setTab("agent")}>

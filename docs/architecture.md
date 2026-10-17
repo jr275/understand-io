@@ -1,5 +1,7 @@
 # Architecture
 
+> **Status note (2026-10-17):** this file is the original plan. The as-built description is `docs/audit/runtime-architecture.md`; where they differ, that file is correct.
+
 ## Stack
 
 - **Next.js 16.4 (App Router), React 19, TypeScript strict, Tailwind CSS v4** (`@theme` tokens +
@@ -105,11 +107,14 @@ annotation store for the new id, so positions and marks never mix.
 2. `GET /read/[slug]` → server component loads the document (sample or DB) and renders the reader
    shell with the blocks; client hydrates annotations/glosses from the store.
 3. `POST /api/gloss` streams an answer (`action`, `anchor`, `blocks` context, `length`).
-4. `POST /api/search` `{docId, q}` → lexical BM25 over blocks; if an embedding key is available the
-   top 30 are re-ranked by cosine similarity; returns hits + confidence.
+4. Search runs in the browser: BM25 over sentence windows of the open document (`src/lib/search`). When a key is
+   available the client sends the top 12 hits to `POST /api/search` `{q, passages}` to be re-ordered by embedding
+   similarity; the answer can reorder hits but never raises the confidence label. No key: the lexical result stands,
+   labelled "words only".
 5. Annotations: `GET/POST/PATCH/DELETE /api/annotations`.
-6. Speech: synthesis is browser-native; `POST /api/speech/transcribe` accepts audio for server
-   transcription when the browser lacks `SpeechRecognition` (requires a provider key; otherwise 501).
+6. Speech: synthesis is browser-native; `POST /api/speech/transcribe` accepts audio (5 MB, audio types only) for
+   server transcription when the browser recogniser is unavailable or blocked. It needs a provider key and answers 402
+   `needs-key` otherwise.
 
 ## Environment
 

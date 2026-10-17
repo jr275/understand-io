@@ -238,6 +238,22 @@ describe("browser speech recognition", () => {
     expect(r.abortCalls).toBe(1); // submitted with abort(), so the recogniser's flush never arrives
   });
 
+  it("VOICE-7: a final result that arrives after the reader typed (and before Enter) neither overwrites the text nor searches", async () => {
+    await mount();
+    await click(mic());
+    const r = FakeRec.instances[0];
+    await flush();
+    await act(async () => r.interim("find the part about"));
+    await type("find the part about crocodiles");
+    await act(async () => r.final("find the part about Terebratulina"));
+    await flush(60);
+    expect(input().value).toBe("find the part about crocodiles");
+    expect(shownTopic()).toBeUndefined(); // nothing was searched on the spoken words
+    await submit();
+    await flush(60);
+    expect(shownTopic()).toBe("crocodiles");
+  });
+
   it("VOICE-7: a slow answer to an older question cannot replace the newer one", async () => {
     let releaseFirst!: () => void;
     let n = 0;

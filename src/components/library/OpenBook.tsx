@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "@/lib/client/useModalFocus";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ChevronDown, Star, Trash2 } from "lucide-react";
 import type { GlossDocument, ReadingProgress } from "@/lib/content/types";
@@ -29,6 +30,9 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
   const W = 340;
   const H = 483;
   const D = 117;
+
+  const stageRef = useRef<HTMLDivElement>(null);
+  useModalFocus(stageRef);
 
   const close = () => {
     setPhase("leaving");
@@ -60,7 +64,7 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
   const status = progress?.finished ? "Finished" : pct > 2 ? `${pct}% read` : "Not started";
 
   return (
-    <div className="ob-stage" data-phase={phase === "in" ? "in" : phase} role="dialog" aria-modal="true" aria-label={doc.title}>
+    <div ref={stageRef} className="ob-stage" data-phase={phase === "in" ? "in" : phase} role="dialog" aria-modal="true" aria-label={doc.title}>
       <div className="ob-backdrop" onClick={close} />
       <div className="ob-world">
         <div className="ob-shift">

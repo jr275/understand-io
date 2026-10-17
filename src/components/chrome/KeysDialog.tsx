@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useModalFocus } from "@/lib/client/useModalFocus";
 import { X } from "lucide-react";
 
 const ROWS: { keys: string[] | null; text: string; what: string }[] = [
@@ -22,6 +23,8 @@ const ROWS: { keys: string[] | null; text: string; what: string }[] = [
 ];
 
 export function KeysDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(dialogRef, open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -37,7 +40,7 @@ export function KeysDialog({ open, onClose }: { open: boolean; onClose: () => vo
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center p-4">
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} onPointerDown={onClose} />
-      <div role="dialog" aria-label="Keyboard shortcuts" aria-modal="true" className="pop relative w-full max-w-[420px] p-6" style={{ ["--origin" as string]: "center" }}>
+      <div ref={dialogRef} role="dialog" aria-label="Keyboard shortcuts" aria-modal="true" className="pop relative w-full max-w-[420px] p-6" style={{ ["--origin" as string]: "center" }}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-[22px] leading-none text-ink">Keys</h2>
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-8 place-items-center rounded-lg text-ink-3 hover:bg-sunk" onClick={onClose}>

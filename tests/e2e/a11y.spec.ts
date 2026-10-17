@@ -114,3 +114,87 @@ test.describe("keyboard focus is visible", () => {
     });
   }
 });
+
+/**
+ * Dialogs that declare aria-modal must behave as modal for keyboard users (WCAG 2.4.3): focus moves in when they open, Tab
+ * and Shift+Tab never leave them, and focus returns to the control that opened them.
+ */
+test.describe("modal dialogs manage focus", () => {
+  test.use({ reducedMotion: "reduce" });
+
+  const inside = (page: Page, name: string) =>
+    page.evaluate((n) => document.querySelector(`[role="dialog"][aria-label="${n}"]`)?.contains(document.activeElement) ?? false, name);
+
+  const where = (page: Page) =>
+    page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      return el ? `${el.tagName.toLowerCase()}.${el.className} "${(el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 30)}"` : "nothing";
+    });
+
+  async function tabAround(page: Page, name: string) {
+    for (let i = 0; i < 14; i++) {
+      await page.keyboard.press("Tab");
+      expect(await inside(page, name), `Tab stop ${i + 1} is still inside "${name}" (focus is on ${await where(page)})`).toBe(true);
+    }
+    for (let i = 0; i < 14; i++) {
+      await page.keyboard.press("Shift+Tab");
+      expect(await inside(page, name), `Shift+Tab stop ${i + 1} is still inside "${name}" (focus is on ${await where(page)})`).toBe(true);
+    }
+  }
+
+  test("paste dialog (landing): starts in the text, traps Tab, returns focus", async ({ page }) => {
+    await page.goto("/");
+    const opener = page.getByRole("button", { name: "Paste text" });
+    await opener.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Paste text" })).toBeVisible();
+    await expect(page.getByLabel("Text to read")).toBeFocused();
+    await tabAround(page, "Paste text");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Paste text" })).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test("keyboard shortcuts dialog (reader): focus moves in, stays in, and returns", async ({ page }) => {
+    await openReader(page, SAMPLE);
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    expect(await inside(page, "Keyboard shortcuts")).toBe(true);
+    await tabAround(page, "Keyboard shortcuts");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
+  });
+
+  test("add panel and the paste dialog opened from it (library): inner dialog traps, outer one resumes, focus returns", async ({ page }) => {
+    await page.goto("/library");
+    const opener = page.getByRole("button", { name: /Add articles/ });
+    await opener.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Add to the library" })).toBeVisible();
+    expect(await inside(page, "Add to the library")).toBe(true);
+    await tabAround(page, "Add to the library");
+    await page.getByRole("button", { name: "Paste text" }).click();
+    await expect(page.getByRole("dialog", { name: "Paste text" })).toBeVisible();
+    await tabAround(page, "Paste text");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Paste text" })).toHaveCount(0);
+    expect(await inside(page, "Add to the library")).toBe(true);
+    await tabAround(page, "Add to the library");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Add to the library" })).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test("open book (library): focus moves in, stays in, and returns to the spine", async ({ page }) => {
+    await page.goto("/library");
+    const spine = page.locator("button.bk").first();
+    await spine.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "On a Piece of Chalk" })).toBeVisible();
+    await expect.poll(() => inside(page, "On a Piece of Chalk")).toBe(true);
+    await tabAround(page, "On a Piece of Chalk");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "On a Piece of Chalk" })).toHaveCount(0);
+    await expect(spine).toBeFocused();
+  });
+});

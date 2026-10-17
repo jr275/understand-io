@@ -80,7 +80,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       const key = getUserKey();
       if ((serverKey || key) && lexical.hits.length) {
         try {
-          const cands = lexical.hits.slice(0, 12).map((h, i) => ({ key: String(i), text: h.excerpt }));
+          const cands = lexical.hits.slice(0, 12).map((h, i) => ({ key: String(i), text: h.excerpt.slice(0, 2000) })); // the route refuses longer passages
           const res = await fetch("/api/search", { method: "POST", headers: { "content-type": "application/json", ...(key ? { "x-gloss-key": key } : {}) }, body: JSON.stringify({ q: topic, passages: cands }) });
           if (res.ok) {
             const j = (await res.json()) as { scores: { key: string; score: number }[] };
@@ -223,6 +223,13 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
         },
         onFinal: (t) => {
           if (!live() || failedOver) return;
+          if (typedWhileListening.current) {
+            // The reader typed over the recogniser: their words win, and what was heard is dropped without searching.
+            setInterim("");
+            stopRef.current?.();
+            stopRef.current = null;
+            return;
+          }
           setTranscript(t);
           setDraft(t);
           setInterim("");

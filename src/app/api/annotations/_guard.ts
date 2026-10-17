@@ -28,13 +28,17 @@ export async function readJson(req: Request): Promise<unknown> {
 /**
  * Run a route body; a connection-level database failure becomes `onOutage()` (a 503 for mutations so the
  * client keeps its tombstones and retries, a harmless `persisted:false` for reads) instead of an uncaught throw.
- * Any other error is rethrown unchanged.
+ * Any other database error is logged by code only (the driver's message embeds the SQL and its parameters, which include
+ * notes and quotes) and answered with a fixed 500.
  */
 export async function guarded(label: string, run: () => Promise<Response>, onOutage: () => Response = unavailable): Promise<Response> {
   try {
     return await run();
   } catch (err) {
-    if (!isConnectionError(err)) throw err;
+    if (!isConnectionError(err)) {
+      console.error(`gloss: ${label}: database error (${describeDbError(err)})`);
+      return Response.json({ error: "server-error" }, { status: 500 });
+    }
     console.warn(`gloss: ${label}: database unavailable (${describeDbError(err)})`);
     return onOutage();
   }

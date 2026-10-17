@@ -2,15 +2,20 @@
 
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { ArrowUp, ChevronsDownUp, Copy, RotateCcw, Trash2, X } from "lucide-react";
-import { NOTE_MAX_LENGTH, type Annotation, type Block, type Gloss } from "@/lib/content/types";
+import { NOTE_MAX_LENGTH, type Anchor, type Annotation, type Block, type Gloss } from "@/lib/content/types";
 import { clampNote, rangeForAnchor } from "@/lib/anchors";
 import { plainAnswer, renderGlossBody } from "./glossMarkdown";
 
 export interface MarginItem {
   id: string;
-  kind: "gloss" | "note";
+  /** `orphan`: a highlight, underline or note whose passage could not be found in the text any more. */
+  kind: "gloss" | "note" | "orphan";
   gloss?: Gloss;
   note?: Annotation;
+  /** Where the passage is now (resolved once by the reader); null for whole-text glosses and orphans. */
+  anchor: Anchor | null;
+  /** The item has an anchor that could not be found again: it is listed in the "couldn't find this passage" group instead of next to the text. */
+  orphaned: boolean;
 }
 
 interface Props {
@@ -42,6 +47,7 @@ export function MarginGlosses(p: Props) {
   const refs = useRef(new Map<string, HTMLElement>());
   const [pos, setPos] = useState<Map<string, { y: number; anchorY: number }>>(new Map());
   const [minH, setMinH] = useState(0);
+  const [orphanTop, setOrphanTop] = useState<number | null>(null);
 
   // Measure anchors and stack cards without overlap; the active card keeps its anchor position.
   useLayoutEffect(() => {
@@ -50,8 +56,9 @@ export function MarginGlosses(p: Props) {
     if (!root || !w || p.sheet) return;
     const wTop = w.getBoundingClientRect().top + window.scrollY;
     const desired = p.items
+      .filter((it) => !it.orphaned)
       .map((it) => {
-        const a = it.kind === "gloss" ? it.gloss?.anchor : it.note?.anchor;
+        const a = it.anchor;
         let anchorY = 0;
         if (a) {
           const r = rangeForAnchor(root, a);
@@ -101,6 +108,18 @@ export function MarginGlosses(p: Props) {
       next.set(pl.id, { y: Math.max(0, pl.y), anchorY: d.anchorY });
       maxBottom = Math.max(maxBottom, pl.y + pl.h);
     }
+    // Items whose passage is gone are stacked below everything else, under their own heading.
+    const orphans = p.items.filter((it) => it.orphaned);
+    if (orphans.length) {
+      const head = maxBottom > 0 ? maxBottom + 24 : 0;
+      let oy = head + 30;
+      for (const it of orphans) {
+        next.set(it.id, { y: oy, anchorY: -1 });
+        oy += (refs.current.get(it.id)?.offsetHeight ?? 90) + 8;
+      }
+      maxBottom = oy;
+      setOrphanTop(head);
+    } else setOrphanTop(null);
     setPos(next);
     setMinH(maxBottom + 40);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,7 +160,7 @@ export function MarginGlosses(p: Props) {
       <svg className="pointer-events-none absolute top-0 overflow-visible" aria-hidden="true" style={{ left: -64, width: 64, height: Math.max(minH, 10) }}>
         {p.items.map((it) => {
           const q = pos.get(it.id);
-          if (!q) return null;
+          if (!q || it.orphaned) return null;
           const on = it.id === p.activeId || it.id === p.hoverId;
           const x0 = 10;
           const y0 = q.anchorY + 10;
@@ -155,6 +174,11 @@ export function MarginGlosses(p: Props) {
           );
         })}
       </svg>
+      {orphanTop !== null ? (
+        <h3 data-testid="orphan-heading" className="absolute left-0 right-0 border-t border-rule pt-2 text-[12px] font-semibold uppercase leading-none tracking-[0.04em] text-rubric-text" style={{ top: orphanTop }}>
+          Couldn&rsquo;t find this passage
+        </h3>
+      ) : null}
       {p.items.map((it) => (
         <Card key={it.id} item={it} p={p} y={pos.get(it.id)?.y ?? 0} refCb={(el) => (el ? refs.current.set(it.id, el) : refs.current.delete(it.id))} />
       ))}
@@ -166,6 +190,22 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
   const active = item.id === p.activeId;
   const hover = item.id === p.hoverId;
   const style = bare ? { position: "relative" as const } : { transform: `translateY(${y}px)` };
+
+  if (item.kind === "orphan" && item.note) {
+    const o = item.note;
+    return (
+      <article ref={refCb} data-orphan={o.id} aria-label={`${o.kind === "note" ? "Note" : o.kind === "underline" ? "Underline" : "Highlight"}: couldn't find this passage`} className="mnote is-active" style={{ ...style, ["--note-c" as string]: `var(--mk-${o.color ?? "yellow"})` }}>
+        <p className="mb-1.5 text-[11.5px] font-medium text-ink-3">{o.kind === "note" ? "Note" : o.kind === "underline" ? "Underline" : "Highlight"}</p>
+        <p className="line-clamp-3 border-l-2 border-[var(--rubric-line)] pl-2.5 font-serif text-[14.5px] leading-snug text-ink-3">{o.anchor.quote}</p>
+        {o.note ? <p className="mt-2 whitespace-pre-wrap font-serif text-[15px] leading-[1.45]">{o.note}</p> : null}
+        <span className="mt-1.5 flex items-center justify-end font-sans text-[11.5px] text-ink-4">
+          <button type="button" aria-label="Delete" className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={() => p.onDeleteNote(o.id)}>
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+        </span>
+      </article>
+    );
+  }
 
   if (item.kind === "note" && item.note) {
     const n = item.note;
@@ -180,12 +220,12 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
         onEdit={(t) => p.onEditNote(n.id, t)}
         onDelete={() => p.onDeleteNote(n.id)}
         onHover={(h) => p.onHover(h ? n.id : null)}
-        blocks={p.blocks}
+        pn={item.anchor ? p.blocks.find((b) => b.id === item.anchor!.start.b)?.n : undefined}
       />
     );
   }
   const g = item.gloss!;
-  const n = g.anchor ? p.blocks.find((b) => b.id === g.anchor!.start.b)?.n : undefined;
+  const n = item.anchor ? p.blocks.find((b) => b.id === item.anchor!.start.b)?.n : undefined;
   const label = ACTION_LABEL[g.action] ?? "Ask";
   const answer = g.turns.filter((t) => t.role === "assistant").slice(-1)[0]?.content ?? "";
   const question = g.action === "ask" || g.action === "whole" ? g.turns.find((t) => t.role === "user")?.content : undefined;
@@ -303,10 +343,9 @@ function FollowUp({ onSend, disabled }: { onSend: (q: string) => void; disabled:
   );
 }
 
-function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHover, blocks }: { n: Annotation; active: boolean; style: React.CSSProperties; refCb: (el: HTMLElement | null) => void; onActivate: () => void; onEdit: (t: string) => void; onDelete: () => void; onHover: (h: boolean) => void; blocks: Block[] }) {
+function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHover, pn }: { n: Annotation; active: boolean; style: React.CSSProperties; refCb: (el: HTMLElement | null) => void; onActivate: () => void; onEdit: (t: string) => void; onDelete: () => void; onHover: (h: boolean) => void; pn?: number }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(n.note ?? "");
-  const pn = blocks.find((b) => b.id === n.anchor.start.b)?.n;
   if (editing) {
     return (
       <form
@@ -334,7 +373,7 @@ function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHov
   }
   return (
     <div ref={refCb} className={`mnote ${active ? "is-active" : ""}`} style={{ ...style, ["--note-c" as string]: `var(--mk-${n.color ?? "yellow"})` }} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
-      <button type="button" aria-label={`Note on paragraph ${pn ?? "—"}`} className="block w-full text-left font-serif text-inherit" onClick={() => (active ? setEditing(true) : onActivate())}>
+      <button type="button" aria-label={`Note on paragraph ${pn ?? "—"}`} className="block w-full text-left font-serif text-inherit" onClick={() => (active ? (setText(n.note ?? ""), setEditing(true)) : onActivate())}>
         <span className="block whitespace-pre-wrap">{n.note || <span className="text-ink-4">Empty note</span>}</span>
       </button>
       {active ? (

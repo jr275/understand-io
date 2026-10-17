@@ -221,6 +221,29 @@ export function resolveAnchorDetailed(blocks: Block[], a: Anchor, idx: Map<strin
   return { anchor: makeAnchor(blocks, { b: blocks[p.si].id, o: p.so }, { b: blocks[p.ei].id, o: p.eo }, idx), status: "moved" };
 }
 
+export interface Resolved<T> {
+  item: T;
+  /** Where the item's passage is now; null when it is orphaned, or when the item has no anchor at all. */
+  anchor: Anchor | null;
+  /** `orphaned` only when the item has an anchor that could not be found again. */
+  status: AnchorStatus;
+}
+
+/** Resolutions are cached per (blocks, anchor object): documents and stored anchors are immutable, and hover/active/streaming re-renders must not search again. */
+const cache = new WeakMap<Block[], WeakMap<Anchor, { anchor: Anchor | null; status: AnchorStatus }>>();
+export function resolveCached(blocks: Block[], a: Anchor, idx?: Map<string, number>) {
+  let per = cache.get(blocks);
+  if (!per) cache.set(blocks, (per = new WeakMap()));
+  let r = per.get(a);
+  if (!r) per.set(a, (r = resolveAnchorDetailed(blocks, a, idx)));
+  return r;
+}
+
+/** Resolve every item once: the single source of truth for painting marks, clicking them, margin cards, the rail and the notebook. */
+export function resolveAll<T extends { anchor: Anchor | null }>(blocks: Block[], items: T[], idx: Map<string, number> = blockIndex(blocks)): Resolved<T>[] {
+  return items.map((item) => (item.anchor ? { item, ...resolveCached(blocks, item.anchor, idx) } : { item, anchor: null, status: "ok" as const }));
+}
+
 /**
  * Re-anchor against (possibly revised) blocks. Returns the anchor unchanged when the quote and its context still sit at the
  * stored offsets, otherwise looks for the quote elsewhere and accepts it only when the evidence is strong and the best

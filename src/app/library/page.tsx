@@ -7,6 +7,6 @@ export const metadata: Metadata = { title: "Library" };
 
 export default async function Page() {
   const readerId = await getReaderId();
-  const docs = await listDocuments(readerId);
-  return <LibraryPage serverDocs={docs} />;
+  const { documents } = await listDocuments(readerId);
+  return <LibraryPage serverDocs={documents} />;
 }

@@ -31,6 +31,15 @@ Read-aloud uses the browser's own speech engine and needs no key. Voice search u
 speech recognition where available (Chrome, Edge, Safari) and falls back to server transcription
 when a key is configured.
 
+## When something looks broken
+
+| Symptom | Cause | What to do |
+| --- | --- | --- |
+| `/library` or an imported text shows an error, or the log says `ECONNREFUSED ... 5432` | PostgreSQL is not running | `brew services start postgresql@16` (Homebrew install), then reload. The app keeps working without it: pages load, imports stay in this browser and sync once the database is back. |
+| `EADDRINUSE: address already in use :::3100` | another dev server already owns the port | open http://localhost:3100 instead, or stop the other one first (`lsof -nP -iTCP:3100 -sTCP:LISTEN`) |
+| `Another next dev server is already running` | Next allows one dev server per folder | use the URL it prints, or `kill` the PID it names |
+| "That site blocks readers like this one" | the publisher refuses server-side fetches (403) | use the "Read in Understand" bookmarklet from the Add panel, or paste the text |
+
 ## Scripts
 
 - `pnpm dev` / `pnpm build` / `pnpm start`
@@ -38,6 +47,7 @@ when a key is configured.
 - `pnpm test` — Vitest unit tests (anchoring, search, parsing, speech segmentation)
 - `pnpm test:e2e` — Playwright (starts `next dev` on port 3100 unless one is running; set `PLAYWRIGHT_PORT`)
 - `pnpm db:generate` / `pnpm db:migrate` — Drizzle migrations
+- `pnpm exec tsx scripts/theme-paint-check.mts [baseUrl]` — measures that the saved theme is applied before first paint, on a fast and a throttled network
 
 ## Keyboard
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getReaderId } from "@/lib/server/reader";
-import { loadDocument } from "@/lib/server/documents";
+import { loadDocument, loadDocumentResult } from "@/lib/server/documents";
 import { ReaderLoader } from "@/components/reader/ReaderLoader";
 
 interface Props {
@@ -16,6 +16,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ReadPage({ params }: Props) {
   const { slug } = await params;
   const readerId = await getReaderId();
-  const doc = await loadDocument(slug, readerId);
-  return <ReaderLoader slug={slug} initial={doc} />;
+  const { doc, unavailable } = await loadDocumentResult(slug, readerId);
+  return <ReaderLoader slug={slug} initial={doc} unavailable={unavailable} />;
 }

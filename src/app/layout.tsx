@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Literata, Newsreader, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
-import { THEME_BOOT_SCRIPT } from "@/lib/store/settings";
+import { ThemeBoot } from "@/components/chrome/ThemeBoot";
 import { TipLayer } from "@/components/ui/Tip";
 import { GlobalImport } from "@/components/chrome/GlobalImport";
 
@@ -64,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-paras="spaced"
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <ThemeBoot />
       </head>
       <body>
         {children}

@@ -270,3 +270,55 @@ Setup: Google Cloud Console → Credentials → OAuth client (Web application) �
 | `pnpm test:e2e` | 32 passed (desktop 30, mobile 2; new: page import, capture handshake, sign-in honesty, more-ways-in) |
 | `pnpm db:generate && pnpm db:migrate` | `0001_heavy_the_order.sql` applied; `accounts` table present; ledger has 2 entries |
 | `pnpm build` | OK — compiled, 23 routes (5 new: `/api/import/page`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/me`, `/api/auth/signout`) |
+
+## 12. Defect: library crashed with a 500 when PostgreSQL was unreachable (2026-10-17)
+
+**Reported:** the user opened `/library` and the Next.js overlay showed "2 Issues": "Encountered a script
+tag while rendering React component" (1/2) and a second issue not captured in the screenshot.
+
+**Evidence (dev server log):** `GET /library 500`, `Failed query: select … from "documents"` with
+`[cause]: AggregateError … ECONNREFUSED ::1:5432 / 127.0.0.1:5432`, thrown from `listDocuments` in the
+server component. The second issue was this uncaught server error forwarded to the browser. PostgreSQL's
+own log shows an unclean stop (`lock file "postmaster.pid" already exists`) before it was brought back up
+at 18:32; it was accepting connections again when this was investigated.
+
+**Root causes (two):**
+
+1. **P1 — server components assumed the database is always there.** The architecture promises a
+   local-first app that keeps working without a database, but `listDocuments`/`loadDocument` threw on a
+   connection failure and `saveDocument` leaked drizzle's message (full SQL and parameters) to the client.
+   `/api/documents` also reported `persisted: true` on failure, which would have made the client delete its
+   local copies of server-backed documents.
+2. **P3 (dev-only noise) — the theme boot `<script>` was rendered by React on every client render.** React 19
+   logs "Encountered a script tag" whenever it *creates* a script element client-side (error page re-render,
+   Fast Refresh of the root layout). Reproduced: the error appears in the dev log right after a rebuild that
+   touches `layout.tsx`.
+
+**Fix:** `src/lib/server/dbErrors.ts` (`isConnectionError`, handles the AggregateError/cause shapes);
+`documents.ts` degrades on connection errors (list → `persisted:false`, load → `unavailable:true`, save →
+local-first result with `persisted:false`) and replaces other database errors with a generic message after
+logging them server-side; `/api/documents` returns the real `persisted`; the reader shows "Your library is
+out of reach" with Try again instead of "Not on your shelves"; postgres.js `connect_timeout` set to 5 s;
+`ThemeBoot` renders the inline script only for the server render and hydration pass.
+
+**Verification (real, not mocked):**
+
+| Check | Result |
+| --- | --- |
+| Real app with `DATABASE_URL` on a dead port | `/`, `/library`, `/read/<sample>`, `/read/<unknown>` all 200; text import 200 with `persisted:false`; `/api/documents` → `{"documents":[],"persisted":false}`; server log has one `[db] … (code ECONNREFUSED)` line per failure and **0** occurrences of the SQL |
+| Browser, same dead-DB server | library renders title and 3 sample books; console has no error; unknown own text shows "Your library is out of reach." |
+| Hot reload of `ThemeBoot.tsx` ×3 and `layout.tsx` ×3 with a page open | 0 script-tag errors (the old layout logged one on the same trigger) |
+| Theme before first paint (`scripts/theme-paint-check.mts`) | theme set at 35 ms vs first paint 92 ms on a fast network, 327 ms vs 372 ms on a throttled one. An earlier `next/script` attempt flashed the wrong theme on the throttled network (651 ms vs 392 ms) and was rejected. |
+
+**Regression tests:** `tests/unit/db-outage.test.ts` (real postgres.js against a dead port: list, load, save,
+and the exact error shape from the log; no mocks), `tests/unit/theme-boot.test.ts` (React in jsdom: a control
+proves the warning is detectable, then client render, SSR and hydration are clean), and an e2e test for
+theme-before-paint plus warning-free client navigation (12/12 stable).
+
+**Honest limits:** the e2e test cannot reproduce the script warning on its own (client navigation does not
+re-render the root layout; the old layout passed it), so the jsdom test is the guard for that part. Other
+API routes (annotations, glosses, progress) still answer 500 during an outage; the client treats that as a
+failed sync, keeps its tombstones and retries, so nothing is lost, but a clean 503 is tracked as a follow-up.
+
+Suite after this fix: typecheck ✓ · lint ✓ · 51 unit ✓ · 33 e2e ✓.
+

@@ -7,7 +7,7 @@ declare global {
 }
 
 function makeDb(url: string) {
-  const sql = postgres(url, { max: 5, prepare: false });
+  const sql = postgres(url, { max: 5, prepare: false, connect_timeout: 5 });
   return drizzle(sql, { schema });
 }
 

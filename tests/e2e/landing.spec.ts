@@ -80,4 +80,37 @@ test.describe("landing", () => {
     await page.keyboard.press("Escape");
     await expect(pop).toHaveCount(0);
   });
+
+  test("saved theme is applied before first paint and client navigation logs no console errors", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("gloss:settings", JSON.stringify({ theme: "night" }));
+      const w = window as unknown as { __themeAt?: number };
+      const obs = new MutationObserver((ms) => {
+        for (const m of ms) if (m.type === "attributes" && m.target === document.documentElement && document.documentElement.dataset.theme === "night" && w.__themeAt === undefined) w.__themeAt = performance.now();
+      });
+      obs.observe(document, { attributes: true, subtree: true, attributeFilter: ["data-theme"] });
+    });
+    await page.goto("/");
+    const timing = await page.evaluate(() => ({
+      themeAt: (window as unknown as { __themeAt?: number }).__themeAt,
+      firstPaint: performance.getEntriesByType("paint").find((p) => p.name === "first-paint")?.startTime,
+    }));
+    // The inline boot script runs while the HTML is parsed, so the dark theme is in place before anything is painted.
+    expect(timing.themeAt).toBeDefined();
+    expect(timing.firstPaint).toBeDefined();
+    expect(timing.themeAt!).toBeLessThan(timing.firstPaint!);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "night");
+    // Client-side navigation re-renders the root layout; React must not be asked to create a <script> again.
+    await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Library" }).click();
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your library");
+    await page.getByRole("link", { name: "Understand.io, back to your library" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.waitForTimeout(400);
+    // Next cancels a superseded <Link> prefetch (`?_rsc=`) when the user navigates away from it; that abort is
+    // normal and not an app error. Every console error and page error still counts, including React's script-tag warning.
+    const real = errors.filter((e) => !e.includes("favicon") && !/^request failed: \S+[?&]_rsc=/.test(e));
+    expect(real).toEqual([]);
+  });
 });

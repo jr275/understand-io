@@ -17,6 +17,7 @@ export function QuickAdd() {
       <p className="font-serif text-[19px] leading-tight text-ink">Read something else</p>
       <p className="mt-1 text-[13px] text-ink-3">Paste a link, open a PDF or drop a file anywhere on this page.</p>
       <form
+        data-field
         className="mt-3 flex items-center gap-2 rounded-[14px] border border-rule bg-bg p-1 pl-3 focus-within:border-rule-strong"
         onSubmit={(e) => {
           e.preventDefault();

@@ -251,6 +251,21 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /*
+   * A text field draws no outline of its own (its container is the visible "box"), so the container shows the same ring
+   * as every other control while the field inside has focus. A faint border change alone is not enough (WCAG 1.4.11, 2.4.7).
+   */
+  [data-field]:focus-within,
+  .import-bar:focus-within,
+  .lib-search:focus-within,
+  .composer form:focus-within {
+    outline: 2px solid var(--rubric);
+    outline-offset: 2px;
+  }
+  .add-text:focus-visible {
+    outline: 2px solid var(--rubric);
+    outline-offset: 2px;
+  }
   button {
     cursor: pointer;
   }

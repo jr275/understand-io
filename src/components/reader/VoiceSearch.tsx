@@ -371,6 +371,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
             {phase === "listening" ? <span aria-hidden="true" className="absolute inset-0 animate-ping rounded-full bg-[var(--rubric)] opacity-30 motion-reduce:animate-none" /> : null}
           </button>
           <form
+            data-field
             className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border border-rule bg-bg px-3 transition-colors focus-within:border-rule-strong"
             onSubmit={(e) => {
               e.preventDefault();

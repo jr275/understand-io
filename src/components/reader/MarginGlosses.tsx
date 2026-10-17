@@ -326,6 +326,7 @@ function FollowUp({ onSend, disabled }: { onSend: (q: string) => void; disabled:
   const [q, setQ] = useState("");
   return (
     <form
+      data-field
       className="mt-2.5 flex items-center gap-1.5 rounded-[10px] border border-rule bg-bg px-2.5 transition-colors focus-within:border-rule-strong"
       onSubmit={(e) => {
         e.preventDefault();

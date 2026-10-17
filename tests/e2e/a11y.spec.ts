@@ -71,3 +71,46 @@ for (const theme of ["paper", "night"] as const) {
     });
   });
 }
+
+/**
+ * Keyboard focus must be visible at every stop (WCAG 2.4.7). An element may show it itself, through the container of a text
+ * field (the bare input draws none), or through a child (library spines draw the ring on the book).
+ */
+async function focusStopsWithoutIndicator(page: Page, presses = 45) {
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < presses; i++) {
+    await page.keyboard.press("Tab");
+    const stop = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el || el === document.body || el.tagName === "NEXTJS-PORTAL") return null; // the portal is the dev-only error overlay
+      const drawn = (e: Element) => {
+        const cs = getComputedStyle(e);
+        const outline = cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2 && cs.outlineColor !== "rgba(0, 0, 0, 0)";
+        return outline || (cs.boxShadow !== "none" && /\d+px/.test(cs.boxShadow) && /0px 0px \d+px [1-9]/.test(cs.boxShadow));
+      };
+      const r = el.getBoundingClientRect();
+      let ok = drawn(el);
+      for (let a: Element | null = el.parentElement, depth = 0; !ok && a && depth < 4; a = a.parentElement, depth++) ok = drawn(a);
+      if (!ok) ok = [...el.querySelectorAll("*")].slice(0, 6).some(drawn);
+      return { ok, key: `${el.tagName}|${Math.round(r.x)}|${Math.round(r.y)}`, label: `${el.tagName.toLowerCase()} "${(el.getAttribute("aria-label") || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40)}"` };
+    });
+    if (!stop || seen.has(stop.key)) continue;
+    seen.add(stop.key);
+    if (!stop.ok) missing.push(stop.label);
+  }
+  expect(seen.size, "the scan actually reached some focus stops").toBeGreaterThan(8);
+  return missing;
+}
+
+test.describe("keyboard focus is visible", () => {
+  test.use({ reducedMotion: "reduce" });
+  for (const [name, path] of [["landing", "/"], ["library", "/library"], ["reader", "/read/on-a-piece-of-chalk"]] as const) {
+    test(`${name}: every Tab stop shows where the focus is`, async ({ page }) => {
+      await page.goto(path);
+      if (path.startsWith("/read/")) await page.locator("[data-reader-ready]").waitFor({ state: "attached" });
+      await page.waitForTimeout(600);
+      expect(await focusStopsWithoutIndicator(page)).toEqual([]);
+    });
+  }
+});

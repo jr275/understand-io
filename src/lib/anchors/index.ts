@@ -1,8 +1,9 @@
 import type { Anchor, AnchorPoint, Block } from "@/lib/content/types";
-
 import { NOTE_MAX_LENGTH } from "@/lib/content/types";
 
 const CONTEXT = 32;
+/** Characters kept from the neighbouring blocks (tail of the block before, head of the block after). */
+const NEIGHBOUR = 24;
 
 /** Cut a note to the stored limit without leaving half of a surrogate pair at the end (the server refuses lone surrogates). */
 export function clampNote(s: string, max = NOTE_MAX_LENGTH): string {
@@ -26,15 +27,17 @@ export function comparePoints(a: AnchorPoint, b: AnchorPoint, idx: Map<string, n
   return a.o - b.o;
 }
 
-/** Build an anchor from block ids and offsets, filling in the quote and context. */
-export function makeAnchor(blocks: Block[], start: AnchorPoint, end: AnchorPoint): Anchor {
-  const idx = blockIndex(blocks);
+const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+
+/** Build an anchor from block ids and offsets, filling in the quote and context. Throws for a block id that is not in `blocks`. */
+export function makeAnchor(blocks: Block[], start: AnchorPoint, end: AnchorPoint, idx: Map<string, number> = blockIndex(blocks)): Anchor {
+  if (!idx.has(start.b) || !idx.has(end.b)) throw new RangeError(`unknown block id: ${idx.has(start.b) ? end.b : start.b}`);
   let s = start;
   let e = end;
   if (comparePoints(s, e, idx) > 0) [s, e] = [e, s];
   const parts: string[] = [];
-  const si = idx.get(s.b) ?? 0;
-  const ei = idx.get(e.b) ?? si;
+  const si = idx.get(s.b)!;
+  const ei = idx.get(e.b)!;
   for (let i = si; i <= ei; i++) {
     const t = blocks[i].text;
     const from = i === si ? s.o : 0;
@@ -44,56 +47,187 @@ export function makeAnchor(blocks: Block[], start: AnchorPoint, end: AnchorPoint
   const quote = parts.join("\n");
   const prefix = blocks[si].text.slice(Math.max(0, s.o - CONTEXT), s.o);
   const suffix = blocks[ei].text.slice(e.o, e.o + CONTEXT);
-  return { start: s, end: e, quote, prefix, suffix };
+  const prevBlock = si > 0 ? blocks[si - 1].text.slice(-NEIGHBOUR) : "";
+  const nextBlock = ei < blocks.length - 1 ? blocks[ei + 1].text.slice(0, NEIGHBOUR) : "";
+  return { start: s, end: e, quote, prefix, suffix, prevBlock, nextBlock };
+}
+
+/* ------------------------------------------------------------------ re-anchoring */
+
+export type AnchorStatus = "ok" | "moved" | "orphaned";
+
+/** Length of the longest common suffix / prefix of two strings. */
+function commonSuffix(a: string, b: string) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[a.length - 1 - n] === b[b.length - 1 - n]) n++;
+  return n;
+}
+function commonPrefix(a: string, b: string) {
+  let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n++;
+  return n;
+}
+/** Agreement shorter than this many characters (or than the whole expectation, when that is shorter) is coincidence, not evidence. */
+const MIN_AGREEMENT = 4;
+const agreement = (common: number, expected: string) => (common < Math.min(MIN_AGREEMENT, expected.length) ? 0 : common / expected.length);
+/** How much of `expected` (text that should end right where `actual` ends) is present: 0..1. An empty expectation means "nothing there". */
+function tailMatch(expected: string, actual: string) {
+  if (!expected) return actual ? 0 : 1;
+  return agreement(commonSuffix(expected, actual), expected);
+}
+/** Same for text that should start where `actual` starts. */
+function headMatch(expected: string, actual: string) {
+  if (!expected) return actual ? 0 : 1;
+  return agreement(commonPrefix(expected, actual), expected);
+}
+
+interface Place {
+  /** Block index and offset of the first character, block index and offset after the last. */
+  si: number;
+  so: number;
+  ei: number;
+  eo: number;
+}
+
+/** How well the surroundings of `p` agree with the anchor's stored context, per field in 0..1 (`undefined` = the anchor has no such field). */
+function contextFractions(blocks: Block[], a: Anchor, p: Place) {
+  const before = (n: number) => blocks[p.si].text.slice(Math.max(0, p.so - n), p.so);
+  const after = (n: number) => blocks[p.ei].text.slice(p.eo, p.eo + n);
+  return {
+    // An empty prefix/suffix means the quote touched the start/end of its block.
+    prefix: a.prefix === undefined ? undefined : a.prefix === "" ? (p.so === 0 ? 1 : 0) : tailMatch(a.prefix, before(a.prefix.length)),
+    suffix: a.suffix === undefined ? undefined : a.suffix === "" ? (p.eo === blocks[p.ei].text.length ? 1 : 0) : headMatch(a.suffix, after(a.suffix.length)),
+    prevBlock: a.prevBlock === undefined ? undefined : tailMatch(a.prevBlock, p.si > 0 ? blocks[p.si - 1].text.slice(-a.prevBlock.length || undefined) : ""),
+    nextBlock: a.nextBlock === undefined ? undefined : headMatch(a.nextBlock, p.ei < blocks.length - 1 ? blocks[p.ei + 1].text.slice(0, a.nextBlock.length || undefined) : ""),
+  };
+}
+
+/** Evidence from the context in 0..10 (prefix and suffix weigh 3 each, the neighbouring blocks 2 each). */
+function contextScore(f: ReturnType<typeof contextFractions>) {
+  return 3 * (f.prefix ?? 0) + 3 * (f.suffix ?? 0) + 2 * (f.prevBlock ?? 0) + 2 * (f.nextBlock ?? 0);
+}
+
+/** The text of a place, joined the way anchors quote it. */
+function quoteAt(blocks: Block[], p: Place) {
+  if (p.si === p.ei) return blocks[p.si].text.slice(p.so, p.eo);
+  const parts = [blocks[p.si].text.slice(p.so)];
+  for (let i = p.si + 1; i < p.ei; i++) parts.push(blocks[i].text);
+  parts.push(blocks[p.ei].text.slice(0, p.eo));
+  return parts.join("\n");
+}
+
+/** A short quote with no supporting context is not enough to claim a passage; a quote this long is distinctive on its own. */
+const DISTINCTIVE = 12;
+/** The best candidate has to beat the runner-up by this much, or the anchor is ambiguous and counts as orphaned. */
+const MARGIN = 1;
+/** Context evidence needed to accept a candidate on its own: an exact prefix or suffix, or both neighbouring blocks. */
+const CONFIDENCE = 3;
+
+interface Candidate {
+  place: Place;
+  /** Evidence from the surroundings, 0..10. */
+  ctx: number;
+  /** Evidence from the position: same block and closeness to the stored offset, 0..2. */
+  pos: number;
+  exactStored: boolean;
+  /** Extra evidence specific to multi-block quotes (untouched middle blocks), 0..2. */
+  body: number;
+}
+
+function pick(cands: Candidate[], quoteLength: number): Candidate | null {
+  if (!cands.length) return null;
+  const score = (c: Candidate) => c.ctx + c.pos + c.body;
+  cands.sort((x, y) => score(y) - score(x));
+  const best = cands[0];
+  if (cands.length > 1 && score(best) - score(cands[1]) < MARGIN) return null; // ambiguous
+  // Confident when the context vouches for it, when it is exactly where it was stored (and clearly better than the rest), or when it is the only place a distinctive quote occurs.
+  const confident = best.ctx + best.body >= CONFIDENCE || best.exactStored || (cands.length === 1 && quoteLength >= DISTINCTIVE);
+  return confident ? best : null;
 }
 
 /**
- * Re-anchor against (possibly revised) blocks. Returns the anchor unchanged when the
- * quote still matches at the stored offsets, otherwise searches for the quote (using
- * prefix/suffix to disambiguate repeats). Returns null when the text is gone.
+ * Re-anchor against (possibly revised) blocks and say what happened: `ok` (the quote and its context are still at the
+ * stored position), `moved` (found again elsewhere, confidently and unambiguously) or `orphaned` (the passage is gone,
+ * changed beyond recognition, or several places fit equally well: no mark is better than a wrong mark).
  */
-export function resolveAnchor(blocks: Block[], a: Anchor): Anchor | null {
-  const idx = blockIndex(blocks);
-  const sb = blocks[idx.get(a.start.b) ?? -1];
-  const eb = blocks[idx.get(a.end.b) ?? -1];
-  if (sb && eb) {
-    const current = makeAnchor(blocks, a.start, a.end).quote;
-    if (current === a.quote) return a;
+export function resolveAnchorDetailed(blocks: Block[], a: Anchor, idx: Map<string, number> = blockIndex(blocks)): { anchor: Anchor | null; status: AnchorStatus } {
+  const orphan = { anchor: null, status: "orphaned" as const };
+  if (!a.quote) return orphan;
+  const si0 = idx.get(a.start.b);
+  const ei0 = idx.get(a.end.b);
+  const single = a.start.b === a.end.b;
+
+  // Fast path: the quote and its context are still exactly where they were stored.
+  let stored: Place | null = null;
+  if (si0 !== undefined && ei0 !== undefined && si0 <= ei0 && a.start.o <= blocks[si0].text.length && a.end.o <= blocks[ei0].text.length) {
+    stored = { si: si0, so: a.start.o, ei: ei0, eo: a.end.o };
+    if (quoteAt(blocks, stored) === a.quote) {
+      const f = contextFractions(blocks, a, stored);
+      // Prefix and suffix must agree exactly; a neighbouring block may have been edited a little.
+      if ((f.prefix ?? 1) === 1 && (f.suffix ?? 1) === 1 && (f.prevBlock ?? 1) >= 0.5 && (f.nextBlock ?? 1) >= 0.5) return { anchor: a, status: "ok" };
+    } else stored = null;
   }
-  const lines = a.quote.split("\n");
-  if (lines.length === 1) {
-    // Single-block quote: find best candidate across blocks, prefer the original block.
-    const candidates: { b: string; o: number; score: number }[] = [];
-    for (const b of blocks) {
-      let from = 0;
-      for (;;) {
-        const o = b.text.indexOf(a.quote, from);
+
+  const cands: Candidate[] = [];
+  const proximity = (place: Place) => {
+    if (si0 === undefined || place.si !== si0) return 0;
+    return 1 + 1 - Math.min(1, Math.abs(place.so - a.start.o) / 500);
+  };
+  const isStored = (place: Place) => !!stored && place.si === stored.si && place.so === stored.so && place.ei === stored.ei && place.eo === stored.eo;
+
+  if (single) {
+    // One block: find every occurrence of the quote (a newline inside the quote is part of a `pre` block's text, not a block break).
+    for (let i = 0; i < blocks.length; i++) {
+      const t = blocks[i].text;
+      for (let from = 0; ; ) {
+        const o = t.indexOf(a.quote, from);
         if (o < 0) break;
-        let score = b.id === a.start.b ? 2 : 0;
-        if (a.prefix && b.text.slice(Math.max(0, o - a.prefix.length), o) === a.prefix) score += 3;
-        if (a.suffix && b.text.slice(o + a.quote.length, o + a.quote.length + a.suffix.length) === a.suffix) score += 3;
-        if (b.id === a.start.b) score -= Math.abs(o - a.start.o) / 1000;
-        candidates.push({ b: b.id, o, score });
+        const place = { si: i, so: o, ei: i, eo: o + a.quote.length };
+        cands.push({ place, ctx: contextScore(contextFractions(blocks, a, place)), pos: proximity(place), exactStored: isStored(place), body: 0 });
         from = o + 1;
       }
     }
-    if (!candidates.length) return null;
-    candidates.sort((x, y) => y.score - x.score);
-    const best = candidates[0];
-    return makeAnchor(blocks, { b: best.b, o: best.o }, { b: best.b, o: best.o + a.quote.length });
+  } else {
+    // Several blocks: the first line must be the end of a block, the last line the start of a later one, the lines between are whole blocks (which may have been edited).
+    const lines = a.quote.split("\n");
+    const first = lines[0];
+    const last = lines[lines.length - 1];
+    const span = lines.length;
+    const storedSpan = si0 !== undefined && ei0 !== undefined ? ei0 - si0 + 1 : span;
+    // A block with a newline of its own makes the line count ambiguous; then only the exact stored position can be trusted.
+    if (storedSpan === span) {
+      for (let i = 0; i < blocks.length - 1; i++) {
+        if (!blocks[i].text.endsWith(first)) continue;
+        const so = blocks[i].text.length - first.length;
+        // The end block normally sits `span - 1` blocks further on; tolerate a block removed or added in between.
+        for (let j = i + 1; j <= Math.min(blocks.length - 1, i + span + 1); j++) {
+          if (!blocks[j].text.startsWith(last)) continue;
+          const place = { si: i, so, ei: j, eo: last.length };
+          let body = 0;
+          if (j - i + 1 === span) {
+            const middle = lines.slice(1, -1);
+            if (middle.length) body = (2 * middle.filter((l, k) => blocks[i + 1 + k].text === l).length) / middle.length;
+            else body = 1;
+          }
+          cands.push({ place, ctx: contextScore(contextFractions(blocks, a, place)), pos: proximity(place) - Math.abs(j - i + 1 - span) * 0.5, exactStored: isStored(place), body });
+        }
+      }
+    }
   }
-  // Multi-block: locate the first and last line.
-  const first = lines[0];
-  const last = lines[lines.length - 1];
-  for (let i = 0; i < blocks.length; i++) {
-    const so = blocks[i].text.indexOf(first);
-    if (so < 0 || so + first.length !== blocks[i].text.length) continue;
-    const j = i + lines.length - 1;
-    if (j >= blocks.length) continue;
-    if (!blocks[j].text.startsWith(last)) continue;
-    return makeAnchor(blocks, { b: blocks[i].id, o: so }, { b: blocks[j].id, o: last.length });
-  }
-  return null;
+
+  const best = pick(cands, a.quote.length);
+  if (!best) return orphan;
+  const p = best.place;
+  return { anchor: makeAnchor(blocks, { b: blocks[p.si].id, o: p.so }, { b: blocks[p.ei].id, o: p.eo }, idx), status: "moved" };
+}
+
+/**
+ * Re-anchor against (possibly revised) blocks. Returns the anchor unchanged when the quote and its context still sit at the
+ * stored offsets, otherwise looks for the quote elsewhere and accepts it only when the evidence is strong and the best
+ * place is clearly better than any other. Returns null (orphan) when the text is gone or the match would be a guess.
+ */
+export function resolveAnchor(blocks: Block[], a: Anchor, idx?: Map<string, number>): Anchor | null {
+  return resolveAnchorDetailed(blocks, a, idx).anchor;
 }
 
 export interface MarkSpan {
@@ -115,16 +249,17 @@ export function segmentBlock(
   block: Block,
   blocks: Block[],
   marks: { id: string; kind: string; anchor: Anchor; data?: Record<string, string | undefined> }[],
+  idx: Map<string, number> = blockIndex(blocks),
 ): Segment[] {
-  const idx = blockIndex(blocks);
   const bi = idx.get(block.id) ?? -1;
   const spans: MarkSpan[] = [];
   for (const m of marks) {
     const si = idx.get(m.anchor.start.b) ?? -1;
     const ei = idx.get(m.anchor.end.b) ?? -1;
     if (si < 0 || ei < 0 || bi < si || bi > ei) continue;
-    const start = bi === si ? m.anchor.start.o : 0;
-    const end = bi === ei ? m.anchor.end.o : block.text.length;
+    // Offsets are clamped to the block: marks that do not come from resolveAnchor (pending, search hit, speech) may be stale.
+    const start = clamp(bi === si ? m.anchor.start.o : 0, 0, block.text.length);
+    const end = clamp(bi === ei ? m.anchor.end.o : block.text.length, 0, block.text.length);
     if (end <= start) continue;
     spans.push({ id: m.id, kind: m.kind, start, end, data: m.data });
   }

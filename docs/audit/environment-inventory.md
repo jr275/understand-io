@@ -86,3 +86,17 @@ Migration ledger `drizzle.__drizzle_migrations`: 2 entries (0000 at 179218804763
 ## Docs and evidence present before this pass
 
 `docs/product-specification.md`, `docs/reference-routes.md`, `docs/interaction-inventory.md`, `docs/design-system.md`, `docs/architecture.md`, `docs/implementation-status.md`, `docs/final-qa-report.md`, `docs/qa/*.png` (implementation vs `ref-*` reference screenshots at 1440×900 and 375×812), `scripts/qa-shots.ts` and `scripts/ref-shots.ts` (screenshot capture).
+
+## Addendum: state at the end of the audit (2026-10-17)
+
+| Item | Value |
+| --- | --- |
+| HEAD before the closing documentation commit | `0987206` on `main`; the audit added about 20 commits after `e6fd1d7` (`git log --oneline e6fd1d7..HEAD`) |
+| Migrations | 0000, 0001, 0002 applied; the ledger has 3 entries. `0002_rich_vargas` makes `accounts.reader_id` unique. No earlier migration was edited |
+| Dependencies added | runtime: `undici` (connect-time address pinning). Dev: `@axe-core/playwright`, `pixelmatch`, `pngjs` and its types (audit tooling) |
+| Dependency health | `pnpm audit --prod`: no known vulnerabilities (re-run at the end) |
+| Database rows now | 266 documents, 73 annotations, 0 glosses, 529 readers, 104 progress rows, 0 accounts. The growth since the start (49, 25, 0, 86, 28, 0) is test residue from the end-to-end runs; nothing was deleted |
+| Tests | 32 unit files, 663 tests; 98 end-to-end runs (96 desktop, 2 mobile); all passing |
+| Environment variables | unchanged: `TOGETHER_API_KEY` still empty, Google variables and `APP_URL` still absent |
+| Dev server | `next dev` on port 3100, working directory this folder. Another Next server on port 3010 belongs to an unrelated project and was never touched |
+| Real browser | Chrome 155 (macOS) through the Claude in Chrome extension, used for the capture bookmarklet and the read-aloud checks; the in-app browser pane blocks the microphone and was used only for pages |

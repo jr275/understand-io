@@ -7,17 +7,41 @@ search**, and **text annotations** (highlights, underlines, notes).
 Paste a link, a PDF or some text → a clean numbered reading view → select any line and ask about
 it; the answer lands in the margin, citing paragraphs. Texts live on a shelf grouped by topic.
 
+## Prerequisites
+
+| Need | Version | Notes |
+| --- | --- | --- |
+| Node.js | 22 or newer (developed on 24.9) | the AI SDK requires 22+ |
+| pnpm | 12 (`packageManager` is pinned in `package.json`) | `corepack enable` or `npm i -g pnpm` |
+| PostgreSQL | 16 (optional) | without it the app runs local-only; see "Database" |
+| A browser | Chrome, Edge or Safari for speech; any modern browser for reading | see "Browser limitations" |
+
 ## Run it
 
 ```bash
-pnpm install
-cp .env.example .env.local        # optional: DATABASE_URL, TOGETHER_API_KEY
-pnpm db:migrate                   # only when DATABASE_URL is set (PostgreSQL)
-pnpm dev                          # http://localhost:3000
+cd gloss
+pnpm install --frozen-lockfile
+cp .env.example .env.local        # optional: edit DATABASE_URL, GLOSS_COOKIE_SECRET, TOGETHER_API_KEY
+pnpm db:migrate                   # only when DATABASE_URL points at a running PostgreSQL
+pnpm dev --port 3100              # http://localhost:3100
 ```
 
-Everything reads and annotates without any configuration: the three public-domain sample texts
-are built in, and highlights, notes, glosses and settings are kept in the browser.
+Everything reads and annotates without any configuration: the three public-domain sample texts are built in, and
+highlights, notes, glosses and settings are kept in the browser. Never commit `.env.local`.
+
+### Database
+
+```bash
+createdb gloss                    # once, with PostgreSQL running (Homebrew: brew services start postgresql@16)
+# .env.local:  DATABASE_URL=postgres://localhost:5432/gloss
+pnpm db:migrate                   # applies drizzle/0000 .. 0002 in order
+```
+
+Migrations are never edited once applied. A schema change is `pnpm db:generate` followed by `pnpm db:migrate`.
+Migration `0002` makes `accounts.reader_id` unique and fails if duplicate rows already exist. The end-to-end tests write
+into whatever database `DATABASE_URL` names, so point it at a development database, not one you care about.
+
+### Environment variables (names; never put real values in the repository)
 
 | Variable | What it enables |
 | --- | --- |
@@ -43,23 +67,69 @@ when a key is configured.
 
 ## Scripts
 
-- `pnpm dev` / `pnpm build` / `pnpm start`
+- `pnpm dev --port 3100` / `pnpm build` / `pnpm start`
 - `pnpm typecheck` · `pnpm lint`
-- `pnpm test` — Vitest unit tests (anchoring, search, parsing, speech segmentation)
+- `pnpm test` — Vitest unit tests (anchoring, retrieval, parsing, speech controller, voice panel lifecycle, security helpers)
 - `pnpm test:e2e` — Playwright (starts `next dev` on port 3100 unless one is running; set `PLAYWRIGHT_PORT`)
 - `pnpm db:generate` / `pnpm db:migrate` — Drizzle migrations
 - `pnpm exec tsx scripts/theme-paint-check.mts [baseUrl]` — measures that the saved theme is applied before first paint, on a fast and a throttled network
+- `pnpm exec tsx scripts/eval-retrieval.mts` — retrieval metrics on the labelled queries
+- `pnpm exec tsx scripts/a11y-scan.mts [baseUrl]` — axe scan of 30 UI states in two themes
+- `pnpm exec tsx scripts/visual-diff.mts [baseUrl]` — pixel comparison against the reference captures
+- `pnpm audit --prod` — dependency advisories
 
 ## Keyboard
 
 `/` ask about the whole text · `J`/`K` next/previous paragraph · `Enter` ask about the current paragraph ·
 `[` `]` previous/next gloss · `B` gloss this text · `N` notebook · `F` focus · `L` listen ·
-`Space` pause/resume · `V` ask by voice · `H` highlight · `U` underline · `?` all keys
+`Space` pause/resume · `V` ask by voice · `⇧H` highlight · `⇧U` underline · `?` all keys
+
+## Browser limitations
+
+- Read-aloud uses the browser's own speech engine. Chrome, Edge and Safari have it; if yours does not, the app says so. Voices differ per
+  operating system. Chrome pauses long utterances, so the controller speaks in chunks of at most 220 characters.
+- Voice search uses the browser's `SpeechRecognition` where it exists (Chrome, Edge, Safari). In Chrome the audio goes to Google's recognition
+  service; the panel says where audio goes. It needs a secure context (https or localhost) and the microphone permission. Otherwise it records
+  and sends audio to the server for transcription, which needs a Together AI key.
+- Only Chrome 155 and Playwright's Chromium were used for testing. Safari, Firefox, iOS and Android are untested.
+
+## Provider limitations
+
+- Margin answers, whole-text answers, meaning re-rank and server transcription need a Together AI key (server `TOGETHER_API_KEY` or a reader's own).
+  Without one the app answers "needs a key" and never fakes output. These paths have not been run against the live provider.
+- Google sign-in needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and (in production) `APP_URL`. The real round trip has not been run.
+- Some publishers (theatlantic.com, medium.com, nytimes.com) refuse server-side fetches. Use the "Read in Understand" bookmarklet from the Add panel
+  or paste the text.
+
+## Known defects and limits
+
+The full list is `docs/audit/defect-backlog.md`. The ones you are likely to meet:
+
+- Retrieval by words misses paraphrases; meaning search is only as good as the model and has not been measured.
+- PDFs with figures and tables produce many short blocks.
+- Annotations on texts that exist only in your browser (`local:` documents) do not sync between devices.
+- Existing highlights are not reachable with the keyboard (the Notebook lists them and can delete them).
+- The development database fills up with test data whenever the end-to-end suite runs.
+
+## Security considerations
+
+- Reader identity is an anonymous signed cookie. Anyone with the cookie has that library; there is no revocation. Sign-in is optional.
+- The server key can be spent by any visitor: set the rate limits, and remember the limiter is **per process** (see the table above).
+- In production set `GLOSS_COOKIE_SECRET` (32+ characters) and `APP_URL`; the server refuses to run its auth paths without them.
+- Imports fetch only public hosts on ports 80 and 443 (addresses are checked at connect time); pages and PDFs are size, depth and time limited.
+- The security headers do not include a `script-src` policy yet. The app has not been deployed or load tested; run it behind TLS and observe the headers
+  before exposing it.
+- Details and open items: `docs/audit/security-review.md`.
+
+## Quality evidence
+
+`docs/final-qa-report.md` (verdict, matrix, metrics), `docs/implementation-status.md` (71 requirements with exact statuses) and `docs/audit/` (traceability, runtime architecture, per-feature validation, security, integrations, accessibility, test strategy, defect backlog).
+Checks that need a person (hearing the audio, speaking into the microphone, a phone, Google sign-in, a Together key) are written as short checklists in the validation documents.
 
 ## Docs
 
 - [`docs/product-specification.md`](docs/product-specification.md)
 - [`docs/reference-routes.md`](docs/reference-routes.md) and [`docs/interaction-inventory.md`](docs/interaction-inventory.md) — what was observed on the reference
 - [`docs/design-system.md`](docs/design-system.md) — tokens, type, spacing, components
-- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/architecture.md`](docs/architecture.md) (original plan) and [`docs/audit/runtime-architecture.md`](docs/audit/runtime-architecture.md) (as built)
 - [`docs/implementation-status.md`](docs/implementation-status.md) — honest per-feature status and test evidence

@@ -1,324 +1,221 @@
-# Final QA report — Understand.io (Gloss reconstruction)
+# Final QA report: Understand.io (code folder `gloss`)
 
-_Date: 2026-10-16. Audited directory: `~/gloss-reconstruction/gloss` (the only project touched).
-Everything below was re-verified in this pass; nothing is carried over from the earlier report without
-being re-run._
+_Written 2026-10-17. Everything here comes from commands run and files read in this audit. Where something was not exercised, the report says so. Supporting detail is in `docs/audit/`. The earlier report (reference-fidelity audit, the 403 import fix and the database-outage defect write-up) is in git history before this commit, and its screenshots remain in `docs/qa/`._
 
-## 1. Project identification
+## A. Executive summary
 
-| Check | Result |
+**Verdict: functionally usable with known limitations.** It is not a release candidate, and it is not production-ready.
+
+What works, with evidence: the landing page, library, reader, link, PDF, text and bookmarklet import, highlights, underlines and notes with local plus PostgreSQL persistence, per-reader data isolation, read-aloud controls (driven against fake engines and against the real Chrome 155 speech engine for events and flags), typed and fake-recogniser voice search with measured retrieval quality, accessibility checks that now report no axe violations, and a hardened server (SSRF pinning, request caps, cross-site guard, headers, rate limits on the shared key). Typecheck, lint, 663 unit tests, 98 end-to-end tests, the production build and the dependency audit all pass.
+
+What is not proven, and why it matters to you:
+
+- **Nobody has heard the read-aloud audio.** An agent cannot hear. Chrome reports the utterances as started and ended, which is strong but not conclusive.
+- **Nobody has spoken into the microphone.** Real speech recognition and server transcription were never run.
+- **No live model call was made.** There is no Together AI key here, so margin answers, whole-text answers, embedding re-rank and Whisper transcription are untested against the provider.
+- **Google sign-in was never run.** There are no OAuth credentials here.
+- **Touch selection, Safari, Firefox and real phones were not tested.**
+
+Not "production-ready": there is no CI, no monitoring, the rate limiter is per process, the server has never run behind real TLS or a real host, and the items above are unverified. A passing build is not a readiness claim.
+
+Over the audit: 107 findings were tracked; 80 are fixed with a test or a recorded run, 18 are partial with the residual named, 6 are open, 3 are not defects (`docs/audit/defect-backlog.md`). Test count went from 42 unit and 32 end-to-end to 663 and 98.
+
+## B. Verified environment
+
+| Item | Value |
 | --- | --- |
-| Directory | `/Users/joaormendes/gloss-reconstruction/gloss` (Next.js 16.4.2 app; `package.json` name `gloss`) |
-| Git | Repository restored after the folder move (`.git` is never copied by the app). Branch `main`, history: `180dbb6` scaffold → `a693206` foundation → `613d8e3` fixes/tests → this pass |
-| Env file | `gloss/.env.local` present. `DATABASE_URL` set; `GLOSS_COOKIE_SECRET` set (not the default); **`TOGETHER_API_KEY` empty**. Values were not printed. |
-| PostgreSQL | `pg_isready` on 5432: accepting. Database `gloss`, PostgreSQL 16.15, 6 tables (`readers`, `documents`, `annotations`, `glosses`, `reading_progress`, `settings`). Rows at audit start: 13 documents, 11 annotations, 0 glosses, 30 readers, 12 progress rows. No destructive change was made. |
-| Dev server | `pnpm dev --port 3100`, started from this directory (checked with `lsof`: process cwd = this folder). Another Next server on port 3010 belongs to an unrelated project and was left alone. |
-| Launch config | `.claude/launch.json` at `~/gloss-reconstruction` and in `gloss/` both point at this project. **Caveat found:** the app's preview tool still launched the server from the previous session folder; use the command below instead. |
+| Project path | `/Users/joaormendes/gloss-reconstruction/gloss` |
+| Branch | `main`, no remote configured |
+| HEAD when this report was written | `0987206` (the commit containing this report follows it; `git log -1` shows it) |
+| Node.js / pnpm | v24.9.0 / 12.10.1 |
+| Next.js / React / TypeScript | 16.4.2 / 19.3.0 / 5.9.3 (strict) |
+| Test runners | Vitest 5.0.5, Playwright 1.64.1 (Chromium desktop and Pixel 7) |
+| Database | PostgreSQL 16.15 (Homebrew), accepting connections on 5432, database `gloss`, 3 migrations applied (0000, 0001, 0002) |
+| Dev database contents now | 266 documents, 73 annotations, 0 glosses, 529 readers, 104 progress rows, 0 accounts. At the start of the audit: 49, 25, 0, 86, 28, 0. The end-to-end suite writes into this database on every run, so most of the growth is test residue. Nothing was deleted |
+| Local URL | http://localhost:3100 (a `next dev` process whose working directory is this folder is serving it) |
+| Start command | `pnpm dev --port 3100` |
+| Real browser used | Google Chrome 155 on macOS (the user's own), driven through the Claude in Chrome extension; Playwright's Chromium for automated runs |
+| Environment variables present (names only) | `DATABASE_URL`, `GLOSS_COOKIE_SECRET`, `GLOSS_CHAT_MODEL`, `GLOSS_EMBED_MODEL`, `GLOSS_WHISPER_MODEL`, `TOGETHER_API_KEY` (empty). Absent: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL` |
 
-Problem found and fixed during Phase 1: the `.next` build cache and the preview server came from the
-previous location and served stale sample data. Cache removed; server restarted from this folder.
+Full inventory: `docs/audit/environment-inventory.md`.
 
-## 2. Commands executed and results
+## C. Test results
 
-| Command | Result |
-| --- | --- |
-| `pnpm install --frozen-lockfile` | OK (dependencies were not copied with the folder) |
-| `pnpm typecheck` | OK, no errors |
-| `pnpm lint` | OK, 0 errors, 0 warnings (one unused import removed) |
-| `pnpm test` (Vitest) | **35 passed** in 5 files (10 new tests in this pass: SSRF guard, speech controller) |
-| `pnpm test:e2e` (Playwright, `PLAYWRIGHT_PORT=3100`) | **27 passed** (desktop 25, mobile 2) after fixes; one new regression test |
-| `pnpm build` | OK — compiled, 18 routes |
+All run on 2026-10-17 in this folder; exit codes are real.
 
-No test was weakened. One mock-engine assertion that depended on a 300 ms race was replaced by a
-deterministic assertion on the utterances actually spoken (first the selected passage, then the
-following sentence).
+| Command | Result | Output that matters | Exclusions | Mocks | Limitation |
+| --- | --- | --- | --- | --- | --- |
+| `pnpm typecheck` | exit 0 | clean | none | n/a | none |
+| `pnpm lint` | exit 0 | clean, 0 warnings | `test-results/` and scratch outputs are ignored | n/a | none |
+| `pnpm test` | exit 0 | 32 files, 663 passed, 0 failed, 0 skipped | none | speech engines, microphone, recorder and `fetch` are fakes in the speech and voice tests; the database is **not** mocked (outage tests use the real driver against a dead port); the models are never called | 201 tests are seeded random anchor cases; some account-merge cases need PostgreSQL |
+| `pnpm test:e2e` | exit 0 | 98 passed (96 desktop, 2 mobile), 0 failed, 0 skipped, no retries | none | speech engine is a fake; voice search uses typed input; models answer 402 (no key) | runs against `next dev` and the shared development database, one worker |
+| `pnpm build` | exit 0 | compiled; warning: no fallback font metrics for Atkinson Hyperlegible Next | none | n/a | production server behaviour (`next start`, TLS, CDN) not exercised |
+| `pnpm audit --prod` | exit 0 | no known vulnerabilities | dev dependencies not audited | n/a | reflects the advisory database at run time |
+| `pnpm exec tsx scripts/eval-retrieval.mts` | exit 0 | top-1 57.7 %, top-3 69.2 % on 26 sample-document queries; absent concepts showing hits 1 of 7; 215 of 215 offsets exact | meaning re-rank not evaluated | none | 41 hand-written queries: a regression signal, not an accuracy claim |
+| `pnpm exec tsx scripts/visual-diff.mts` | exit 0 | pixel difference 0.42 % to 16.40 % (table in `docs/audit/visual-accessibility-review.md`) | five screens have no reference capture | none | a comparison between two runs, not a pass mark |
 
-## 3. Browser verification (Browser pane, Chromium)
+Baseline before any change (HEAD `e6fd1d7`): typecheck, lint, 42 unit, 32 end-to-end, build and audit were green; `prettier --check` failed on 115 files (formatting only, HYG-1). See `docs/audit/baseline-results.md`.
 
-| Check | Result |
-| --- | --- |
-| Landing opens, fonts (Newsreader, Schibsted Grotesk) loaded, no console errors, no failed requests | VERIFIED |
-| Library loads, spines, stats, chips; open book → "Start reading" opens the reader | VERIFIED |
-| Reader: header, 63 numbered blocks, composer; API calls `/api/documents/*/data`, `/api/gloss`, `/api/progress` all 200 | VERIFIED |
-| Highlight → `POST /api/annotations` 200 → reload → highlight restored, notebook badge 1 | VERIFIED |
-| Themes applied through `data-theme` and persisted (`gloss:settings`) | VERIFIED (Playwright) |
-| Mobile 375 px: no horizontal overflow, paragraph numbers hidden, composer and hint toast | VERIFIED (Playwright mobile project + pane) |
-| Console errors / failed network requests | None on landing, library, reader |
+## D. Feature verification matrix
 
-Pane limitations (documented, not app defects): the Browser pane blocks the microphone and emits no
-speech-synthesis events, and CSS animations in a background or emulated-viewport tab stay at their
-first frame in screenshots. Playwright screenshots in `docs/qa/` show the fully rendered pages.
+Status words are the six allowed values. Full 71-row matrix with sources, tests, dates and next actions: `docs/implementation-status.md`. Evidence for each row: `docs/audit/requirements-traceability.md`.
 
-## 4. The three additional features
-
-### A. Read-aloud
-- Implemented in `src/lib/speech/controller.ts` (one utterance per sentence, cancel-before-speak,
-  token guard, keep-alive nudge, stall watchdog) and `ListenBar.tsx`.
-- Automated: play/pause/resume/stop/restart, whole text, selected passage then continue, sentence
-  highlight, speed, voice list, no overlap, skip-while-paused, restart from error — **VERIFIED with a
-  fake engine** (Vitest + Playwright).
-- **Real engine, VERIFIED in the user's Chrome 155 (macOS) on 2026-10-17** through the Claude in Chrome
-  extension (see §11 for the evidence): `start`, `boundary` and `end` events fired on every utterance,
-  sentence tint and counter advanced, pause/resume/skip/speed/voice/stop all behaved, a selected passage
-  was read and then reading continued, and a 2-minute unattended run produced 20 utterances with no
-  error, no stall and gaps under 100 ms. What this environment cannot attest is the loudspeaker itself:
-  the engine produced audio events, but nobody in the loop *heard* it. The user's own ear is the last check.
-- Resume after reload: starts at the saved paragraph, not mid-sentence (PARTIALLY IMPLEMENTED).
-- Fixed in this pass: after a passage, or when resuming from the saved position, the counter kept
-  restarting at `1/<remaining>`; it now counts in whole-text terms (`3/276`).
-
-### B. Voice passage search
-- Implemented in `VoiceSearch.tsx` + `src/lib/search/bm25.ts` (+ optional embedding re-rank through
-  `/api/search`). Typed-transcript path, ranked excerpts, jump + highlight, read-aloud of a hit,
-  no-match and low-confidence states — **VERIFIED** (Playwright + unit tests).
-- Microphone permission prompt, live recognition and server transcription: IMPLEMENTED, NOT VERIFIED
-  (pane blocks the microphone; server transcription needs a key).
-- Honest labelling: results say "words only" without a key and "words + meaning" when the embedding
-  re-rank ran. Lexical search is never presented as semantic.
-
-### C. Annotations
-- Highlights (4 colours), underlines, notes with edit/delete, persistence (localStorage + PostgreSQL),
-  restoration on reopen, anchoring by block id + offsets + quote context with re-anchoring for
-  repeated/shifted text — **VERIFIED** (Playwright reload tests, `anchors.test.ts`).
-- Per-document separation: store is keyed by document id; verified by inspection and tests.
-- Touch selection on a real device: NOT VERIFIED.
-
-## 5. Problems found by the audit and fixed in this pass
-
-Confirmed by an independent read-only code review and reproduced by tracing the code paths:
-
-1. Deleting or retrying a gloss while it streamed could resurrect it (abort handling) — fixed; delete
-   now aborts in margin, sheet and notebook paths. Regression test added.
-2. The first paint wrote reading progress of 0 % before the server copy merged, so cross-device
-   resume was lost — fixed (only the reader's own scrolling writes progress; short documents are no
-   longer marked finished on open).
-3. Failed server writes were silent and deletes could be undone by the next sync — fixed with
-   tombstones replayed on load, newer-wins merge by `updatedAt`, and a toast when a sync fails.
-4. SSRF guard in `/api/import` was hostname-only — replaced with DNS resolution + private-range checks
-   for IPv4/IPv6, manual redirects re-validated per hop, and a 10 MB body cap. Unit-tested.
-5. Cookie secret fell back to a hard-coded value — now fails fast in production when unset.
-6. Annotation/gloss upserts could overwrite another reader's row with a known id — owner predicate added.
-7. `persisted` flag could claim server persistence without a database — now set only from server responses.
-8. Typing a question starting with h/u in the lens triggered highlight/underline — shortcuts moved to Shift+H / Shift+U.
-9. Lens could close as soon as the user started typing after a paragraph-Ask — dismiss flag reset; selection changes inside the lens ignored.
-10. Speech: skip while paused resumed the old sentence; error state could not restart; `voiceschanged` listener leaked — all fixed, unit-tested.
-11. Import routes could return 500 (PDF without text, slug collision across readers) — wrapped; slug collision retried with a new suffix.
-12. Dialog backdrops did not close on click — fixed (Keys, Voice search, Add panel, Paste text).
-13. Documents deleted on another device stayed on the shelf; deleting a document left orphan rows — fixed (sync drops them; delete cascades in a transaction).
-14. Follow-up questions were sent twice to the model — fixed.
-15. `?hl=` deep links did not wait for server data — fixed.
-16. `/api/gloss` had no request-size limits and ignored client aborts — limits added, abort propagated.
-17. Accessibility: rail is keyboard-operable, voice options are buttons, note cards no longer nest a button in a button, Enter shortcut only fires from the page body.
-18. Voice search input lost typed text on interim results; recorder auto-stop left the UI "listening" — fixed.
-19. Visual fidelity: stray chip separator, missing "This area is for notes" margin hint, reading time rounding (now 38/27/16 min like the reference), typographic quotes in the sample texts.
-20. Product renamed to **Understand.io** in the UI, metadata, prompts and README ("gloss" is kept only as the feature word for margin notes).
-
-Not fixed (documented): Lens toolbar/menu have no roving tabindex; dialogs do not trap/restore focus;
-no accounts; no MCP server; "Painted covers" and web search are placeholders.
-
-## 6. External dependencies
-
-| Service / library | Used for | Works locally | Needs key | Configured | Real call tested | Cost | When unavailable |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| PostgreSQL 16 (Homebrew) | documents, annotations, glosses, progress | Yes | No | Yes (`DATABASE_URL`) | Yes (rows written/read in tests) | None locally | App runs local-only; API returns `persisted:false` |
-| Together AI (OpenAI-compatible, via `ai` + `@ai-sdk/openai-compatible`) | margin glosses, whole-text answers | — | **Yes** | **No** | **No** | Pay per token (DeepSeek-V3.1 list price ≈ $0.60 in / $1.70 out per 1M; shown as an estimate in the UI) | 402 "needs a key"; UI explains |
-| Together AI embeddings (`BAAI/bge-base-en-v1.5`) | semantic re-rank of search hits | — | Yes | No | No | Small per-call cost, not measured | Lexical search only, labelled "words only" |
-| Together AI Whisper (`openai/whisper-large-v3`) | server transcription fallback | — | Yes | No | No | Per audio minute, not measured | Browser recognition only; otherwise type |
-| Browser Speech Synthesis (Web Speech API) | read-aloud | Yes (browser) | No | n/a | **Yes** — Chrome 155 via the Chrome extension: engine events on 20+ utterances, 199 voices listed, voice switch took effect (not heard by a human in this loop) | None | Watchdog error with guidance |
-| Google OAuth 2.0 (sign-in, optional) | accounts; library follows the reader across browsers | — | **Yes** (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) | **No** | **No** | Free (Google Cloud OAuth client) | "Sign in" button opens an explanation; anonymous cookie keeps working |
-| Publisher sites (The Atlantic, Medium, NYT…) | URL import | — | — | — | Yes: all three answer **403 to any non-browser client**, even with full Chrome headers (TLS fingerprinting) | — | Clear message + bookmarklet that captures the page from the reader's own tab |
-| Browser Speech Recognition (Web Speech API) | voice search | Chrome/Edge/Safari | No | n/a | **No** (pane blocks mic) | None (Chrome sends audio to Google) | Server fallback or typing |
-| Google Fonts via `next/font` (Newsreader, Literata, Schibsted Grotesk, Atkinson Hyperlegible Next) | typography | Yes (self-hosted at build) | No | n/a | Yes | None | n/a |
-| Readability + linkedom, unpdf | import | Yes | No | n/a | Yes (paulgraham.com, Wikipedia, arXiv PDF) | None | Clear error messages |
-
-No new paid service was added. Together AI is the only recurring cost and is optional.
-
-## 7. Visual fidelity vs reference (same viewports, headless Chromium, `docs/qa/ref-*.png` vs `docs/qa/*.png`)
-
-| Area | Verdict | Concrete differences |
-| --- | --- | --- |
-| Layout and dimensions | Match | Max-widths, column widths, topbar height, card sizes identical within a few px |
-| Typography | Match | Same families, weights, optical sizes; typographic quotes now match |
-| Spacing | Match | Hero, import bar, desk, library hero, reader header spacing identical |
-| Colours and contrast | Match | Token values copied from the reference stylesheet; five themes × four pens |
-| Navigation components | Partial | "Sign in" present (Google, env-gated; explains itself when not configured) plus an "Add" button the reference does not have; partner mark is text + three discs instead of the logo artwork |
-| Reader hierarchy | Match | Kicker, title, dek, byline, "Gloss this text", drop cap, numbers, composer; margin hint added |
-| Menus, panels, dialogs | Match | Appearance, Keys, Notebook, Lens, open book, add panel reproduced; "Connect an agent" is an honest placeholder |
-| Themes | Match | Verified by test |
-| Interactive states | Mostly | Hover/active transitions reproduced; lens roving focus not implemented |
-| Responsiveness | Match | 375 px landing/library/reader compared; no overflow |
-| Imagery | Different | Topic icons, covers and topic-card art are procedural SVG, not the reference's painted images |
-
-## 8. Status table
-
-| Funcionalidade | Status | Evidência | Dependência | Problema restante |
-| --- | --- | --- | --- | --- |
-| Landing e biblioteca | VERIFIED WORKING | `landing.spec.ts`, `library.spec.ts`, pane checks, `docs/qa` | none | Painted imagery replaced by procedural art; no accounts |
-| Leitor e importação | VERIFIED WORKING | `reader.spec.ts`, `api.spec.ts`, manual URL/PDF imports | Readability, unpdf | Figures without captions render empty text block |
-| Persistência PostgreSQL | VERIFIED WORKING | reload tests, `psql` row counts, cookie ownership test | PostgreSQL | Pending-write replay is best-effort (no retry while offline) |
-| Leitura em voz alta | VERIFIED WORKING (real engine, Chrome 155) | 6 unit + 3 e2e tests with a fake engine; §11 real-browser run with engine events | browser speech engine | Loudspeaker output not attested by a human in this loop; resume is per paragraph |
-| Busca textual | VERIFIED WORKING | `search.test.ts`, 3 e2e tests | none | — |
-| Busca semântica | IMPLEMENTED, NOT VERIFIED | code path + 402 test | Together key | No key available; falls back to lexical, labelled |
-| Microfone e transcrição real | IMPLEMENTED, NOT VERIFIED | code review, error copy | browser mic / Together key | Pane blocks the microphone |
-| Destaques e sublinhados | VERIFIED WORKING | `reader.spec.ts`, `anchors.test.ts` | none | Touch selection untested on device |
-| Notas persistentes | VERIFIED WORKING | `reader.spec.ts` (create/edit/delete/reload) | none | — |
-| Integração entre recursos | VERIFIED WORKING (mock) | voice hit → jump + read aloud; lens → read passage then continue; delete gloss regression | fake speech engine | Real-audio path unverified |
-| Responsividade | VERIFIED WORKING | `mobile.spec.ts`, ref vs impl mobile screenshots | none | Gloss bottom-sheet not screenshot-compared |
-| Fidelidade visual | PARTIALLY IMPLEMENTED | `docs/qa/ref-*` vs `docs/qa/*` | none | Imagery, partner logo, Sign in |
-| Importação de links bloqueados (bookmarklet de captura) | VERIFIED WORKING | `api.spec.ts` (page import), `landing.spec.ts` (handshake), real Atlantic article captured in Chrome (§11) | reader's own browser tab | Paywalled pages yield only what the browser shows |
-| Mais entradas (botão Add na barra, soltar ficheiro/link em qualquer página, ⌘V fora da landing, faixa "Read something else" no fim do texto) | VERIFIED WORKING | `reader.spec.ts` "more ways in"; Chrome check of the Add panel from the top bar | none | Dropping a link from another window not exercised by a test (only a file drop) |
-| Sign in (Google) | IMPLEMENTED, NOT VERIFIED | `auth.test.ts` (tokens, PKCE), `api.spec.ts`/`landing.spec.ts` (unconfigured path), `accounts` table migrated | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | No credentials on this machine; the OAuth round-trip and the anonymous→account library merge have not run |
-| Build de produção | VERIFIED WORKING | `pnpm build` | none | — |
-| Testes automatizados | VERIFIED WORKING | 42 unit + 32 e2e passing | Playwright Chromium | Live-provider, microphone and real OAuth paths untested |
-
-## 9. Percentages (denominators stated; unverified items are not counted as working)
-
-| Area | Denominator | Verified | % verified |
+| Requirement | Status | Evidence | Remaining blocker |
 | --- | --- | --- | --- |
-| Route coverage | 6 public routes/entries | 4 verified (`/`, `/library`, `/read/[slug]`, `?hl=` by test), 2 implemented not verified (`/?url=`, `/?save=`) | 67% (100% implemented) |
-| Visual fidelity | 11 areas in §7 | 7 match, 2 partial, 1 mostly, 1 different (imagery) | 64% full match (82% match or mostly) |
-| Original functionality | 28 observed interactions | 23 verified (bookmarklets now verified for real), 4 implemented not verified (incl. sign-in, pending credentials), 1 not implemented (MCP) | 82% |
-| Read-aloud | 9 requirements | 8 verified with the real Chrome engine (play/pause/resume/stop/restart, whole text, passage-then-continue, sentence tint, speed, voices, long run without stall, no overlap); 1 partial (mid-sentence resume after reload) | 89% real engine |
-| Voice search | 10 requirements | 7 verified, 2 not verified (mic, server STT), 1 partial (semantic) | 70% |
-| Annotations | 9 requirements | 8 verified, 1 not verified (touch) | 89% |
-| Test coverage | 13 areas in the brief | 11 covered | 85% |
+| Landing and navigation | VERIFIED WORKING | `landing.spec`, axe | none |
+| Library and document lifecycle | VERIFIED WORKING | `library.spec`, `reader.spec`, `a11y.spec`; Colour sort and topic persistence untested | Colour sort test |
+| URL import | VERIFIED WORKING | live fetches of public pages, `api.spec`, `safeFetch*` tests | sites that answer 403 need the bookmarklet |
+| Bookmarklet import | VERIFIED WORKING | `landing.spec` handshake tests; run for real on a live Atlantic article in Chrome | none |
+| PDF and text import | VERIFIED WORKING | `content.test`, `pdf-paragraphs.test`, `import-and-isolation.spec`; real arXiv PDF imported | figure and table text becomes short blocks (IMP-5) |
+| PostgreSQL persistence | VERIFIED WORKING | I/E specs write and read real rows; outage reproduced with the real driver | no disposable test database |
+| Read-aloud controls | VERIFIED WORKING | 74 unit tests, 27 e2e speech and voice tests, real Chrome 155 run of the rewritten controller (pause, skip while paused, resume, back, stop, 0 errors) | other browsers |
+| Audible output | BLOCKED | none: no independent human verification has occurred | a person must listen (`docs/audit/tts-validation.md`, Level 3) |
+| Passage-level reading | VERIFIED WORKING | e2e: select, read that passage, continue; voice hit read-only | audibility as above |
+| Microphone permissions | IMPLEMENTED, NOT VERIFIED | 26 lifecycle tests with fake devices | a person must grant and deny the prompt in Chrome |
+| Real speech transcription | IMPLEMENTED, NOT VERIFIED (browser recogniser); BLOCKED (server Whisper) | fake recogniser only; no key | a person speaking; a Together key |
+| Semantic passage retrieval | BLOCKED (meaning re-rank); VERIFIED WORKING (lexical) | 134 retrieval tests, labelled set; re-rank needs a key | Together key |
+| Exact source navigation | VERIFIED WORKING | e2e jump and mark; 215 of 215 hit offsets slice back to the excerpt | none |
+| Annotation anchoring | VERIFIED WORKING | `anchors-*` tests (251, of which 201 are seeded random cases), randomised contract, real-Chromium triple-click | Safari and touch unverified |
+| Annotation persistence | VERIFIED WORKING | `annotations-api.spec`, `library-sync.test`, two-device deletion e2e | `local:` documents never sync (ANNOT-17) |
+| AI provider integration | BLOCKED | 402 path, request limits, error hygiene only | Together key |
+| Google OAuth round-trip | BLOCKED | pure helpers and disabled-state UI only | Google client id and secret |
+| User data isolation | VERIFIED WORKING | `import-and-isolation.spec`, `annotations-api.spec` (409, invisible reads) | none |
+| Responsive behavior | PARTIALLY IMPLEMENTED | `mobile.spec`, axe at 375 px (Pixel 7 emulation) | real phone, touch |
+| Visual fidelity | PARTIALLY IMPLEMENTED | pixel diff 0.42 % to 16.40 %; painted art and logo are stand-ins | none required |
+| Accessibility | VERIFIED WORKING (automated: 0 axe violations in 30 states, visible focus, dialog focus) | `a11y.spec` | no screen-reader pass; three themes unscanned |
+| Security review | PARTIALLY IMPLEMENTED | 9 of 16 findings fixed, 5 partial, 2 information | shared limiter, anonymous growth cap, CSP script-src |
+| Production build | VERIFIED WORKING | `pnpm build` exit 0 | production host not exercised |
+| Database outage tolerance | VERIFIED WORKING | `db-outage.test`, `annotation-routes-outage.test`, real app on a dead port | none |
+| Dialog keyboard focus | VERIFIED WORKING | 4 e2e (found and fixed in this audit) | none |
 
-## 10. Summary for the hand-off
+## E. Defects
 
-- **Project directory:** `/Users/joaormendes/gloss-reconstruction/gloss`
-- **Local URL:** http://localhost:3100
-- **Start command:** `cd ~/gloss-reconstruction/gloss && pnpm dev --port 3100` (first time: `pnpm install`; database: `pnpm db:migrate` with `DATABASE_URL` set)
-- **Database:** local PostgreSQL 16, database `gloss`, migrated, reachable; no destructive changes made.
-- **Tests:** typecheck ✓ · lint ✓ · 42 unit ✓ · 32 e2e ✓ · build ✓
-- **Verified for real:** landing, library, reader, import (URL/PDF/text, and bot-blocked sites through the capture bookmarklet), highlights/underlines/notes with persistence, typed voice search, themes, responsive layout, API ownership and no-key behaviour, read-aloud with the real Chrome speech engine (§11).
-- **Not yet verified:** a human hearing the read-aloud audio, microphone recognition, server transcription, model answers (glosses / whole-text / overview), semantic re-rank, touch selection, Google sign-in round-trip and library merge.
-- **Credentials needed (names only):** `TOGETHER_API_KEY` for answers, embeddings and transcription; `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` for sign-in (free OAuth client; redirect URI `http://localhost:3100/api/auth/google/callback` locally). `DATABASE_URL` and `GLOSS_COOKIE_SECRET` are set.
-- **Costs:** none today; Together AI usage is pay-per-token/minute when a key is added (not yet measured); Google OAuth is free.
-- **Next actions:** (1) press `L` on any text in Chrome and confirm you *hear* it; (2) press `V`, allow the microphone, say "find the part about the sea floor"; (3) add a Together key in the key panel and run Explain, a whole-text question and `B`; (4) create a Google OAuth client, fill the two env vars, restart, click Sign in, then sign in on a second browser and confirm the library follows; (5) optionally rename the `gloss` folder/package to match Understand.io.
+Complete list with severity and status: `docs/audit/defect-backlog.md` (107 entries). The ones that mattered most, with root cause, correction and regression test:
 
-## 11. Follow-up pass (2026-10-17): real-browser read-aloud, blocked imports, more ways in, sign-in
+| ID | Sev | Root cause | Correction | Regression test | Status |
+| --- | --- | --- | --- | --- | --- |
+| IMP-4 "That page answered 403." | P2 | some publishers refuse server-side fetches by TLS fingerprint | clear message; capture bookmarklet hands the page HTML from the reader's own browser to the server | `importStatus.test`, `landing.spec`, real article | Fixed |
+| DB-1 library 500 and overlay when PostgreSQL was down | P1 | server components assumed a database; the save path leaked SQL | `isConnectionError`, degraded results with `persisted:false`, generic messages | `db-outage.test` (real driver, dead port) | Fixed |
+| SEC-1 server key usable by anyone | P1 | no metering, loose bounds | per-reader and per-address limiter, schema bounds, fixed provider errors | `serverKeyAbuse.test` | Partial (per process) |
+| ANNOT-1 deleted marks resurrected by another device | P1 | sync re-posted anything missing remotely | `syncedAt` marks, tombstones until confirmed, per-id ordering | `library-sync.test`, e2e with the real server | Fixed |
+| VOICE-1 any re-render ended recognition | P1 | cleanup effect depended on an inline callback | callbacks through a ref, session tokens | `voice-search.test`, e2e scroll test | Fixed |
+| VOICE-2/4 late result or permission grant acted after close | P1 | no session ownership | every callback bound to a session; abort on close | `voice-search.test` | Fixed |
+| TTS-1 silence after pause, skip, speak | P1 | `cancel()` can leave `paused` true | un-pause after every cancel | `speech-controller.test`; confirmed in real Chrome | Fixed |
+| RETR-1/2 confidence skewed by filler words | P1 | query filler counted; "none" only on zero overlap | idf-weighted coverage, filler list, rare-word rule | `retrieval.test` | Fixed |
+| SSRF rebinding, ports, ranges (SEC-3, 10) | P2 | check-then-use DNS, no port policy, gaps | connect-time pinned lookup, ports 80/443, full ranges | `safeFetchPinning/Ranges.test` | Fixed |
+| SEC-4 sign-in destroyed another account | P2 | cookie of another account merged or adopted | `planSignIn`, unique `accounts.reader_id` | `accountMerge.test` | Fixed |
+| SEC-5 pathological HTML or PDF froze or killed the server | P2 | unbounded synchronous parsing | element, depth, page and character limits, deadline | `parserLimits.test` | Fixed |
+| A11Y-1 368 axe violations | P2 | contrast tokens, names, landmarks | token changes, names, landmarks | `a11y.spec` | Fixed |
+| A11Y-3 aria-modal dialogs did not trap or restore focus | P2 | no focus management | `useModalFocus` | 4 e2e (fail without it) | Fixed (this stretch) |
+| VOICE-7 typed text overwritten by a late spoken result | P2 | final handler ignored typing | typed text wins, spoken result dropped | `voice-search.test` | Fixed (this stretch) |
+| SEC-11 DB errors with note text logged by annotation routes | P3 | guard rethrew non-outage errors | code-only log, fixed 500 | `guarded-errors.test` | Fixed (this stretch) |
+| TTS-12 focus lost when Stop closed the listen bar | P2 | bar unmounted with focus inside | focus to listen button or the text | 2 e2e (fail without it) | Fixed (this stretch); shortcut off-switch still open |
+| IMP-1 a GIF imported as a text document | P2 | no content sniffing | content sniffing | `uploadKind.test`, e2e | Fixed |
+| IMP-5 PDF paragraphs fused with headings | P2 | line-end text without paragraph gaps | break on vertical gaps larger than 1.5 times normal | `pdf-paragraphs.test` | Fixed, with a cost (see G) |
 
-Trigger: the user tried to save a link and got "That page answered 403.", noted there was no login,
-and asked for three more places to add links/PDFs. They also asked for the read-aloud script to be run.
+Open: A11Y-4 (no screen-reader pass), ANNOT-17, IMP-3, RETR-10, A11Y-5, BUILD-1.
 
-### Read-aloud in the user's Chrome (via the Claude in Chrome extension)
+## F. External dependencies
 
-Browser: Chrome 155, macOS, `speechSynthesis.getVoices()` = 199 voices. `speechSynthesis.speak` was
-wrapped in the page to log each utterance's `start`/`boundary`/`end`/`error` events.
+| Dependency | Needed for | Configured | Cost | Verification |
+| --- | --- | --- | --- | --- |
+| PostgreSQL 16 | persistence | yes, local | free | real |
+| Together AI (`TOGETHER_API_KEY`, or a reader's own key) | margin answers, whole-text answers, embeddings, Whisper | **no key** | pay per token and per audio minute; no call was made | none |
+| Google OAuth (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL`) | accounts | **not configured** | free | none |
+| Browser speech synthesis | read aloud | yes (browser feature) | free | real engine, events only |
+| Browser speech recognition and microphone | voice search | browser feature | the browser vendor's service receives the audio in Chrome | none |
+| Public websites | URL import | n/a | free | real |
 
-| Step | Observed |
+Secrets: `.env.local` is git-ignored and absent from history; no secret value was printed or written to any file in this audit. Details, setup steps and verification steps: `docs/audit/external-integrations.md`.
+
+## G. Known limitations
+
+Unverified or blocked:
+
+- Audible read-aloud output (BLOCKED, human).
+- Microphone permission flow and real recognition (IMPLEMENTED, NOT VERIFIED, human).
+- Server transcription, embedding re-rank, margin and whole-text answers (BLOCKED, key).
+- Google sign-in round trip and the anonymous-to-account library merge (BLOCKED, credentials).
+- Touch selection and every non-Chromium browser (NOT OBSERVABLE here).
+- Screen-reader experience (not tested).
+- Production behaviour behind TLS and a real host (not tested, not allowed).
+
+Partial or by design:
+
+- Passage retrieval by words alone misses paraphrases: on the labelled set seven answerable queries now answer "no match" (three before) and top-1 is 57.7 %. The 0.4 coverage cutoff is not calibrated.
+- PDF import now separates headings and paragraphs, at a cost: on a real paper the block count went from 62 to 258, of which 103 are shorter than 40 characters. 23 are real headings; many are table, figure and math fragments that used to hide inside neighbouring paragraphs.
+- Annotations on `local:` documents never sync. Edits inside an annotated quote orphan the mark instead of guessing. A newer edit on one device beats a deletion on another.
+- Resume after a reload starts from the paragraph on screen, not mid-sentence; where reading stopped is not remembered.
+- `/?url=` and `/?save=` fill the field and wait for Read (security change from the reference).
+- Existing marks are not keyboard-focusable; the lens does not take focus.
+- No way to switch off single-key shortcuts such as `L`.
+- The development database is shared with the test suite.
+- Not built, by specification: Painted covers, web search in answers, MCP agent connection, server-side TTS.
+
+## H. Completion metrics
+
+Each percentage is `VERIFIED WORKING` over a defined set, counting each requirement once. Blocked, not observable and implemented-not-verified items are never counted as complete and are listed. These are requirement counts, not code coverage and not test pass rate. The sets and definitions are in `docs/implementation-status.md`.
+
+| Metric | Set | Verified | % | Not counted as complete |
+| --- | --- | --- | --- | --- |
+| Route coverage | 6 entry points | 5 | 83 % | 1 partial (`?hl=`) |
+| Existing product functionality | 26 | 14 | 54 % | 3 partial, 4 not verified, 2 blocked, 3 not implemented |
+| Visual fidelity | no defensible set | n/a | n/a | measured pixel difference instead (0.42 % to 16.40 %) |
+| Text-to-speech | 12 | 8 | 67 % | 2 partial, 1 blocked (audible), 1 not implemented (server TTS) |
+| Voice capture and transcription | 5 | 2 | 40 % | 2 not verified, 1 blocked |
+| Passage retrieval | 5 | 4 | 80 % | 1 blocked (meaning re-rank) |
+| Annotations and persistence | 9 | 7 | 78 % | 1 partial, 1 not verified (touch) |
+| AI provider integration | 6 | 2 | 33 % | 4 blocked |
+| Authentication | 3 | 1 | 33 % | 1 not verified, 1 blocked |
+| Automated test coverage of requirements | 71 | 54 have a test | 76 % | 17 have none; a test is not verification |
+| Security review | 16 | 9 | 56 % | 5 partial, 2 information |
+| Operational readiness | 10 | 6 | 60 % | CI, monitoring, shared limiter and backups, deployment not implemented |
+| Line or branch code coverage | none | n/a | n/a | not measured |
+
+Across all 71 requirements: 47 verified working, 6 partially implemented, 7 implemented but not verified, 6 blocked, 1 not observable, 4 not implemented.
+
+## I. Recommended next actions
+
+**Required before basic user testing**
+1. Open http://localhost:3100 and follow the human checks: read-aloud (`docs/audit/tts-validation.md`), voice search (`docs/audit/voice-search-validation.md`), annotations on a phone (`docs/audit/annotation-validation.md`). About fifteen minutes in total.
+2. If you want margin answers and meaning search: add a Together key (see `docs/audit/external-integrations.md`) and run Explain, a whole-text question, a paraphrase voice query.
+
+**Required before a release candidate**
+1. Run Google sign-in with real credentials, including the library merge and a second browser.
+2. Repeat the human checks in Safari and on a phone.
+3. Add CI that runs typecheck, lint, unit and end-to-end tests with a disposable database.
+4. Do a screen-reader pass (VoiceOver) and scan the Sepia, Snow and Ink themes.
+5. Decide the behaviour for ANNOT-17 (`local:` documents) and make existing marks keyboard-reachable.
+
+**Required before production deployment**
+1. Move the rate limiter to a shared store and add a daily spend ceiling for the server key; cap anonymous reader creation (SEC-1, SEC-2).
+2. Run the server on a staging host behind TLS and observe the headers, the cross-site guard, the secure cookie and `APP_URL` enforcement; apply migration 0002 there.
+3. Add a `script-src` CSP by moving the theme bootstrap to a hash or nonce (SEC-9); sign the reader cookie with a purpose label (SEC-12).
+4. Add logging, error tracking, backups and a restore procedure.
+5. Guard the `documents/[id]` routes like the annotation routes (SEC-11).
+
+**Optional improvements**
+1. Merge short PDF fragments into neighbours when they have no sentence punctuation (IMP-5).
+2. Calibrate the retrieval cutoff on a larger labelled set; add an inverted index if documents get very large (RETR-10).
+3. Remember where reading stopped (TTS-9); add a setting to turn off single-key shortcuts.
+4. Run `prettier --write` as one repository-wide commit with a `.prettierignore`, then add a check script (HYG-1).
+
+## J. Final commands
+
+Only commands that exist in this repository and were run in this audit.
+
+| Purpose | Command |
 | --- | --- |
-| Click, press `L` | Pill "Reading · 1/276 · 0%", first sentence tinted; utterance 1 fired `start` after 408 ms and 44 word boundaries before `end` at 15.3 s; utterance 2 started 55 ms later |
-| `Space` | `speechSynthesis.paused = true`, button label → "Resume", counter 2/276 · 1% |
-| `Space` again | Boundaries resumed (48 → 61), `paused = false` |
-| Forward / back arrows | 5/276 → 4/276; the interrupted utterance reported `error: interrupted` (expected) and the new sentence started within ~10 ms |
-| Speed 1.5× | Current sentence restarted with `rate: 1.5` |
-| Voice list | 40+ en voices listed (System default, Albert, Daniel en-GB, Google UK/US "online", Samantha…); picking Daniel restarted the sentence with `voice: Daniel` immediately |
-| Stop | `speaking = false`, pill and tint gone |
-| Select sentence in ¶2 → … → Read aloud | "Passage · 1/1 · 100%", then "Reading · 1/274" and the next sentence ("Northward, the chalk…") — this exposed the counter restart, fixed in this pass (now `3/276`) |
-| 2-minute unattended run | 20 utterances, 0 errors, 0 unfinished, max gap between sentences 81 ms, page auto-scrolled (scrollY 2345), no stall message, no console errors |
-
-Not verifiable from here: whether sound came out of the speakers. Everything the engine reports says it did.
-
-### Link import: root cause and fix
-
-- Reproduced with `curl`: theatlantic.com, medium.com and nytimes.com answer **403** to the server's
-  fetch *and* to a full Chrome header set (UA, sec-ch-ua, accept-language…), while paulgraham.com,
-  Wikipedia, BBC, Substack and The New Yorker answer 200. The block is TLS-fingerprint bot protection,
-  not our user agent; no server-side fetch can pass it.
-- Fix 1 (`src/lib/server/importStatus.ts`, `api/import/route.ts`): 401/403/429/451 now return 422 with
-  "That site blocks readers like this one. Open the page in your browser and use the “Read in
-  Understand” bookmarklet, or paste its text." (unit-tested). The server fetch also sends a browser-like
-  UA and `accept-language`.
-- Fix 2 (`api/import/page/route.ts`, `lib/client/bookmarklet.ts`, `ImportBar.tsx` capture mode): the
-  bookmarklets now open `/?capture=read|save` and hand the page's `outerHTML` to that tab through
-  `postMessage` (origin- and source-checked handshake); the server runs Readability over the HTML it is
-  given and never contacts the site. Falls back to the server fetch after 6 s if no page arrives.
-  **Verified for real**: the bookmarklet code was run on a live Atlantic article in Chrome and the
-  reader opened with the article (6 paragraphs — the paywalled page exposes only that much). Also
-  covered by `api.spec.ts` and a two-tab handshake test in `landing.spec.ts`.
-
-### Three more ways in (plus one)
-
-1. **Top bar "+" button** on landing, library and reader → the Add panel (links, Pocket/Raindrop export,
-   bookmarklets, and now "Open a PDF or text file" and "Paste text").
-2. **Drop anywhere**: a PDF / text / markdown file or a dragged link on any page shows "Drop to read" and
-   imports it (`GlobalImport.tsx`; drags that start inside the page are ignored).
-3. **"Read something else" strip** at the end of every text: link field, Open a PDF, Paste text.
-4. **⌘V on library and reader pages** (the landing already had it); in the reader it asks first so a stray
-   paste never navigates away mid-read.
-
-### Sign-in (Google, env-gated) — IMPLEMENTED, NOT VERIFIED
-
-The reference uses Clerk; this build adds a self-contained Google OAuth 2.0 (PKCE) flow with no new
-paid service: `accounts` table (migration `0001`), `/api/auth/google` → Google → `/api/auth/google/callback`,
-`/api/auth/me`, `/api/auth/signout`. An account owns one reader id; signing in swaps the browser's reader
-cookie to it and merges that browser's anonymous library (documents, annotations, glosses, progress,
-settings) into the account in one transaction. Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` the
-Sign in button opens a popover saying sign-in is not set up and what is needed (verified in Chrome and
-by test). The real round-trip and the merge have **not** run: no Google credentials exist on this machine.
-Setup: Google Cloud Console → Credentials → OAuth client (Web application) → redirect URI
-`http://localhost:3100/api/auth/google/callback` → put both values in `.env.local`, restart.
-
-### Commands in this pass
-
-| Command | Result |
-| --- | --- |
-| `pnpm typecheck` | clean |
-| `pnpm lint` | clean |
-| `pnpm test` | 42 passed (7 files; new: `importStatus.test.ts`, `auth.test.ts`, counter test in `speech-controller.test.ts`) |
-| `pnpm test:e2e` | 32 passed (desktop 30, mobile 2; new: page import, capture handshake, sign-in honesty, more-ways-in) |
-| `pnpm db:generate && pnpm db:migrate` | `0001_heavy_the_order.sql` applied; `accounts` table present; ledger has 2 entries |
-| `pnpm build` | OK — compiled, 23 routes (5 new: `/api/import/page`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/me`, `/api/auth/signout`) |
-
-## 12. Defect: library crashed with a 500 when PostgreSQL was unreachable (2026-10-17)
-
-**Reported:** the user opened `/library` and the Next.js overlay showed "2 Issues": "Encountered a script
-tag while rendering React component" (1/2) and a second issue not captured in the screenshot.
-
-**Evidence (dev server log):** `GET /library 500`, `Failed query: select … from "documents"` with
-`[cause]: AggregateError … ECONNREFUSED ::1:5432 / 127.0.0.1:5432`, thrown from `listDocuments` in the
-server component. The second issue was this uncaught server error forwarded to the browser. PostgreSQL's
-own log shows an unclean stop (`lock file "postmaster.pid" already exists`) before it was brought back up
-at 18:32; it was accepting connections again when this was investigated.
-
-**Root causes (two):**
-
-1. **P1 — server components assumed the database is always there.** The architecture promises a
-   local-first app that keeps working without a database, but `listDocuments`/`loadDocument` threw on a
-   connection failure and `saveDocument` leaked drizzle's message (full SQL and parameters) to the client.
-   `/api/documents` also reported `persisted: true` on failure, which would have made the client delete its
-   local copies of server-backed documents.
-2. **P3 (dev-only noise) — the theme boot `<script>` was rendered by React on every client render.** React 19
-   logs "Encountered a script tag" whenever it *creates* a script element client-side (error page re-render,
-   Fast Refresh of the root layout). Reproduced: the error appears in the dev log right after a rebuild that
-   touches `layout.tsx`.
-
-**Fix:** `src/lib/server/dbErrors.ts` (`isConnectionError`, handles the AggregateError/cause shapes);
-`documents.ts` degrades on connection errors (list → `persisted:false`, load → `unavailable:true`, save →
-local-first result with `persisted:false`) and replaces other database errors with a generic message after
-logging them server-side; `/api/documents` returns the real `persisted`; the reader shows "Your library is
-out of reach" with Try again instead of "Not on your shelves"; postgres.js `connect_timeout` set to 5 s;
-`ThemeBoot` renders the inline script only for the server render and hydration pass.
-
-**Verification (real, not mocked):**
-
-| Check | Result |
-| --- | --- |
-| Real app with `DATABASE_URL` on a dead port | `/`, `/library`, `/read/<sample>`, `/read/<unknown>` all 200; text import 200 with `persisted:false`; `/api/documents` → `{"documents":[],"persisted":false}`; server log has one `[db] … (code ECONNREFUSED)` line per failure and **0** occurrences of the SQL |
-| Browser, same dead-DB server | library renders title and 3 sample books; console has no error; unknown own text shows "Your library is out of reach." |
-| Hot reload of `ThemeBoot.tsx` ×3 and `layout.tsx` ×3 with a page open | 0 script-tag errors (the old layout logged one on the same trigger) |
-| Theme before first paint (`scripts/theme-paint-check.mts`) | theme set at 35 ms vs first paint 92 ms on a fast network, 327 ms vs 372 ms on a throttled one. An earlier `next/script` attempt flashed the wrong theme on the throttled network (651 ms vs 392 ms) and was rejected. |
-
-**Regression tests:** `tests/unit/db-outage.test.ts` (real postgres.js against a dead port: list, load, save,
-and the exact error shape from the log; no mocks), `tests/unit/theme-boot.test.ts` (React in jsdom: a control
-proves the warning is detectable, then client render, SSR and hydration are clean), and an e2e test for
-theme-before-paint plus warning-free client navigation (12/12 stable).
-
-**Honest limits:** the e2e test cannot reproduce the script warning on its own (client navigation does not
-re-render the root layout; the old layout passed it), so the jsdom test is the guard for that part. Other
-API routes (annotations, glosses, progress) still answer 500 during an outage; the client treats that as a
-failed sync, keeps its tombstones and retries, so nothing is lost, but a clean 503 is tracked as a follow-up.
-
-Suite after this fix: typecheck ✓ · lint ✓ · 51 unit ✓ · 33 e2e ✓.
-
+| Install | `pnpm install --frozen-lockfile` |
+| Database migration (needs `DATABASE_URL`) | `pnpm db:migrate` |
+| Start the app | `pnpm dev --port 3100` |
+| Typecheck | `pnpm typecheck` |
+| Lint | `pnpm lint` |
+| Unit tests | `pnpm test` |
+| Integration tests | there is no separate script: the HTTP-level specs run inside `pnpm test:e2e` (for example `pnpm exec playwright test tests/e2e/annotations-api.spec.ts tests/e2e/api.spec.ts tests/e2e/import-and-isolation.spec.ts`) |
+| End-to-end tests | `pnpm test:e2e` (starts `next dev` on 3100 unless it is already running; `PLAYWRIGHT_PORT` changes the port) |
+| Production build | `pnpm build` |
+| Dependency audit | `pnpm audit --prod` |
+| Retrieval metrics | `pnpm exec tsx scripts/eval-retrieval.mts` |
+| Accessibility scan of 30 states | `pnpm exec tsx scripts/a11y-scan.mts` |
+| Visual comparison | `pnpm exec tsx scripts/visual-diff.mts` |

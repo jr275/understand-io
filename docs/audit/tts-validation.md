@@ -6,7 +6,7 @@ _Code under test: `src/lib/speech/controller.ts`, `segments.ts`, `src/lib/search
 
 | Level | Meaning | Done |
 | --- | --- | --- |
-| 1 Logic | state machine against fake engines | yes, 116+ unit tests (`speech-controller`, `segments`, `sentences`, `speech-unsupported`) |
+| 1 Logic | state machine against fake engines | yes, 74 unit tests in four files (`speech-controller` 37, `sentences` 26, `segments` 10, `speech-unsupported` 1) |
 | 2 Browser behaviour | the real `speechSynthesis` in the user's Chrome reports start/end/error events, `paused` flag, voices | yes, this pass, see below |
 | 3 Audible sound | a human hears the voice through speakers or headphones | **not done and not possible for an agent** |
 

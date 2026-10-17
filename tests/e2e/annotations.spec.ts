@@ -231,4 +231,14 @@ test.describe("annotations in the reader", () => {
     await removeAll(nb);
     await expect(page.locator(".m-hl, .m-ul")).toHaveCount(0);
   });
+
+  test("ANNOT-19 (part): Space with the lens open does not start a question, any other letter does", async ({ page }) => {
+    await openReader(page);
+    await selectInBlock(page, "p3", 0, 25);
+    await page.keyboard.press("Space");
+    await expect(page.getByLabel("Your question about the selected passage")).toHaveCount(0);
+    await expect(page.getByRole("toolbar", { name: "Actions for the selection" }).getByRole("button", { name: "Explain" })).toBeVisible();
+    await page.keyboard.press("w");
+    await expect(page.getByLabel("Your question about the selected passage")).toHaveValue("w");
+  });
 });

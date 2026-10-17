@@ -58,7 +58,8 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existin
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      // Space is left alone (it scrolls the page); every other single character starts a question.
+      if (e.key.length === 1 && e.key !== " " && !e.metaKey && !e.ctrlKey && !e.altKey) {
         // Shift+H / Shift+U are shortcuts; plain letters start a question ("just start typing").
         if (e.shiftKey && e.key === "H") return onHighlight(marker);
         if (e.shiftKey && e.key === "U") return onUnderline(marker);

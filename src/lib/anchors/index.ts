@@ -52,6 +52,77 @@ export function makeAnchor(blocks: Block[], start: AnchorPoint, end: AnchorPoint
   return { start: s, end: e, quote, prefix, suffix, prevBlock, nextBlock };
 }
 
+/* ------------------------------------------------------------------ graphemes and folding */
+
+let segmenter: Intl.Segmenter | null | undefined;
+function graphemeSegmenter() {
+  if (segmenter === undefined) segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+  return segmenter;
+}
+
+/** Grapheme clusters of `s` as [start, end) UTF-16 ranges (code points when Intl.Segmenter is missing). */
+function clusters(s: string): { start: number; end: number }[] {
+  const seg = graphemeSegmenter();
+  const out: { start: number; end: number }[] = [];
+  if (seg) {
+    for (const g of seg.segment(s)) out.push({ start: g.index, end: g.index + g.segment.length });
+    return out;
+  }
+  for (let i = 0; i < s.length; ) {
+    const n = (s.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
+    out.push({ start: i, end: i + n });
+    i += n;
+  }
+  return out;
+}
+
+/**
+ * Move offset `o` out of the middle of a grapheme cluster (an emoji with a skin tone, a letter with a combining accent):
+ * a selection start moves back to the cluster's start, an end forward to its end. Never leaves half a surrogate pair.
+ */
+export function snapToGrapheme(text: string, o: number, side: "start" | "end"): number {
+  if (o <= 0) return 0;
+  if (o >= text.length) return text.length;
+  // Clusters are short: look at a window around the point (starting on a code point boundary).
+  let from = Math.max(0, o - 64);
+  if (from > 0 && (text.charCodeAt(from) & 0xfc00) === 0xdc00) from--;
+  const window = text.slice(from, Math.min(text.length, o + 64));
+  for (const c of clusters(window)) {
+    if (from + c.start >= o) break;
+    if (o < from + c.end) return side === "start" ? from + c.start : from + c.end;
+  }
+  return o;
+}
+
+/** Text folded for comparison: NFC, typographic quotes and dashes, non-breaking spaces. Applied per grapheme cluster so offsets can be mapped back. */
+const FOLD: Record<string, string> = { "‘": "'", "’": "'", "‛": "'", "“": '"', "”": '"', "„": '"', "–": "-", "—": "-", " ": " ", " ": " ", " ": " " };
+const fold = (s: string) => s.normalize("NFC").replace(/[‘’‛“”„–—   ]/g, (c) => FOLD[c]);
+
+interface Folded {
+  text: string;
+  /** For every UTF-16 unit of the folded text: where its source cluster starts and ends in the original text. */
+  from: number[];
+  to: number[];
+}
+const foldedCache = new WeakMap<Block[], (Folded | undefined)[]>();
+function foldedBlock(blocks: Block[], i: number): Folded {
+  let per = foldedCache.get(blocks);
+  if (!per) foldedCache.set(blocks, (per = []));
+  const hit = per[i];
+  if (hit) return hit;
+  const text = blocks[i].text;
+  const f: Folded = { text: "", from: [], to: [] };
+  for (const c of clusters(text)) {
+    const part = fold(text.slice(c.start, c.end));
+    for (let k = 0; k < part.length; k++) {
+      f.from.push(c.start);
+      f.to.push(c.end);
+    }
+    f.text += part;
+  }
+  return (per[i] = f);
+}
+
 /* ------------------------------------------------------------------ re-anchoring */
 
 export type AnchorStatus = "ok" | "moved" | "orphaned";
@@ -215,6 +286,23 @@ export function resolveAnchorDetailed(blocks: Block[], a: Anchor, idx: Map<strin
     }
   }
 
+  // Nothing matched exactly: the text may have been re-imported with different Unicode normalisation or typographic quotes.
+  if (single && !cands.length) {
+    const fq = fold(a.quote);
+    if (fq) {
+      for (let i = 0; i < blocks.length; i++) {
+        const f = foldedBlock(blocks, i);
+        for (let from = 0; ; ) {
+          const o = f.text.indexOf(fq, from);
+          if (o < 0) break;
+          const place = { si: i, so: f.from[o], ei: i, eo: f.to[o + fq.length - 1] };
+          cands.push({ place, ctx: contextScore(contextFractions(blocks, a, place)), pos: proximity(place), exactStored: isStored(place), body: 0 });
+          from = o + 1;
+        }
+      }
+    }
+  }
+
   const best = pick(cands, a.quote.length);
   if (!best) return orphan;
   const p = best.place;
@@ -328,6 +416,9 @@ export function anchorFromSelection(sel: Selection, blocks: Block[]): Anchor | n
   if (si === undefined || ei === undefined) return null; // the page and the blocks disagree: no anchor rather than a wrong one
   if (ei > si && e.o === 0) e = { b: blocks[ei - 1].id, o: blocks[ei - 1].text.length };
   if (ei > si && s.o >= blocks[si].text.length) s = { b: blocks[si + 1].id, o: 0 };
+  // Never cut a grapheme in two (an emoji with a skin tone, a letter with its accent): widen to whole characters.
+  s = { b: s.b, o: snapToGrapheme(blocks[idx.get(s.b)!].text, s.o, "start") };
+  e = { b: e.b, o: snapToGrapheme(blocks[idx.get(e.b)!].text, e.o, "end") };
   if (comparePoints(s, e, idx) >= 0) return null;
   const a = makeAnchor(blocks, s, e, idx);
   if (!a.quote.trim()) return null;

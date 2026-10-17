@@ -130,6 +130,19 @@ describe("anchorFromSelection", () => {
   });
 });
 
+describe("ANNOT-15: grapheme snapping", () => {
+  it("a selection that cuts an emoji in two is widened to the whole emoji (no lone surrogate in the quote)", () => {
+    document.body.innerHTML = `<div class="prose-read"><div class="blk" data-block="p1"><span class="blk-text">Thumbs \u{1F44D}\u{1F3FD} up</span></div></div>`;
+    const t = document.querySelector(".blk-text")!.firstChild!;
+    const emojiStart = "Thumbs ".length; // the thumb is 2 units, the skin tone 2 more
+    const one = [{ id: "p1", type: "p" as const, text: t.textContent! }];
+    const a = anchorFromSelection(select(t, emojiStart + 1, t, emojiStart + 3), one)!;
+    expect([a.start.o, a.end.o]).toEqual([emojiStart, emojiStart + 4]);
+    expect(a.quote).toBe("\u{1F44D}\u{1F3FD}");
+    expect(a.quote.isWellFormed()).toBe(true);
+  });
+});
+
 describe("rangeForAnchor", () => {
   it("round-trips: the range of an anchor selects exactly its quote (single and multi-block, across inline elements)", () => {
     const one = anchorFromSelection(select(textNode("p1", 0), 2, textNode("p1", 2), 8), blocks)!;

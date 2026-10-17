@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampNote, makeAnchor, resolveAnchor, segmentBlock } from "@/lib/anchors";
+import { blockIndex, clampNote, makeAnchor, resolveAll, resolveAnchor, segmentBlock, snapToGrapheme } from "@/lib/anchors";
 import type { Anchor, Block } from "@/lib/content/types";
 
 /** Table-driven cases from the annotation audit (experiments E1-E12): anchors must follow their text, and never attach to the wrong place. */
@@ -207,5 +207,67 @@ describe("clampNote (ANNOT-10)", () => {
     const cut = clampNote("a".repeat(4999) + "👍🏽"); // the pair would be split after 5000 units
     expect(cut).toBe("a".repeat(4999));
     expect(clampNote("👍", 1)).toBe("");
+  });
+});
+
+describe("ANNOT-15: Unicode", () => {
+  it("E8: an anchor made on NFD text resolves against the same text re-imported as NFC", () => {
+    const nfd = B("We went to the Cafe\u0301 yesterday and loved it.");
+    const a = at(nfd, "p1", 15, 20); // "Cafe" + combining acute
+    expect(a.quote).toBe("Cafe\u0301");
+    const nfc = B("We went to the Caf\u00e9 yesterday and loved it.");
+    const r = resolveAnchor(nfc, a)!;
+    expect(r).not.toBeNull();
+    expect(textOf(nfc, r)).toBe("Caf\u00e9");
+  });
+
+  it("E8: an anchor with typographic quotes resolves against the same text with straight quotes", () => {
+    const orig = B("He said \u201chello there\u201d loudly, and left.");
+    const a = at(orig, "p1", 8, 21);
+    expect(a.quote).toBe("\u201chello there\u201d");
+    const straight = B('He said "hello there" loudly, and left.');
+    const r = resolveAnchor(straight, a)!;
+    expect(textOf(straight, r)).toBe('"hello there"');
+  });
+
+  it("folding does not conjure matches: different words stay orphaned", () => {
+    const orig = B("He said \u201chello there\u201d loudly, and left.");
+    const a = at(orig, "p1", 8, 21);
+    expect(resolveAnchor(B('He said "goodbye now" loudly, and left.'), a)).toBeNull();
+  });
+
+  it("snapToGrapheme moves offsets out of the middle of an emoji with a skin tone and of a combining sequence", () => {
+    const t = "a\u{1F44D}\u{1F3FD}b"; // a, thumbs-up (2 units), skin tone (2 units), b
+    expect(t).toHaveLength(6);
+    expect([1, 2, 3, 4].map((o) => snapToGrapheme(t, o, "start"))).toEqual([1, 1, 1, 1]);
+    expect([1, 2, 3, 4, 5].map((o) => snapToGrapheme(t, o, "end"))).toEqual([1, 5, 5, 5, 5]);
+    expect([snapToGrapheme(t, 0, "start"), snapToGrapheme(t, 6, "end")]).toEqual([0, 6]);
+    expect([snapToGrapheme("e\u0301x", 1, "start"), snapToGrapheme("e\u0301x", 1, "end")]).toEqual([0, 2]);
+    expect(snapToGrapheme("plain text", 5, "start")).toBe(5);
+  });
+});
+
+describe("ANNOT-18: cost of marking a long text", () => {
+  const big = B(...Array.from({ length: 3000 }, (_, i) => `Paragraph number ${i} with some words in it.`));
+  const marks = Array.from({ length: 40 }, (_, k) => ({ id: `m${k}`, kind: "hl", anchor: at(big, `p${k * 70 + 1}`, 0, 9) }));
+
+  it("segmenting all 3000 blocks for 40 marks with one shared block index stays far below the 154 ms the per-call index cost", () => {
+    const idx = blockIndex(big);
+    const t0 = performance.now();
+    let segs = 0;
+    for (const b of big) segs += segmentBlock(b, big, marks, idx).filter((s) => s.marks.length).length;
+    const ms = performance.now() - t0;
+    expect(segs).toBe(40);
+    expect(ms).toBeLessThan(60);
+  });
+
+  it("resolveAll resolves each anchor once per block list: asking again is a cache hit that returns the very same results", () => {
+    const items = marks.map((m) => ({ anchor: m.anchor }));
+    const first = resolveAll(big, items);
+    const t0 = performance.now();
+    const second = resolveAll(big, items);
+    expect(performance.now() - t0).toBeLessThan(20);
+    expect(second.map((r) => r.anchor)).toEqual(first.map((r) => r.anchor));
+    expect(first.every((r) => r.status === "ok")).toBe(true);
   });
 });

@@ -63,13 +63,17 @@ export function ListenBar({ snap, voices, onToggle, onStop, onRestart, onSkip, o
         </button>
         {voicesOpen ? (
           <ul role="listbox" aria-label="Voices" className="lens-menu scroll-thin absolute bottom-[calc(100%+8px)] right-0 max-h-[280px] w-[260px] overflow-y-auto rounded-[14px] bg-lens p-1 shadow-pop ring-1 ring-black/5">
-            <li role="option" aria-selected={!snap.voiceURI} className={`cursor-pointer rounded-[9px] px-2.5 py-1.5 text-[12.5px] hover:bg-lens-hover ${!snap.voiceURI ? "text-lens-fg" : "text-lens-mute"}`} onClick={() => { onVoice(null); setVoicesOpen(false); }}>
-              System default
+            <li role="option" aria-selected={!snap.voiceURI}>
+              <button type="button" className={`w-full rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] hover:bg-lens-hover ${!snap.voiceURI ? "text-lens-fg" : "text-lens-mute"}`} onClick={() => { onVoice(null); setVoicesOpen(false); }}>
+                System default
+              </button>
             </li>
             {sorted.map((v) => (
-              <li key={v.voiceURI} role="option" aria-selected={v.voiceURI === snap.voiceURI} className={`cursor-pointer rounded-[9px] px-2.5 py-1.5 text-[12.5px] hover:bg-lens-hover ${v.voiceURI === snap.voiceURI ? "text-lens-fg" : "text-lens-mute"}`} onClick={() => { onVoice(v.voiceURI); setVoicesOpen(false); }}>
-                <span className="block truncate">{v.name}</span>
-                <span className="block text-[11px] opacity-70">{v.lang}{v.localService ? "" : " · online"}</span>
+              <li key={v.voiceURI} role="option" aria-selected={v.voiceURI === snap.voiceURI}>
+                <button type="button" className={`w-full rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] hover:bg-lens-hover ${v.voiceURI === snap.voiceURI ? "text-lens-fg" : "text-lens-mute"}`} onClick={() => { onVoice(v.voiceURI); setVoicesOpen(false); }}>
+                  <span className="block truncate">{v.name}</span>
+                  <span className="block text-[11px] opacity-70">{v.lang}{v.localService ? "" : " · online"}</span>
+                </button>
               </li>
             ))}
             {!voices.length ? <li className="px-2.5 py-2 text-[12px] text-lens-mute">No voices reported by this browser yet.</li> : null}

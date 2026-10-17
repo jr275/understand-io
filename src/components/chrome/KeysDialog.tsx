@@ -15,8 +15,8 @@ const ROWS: { keys: string[] | null; text: string; what: string }[] = [
   { keys: ["L"], text: "", what: "Listen: read aloud from here" },
   { keys: ["Space"], text: "", what: "Pause or resume reading aloud" },
   { keys: ["V"], text: "", what: "Ask by voice where something is" },
-  { keys: ["U"], text: "", what: "Underline the selection" },
-  { keys: ["H"], text: "", what: "Highlight the selection" },
+  { keys: ["⇧", "U"], text: "", what: "Underline the selection" },
+  { keys: ["⇧", "H"], text: "", what: "Highlight the selection" },
   { keys: ["Esc"], text: "", what: "Close or step back" },
   { keys: ["?"], text: "", what: "This list" },
 ];
@@ -35,8 +35,8 @@ export function KeysDialog({ open, onClose }: { open: boolean; onClose: () => vo
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[80] grid place-items-center p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} />
+    <div className="fixed inset-0 z-[80] grid place-items-center p-4">
+      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} onPointerDown={onClose} />
       <div role="dialog" aria-label="Keyboard shortcuts" aria-modal="true" className="pop relative w-full max-w-[420px] p-6" style={{ ["--origin" as string]: "center" }}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif text-[22px] leading-none text-ink">Keys</h2>

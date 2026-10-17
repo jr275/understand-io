@@ -18,5 +18,5 @@ export function slugFor(title: string) {
 
 export function readingMinutes(blocks: { text: string }[]) {
   const words = blocks.reduce((n, b) => n + b.text.split(/\s+/).filter(Boolean).length, 0);
-  return Math.max(1, Math.round(words / 220));
+  return Math.max(1, Math.round(words / 230));
 }

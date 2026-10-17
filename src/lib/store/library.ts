@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Annotation, Gloss, GlossDocument, ReadingProgress } from "@/lib/content/types";
+import { toast } from "./toast";
 
 /**
  * Local-first store. Everything is kept in localStorage under `gloss:v1` so the app works
@@ -19,10 +20,12 @@ export interface LibraryState {
   persisted: boolean | null;
   /** Sample slugs the reader removed from the shelf. */
   hidden: string[];
+  /** Ids deleted locally whose server delete has not been confirmed (tombstones). */
+  deleted: { kind: "annotation" | "gloss" | "document"; id: string }[];
 }
 
 const KEY = "gloss:v1";
-const EMPTY: LibraryState = { docs: {}, progress: {}, annotations: {}, glosses: {}, remoteLoaded: false, persisted: null, hidden: [] };
+const EMPTY: LibraryState = { docs: {}, progress: {}, annotations: {}, glosses: {}, remoteLoaded: false, persisted: null, hidden: [], deleted: [] };
 
 let state: LibraryState = EMPTY;
 let loaded = false;
@@ -41,11 +44,11 @@ function load(): LibraryState {
 
 function persistLocal() {
   try {
-    const { docs, progress, annotations, glosses, persisted, hidden } = state;
+    const { docs, progress, annotations, glosses, persisted, hidden, deleted } = state;
     // Keep blocks only for documents that are not on the server.
     const slim: Record<string, GlossDocument> = {};
     for (const [k, d] of Object.entries(docs)) slim[k] = d.id?.startsWith("local:") || !d.id ? d : { ...d, blocks: [] };
-    window.localStorage.setItem(KEY, JSON.stringify({ docs: slim, progress, annotations, glosses, persisted, hidden }));
+    window.localStorage.setItem(KEY, JSON.stringify({ docs: slim, progress, annotations, glosses, persisted, hidden, deleted }));
   } catch (err) {
     console.warn("gloss: could not persist locally", err);
   }
@@ -82,14 +85,38 @@ export function useLibrary() {
 
 /* ------------------------------------------------------------------ API helpers */
 
+let warned = 0;
 async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
+  const mutating = !!init?.method && init.method !== "GET";
   try {
     const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (mutating && res.status >= 400 && Date.now() - warned > 8000) {
+        warned = Date.now();
+        toast(res.status === 400 ? "That could not be saved to your library (invalid data). It is kept in this browser." : "Could not sync to your library. Kept in this browser.", { ttl: 5000 });
+      }
+      return null;
+    }
     return (await res.json()) as T;
   } catch {
+    if (mutating && Date.now() - warned > 8000) {
+      warned = Date.now();
+      toast("You seem to be offline. Changes are kept in this browser and sync when you reload.", { ttl: 5000 });
+    }
     return null;
   }
+}
+
+function tombstone(kind: LibraryState["deleted"][number]["kind"], id: string) {
+  set((s) => ({ deleted: s.deleted.some((d) => d.id === id) ? s.deleted : [...s.deleted, { kind, id }] }));
+}
+function clearTombstone(id: string) {
+  set((s) => ({ deleted: s.deleted.filter((d) => d.id !== id) }));
+}
+async function apiDelete(kind: LibraryState["deleted"][number]["kind"], path: string, id: string) {
+  tombstone(kind, id);
+  const r = await api<{ persisted: boolean }>(path, { method: "DELETE" });
+  if (r) clearTombstone(id);
 }
 
 /** Pull the server's document list and merge it in (runs once per page load). */
@@ -97,10 +124,20 @@ export async function syncRemoteLibrary() {
   ensure();
   const r = await api<{ documents: GlossDocument[]; persisted: boolean }>("/api/documents");
   if (!r) return;
+  // Replay document deletes that never reached the server.
+  for (const t of getLibrary().deleted.filter((d) => d.kind === "document")) void apiDelete("document", `/api/documents/${t.id}`, t.id);
+  const pendingDocDeletes = new Set(getLibrary().deleted.filter((d) => d.kind === "document").map((d) => d.id));
   set((s) => {
     const docs = { ...s.docs };
-    for (const d of r.documents) docs[d.slug] = { ...(docs[d.slug] ?? {}), ...d, blocks: docs[d.slug]?.blocks ?? [] };
-    // Drop local-only shells for docs that exist on the server.
+    const remoteIds = new Set(r.documents.map((d) => d.id));
+    for (const d of r.documents) if (!pendingDocDeletes.has(d.id ?? "")) docs[d.slug] = { ...(docs[d.slug] ?? {}), ...d, blocks: docs[d.slug]?.blocks ?? [] };
+    if (r.persisted) {
+      // Server-backed documents that are gone on the server were deleted elsewhere.
+      for (const [slug, d] of Object.entries(docs)) {
+        const id = d.id ?? "";
+        if (id && !id.startsWith("local:") && !id.startsWith("sample:") && !remoteIds.has(id)) delete docs[slug];
+      }
+    }
     return { docs, remoteLoaded: true, persisted: r.persisted };
   });
 }
@@ -109,7 +146,7 @@ export async function syncRemoteLibrary() {
 
 export function rememberDocument(doc: GlossDocument, persisted: boolean) {
   const id = doc.id ?? `local:${doc.slug}`;
-  set((s) => ({ docs: { ...s.docs, [doc.slug]: { ...doc, id, blocks: persisted ? [] : doc.blocks } }, persisted: s.persisted ?? persisted }));
+  set((s) => ({ docs: { ...s.docs, [doc.slug]: { ...doc, id, blocks: persisted ? [] : doc.blocks } } }));
 }
 
 export function getLocalDocument(slug: string): GlossDocument | null {
@@ -141,7 +178,7 @@ export function removeDocument(slug: string) {
     delete progress[id];
     return { docs, annotations, glosses, progress };
   });
-  if (d?.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) void api(`/api/documents/${d.id}`, { method: "DELETE" });
+  if (d?.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) void apiDelete("document", `/api/documents/${d.id}`, d.id);
 }
 
 export function hideSample(slug: string) {
@@ -186,7 +223,7 @@ export function updateAnnotation(documentId: string, id: string, patch: Partial<
 
 export function removeAnnotation(documentId: string, id: string) {
   set((s) => ({ annotations: { ...s.annotations, [documentId]: (s.annotations[documentId] ?? []).filter((a) => a.id !== id) } }));
-  if (isRemote(documentId)) void api(`/api/annotations/${id}`, { method: "DELETE" });
+  if (isRemote(documentId)) void apiDelete("annotation", `/api/annotations/${id}`, id);
 }
 
 /* ------------------------------------------------------------------ glosses */
@@ -207,7 +244,7 @@ export function persistGloss(g: Gloss) {
 
 export function removeGloss(documentId: string, id: string) {
   set((s) => ({ glosses: { ...s.glosses, [documentId]: (s.glosses[documentId] ?? []).filter((g) => g.id !== id) } }));
-  if (isRemote(documentId)) void api(`/api/glosses/${id}`, { method: "DELETE" });
+  if (isRemote(documentId)) void apiDelete("gloss", `/api/glosses/${id}`, id);
 }
 
 /** Load server copies of annotations and glosses for a document and merge them in. */
@@ -216,12 +253,27 @@ export async function syncDocumentData(documentId: string) {
   const r = await api<{ annotations: Annotation[]; glosses: Gloss[]; progress: ReadingProgress | null; persisted: boolean }>(
     `/api/documents/${encodeURIComponent(documentId)}/data`,
   );
-  if (!r || !r.persisted) return;
+  if (!r) return;
+  if (!r.persisted) {
+    set({ persisted: false });
+    return;
+  }
+  // Replay deletes the server has not confirmed yet.
+  for (const t of getLibrary().deleted) {
+    if (t.kind === "annotation") void apiDelete("annotation", `/api/annotations/${t.id}`, t.id);
+    if (t.kind === "gloss") void apiDelete("gloss", `/api/glosses/${t.id}`, t.id);
+  }
+  const dead = new Set(getLibrary().deleted.map((d) => d.id));
   set((s) => {
-    const mergeById = <T extends { id: string }>(local: T[], remote: T[]) => {
+    const mergeById = <T extends { id: string; updatedAt?: number }>(local: T[], remote: T[]) => {
       const map = new Map<string, T>();
-      remote.forEach((x) => map.set(x.id, x));
-      local.forEach((x) => !map.has(x.id) && map.set(x.id, x));
+      remote.forEach((x) => !dead.has(x.id) && map.set(x.id, x));
+      local.forEach((x) => {
+        if (dead.has(x.id)) return;
+        const cur = map.get(x.id);
+        // Newer local edits win over an older server copy (a failed PATCH must not revert them).
+        if (!cur || (x.updatedAt ?? 0) > (cur.updatedAt ?? 0)) map.set(x.id, x);
+      });
       return [...map.values()];
     };
     return {
@@ -233,8 +285,11 @@ export async function syncDocumentData(documentId: string) {
   });
   // Push local-only items the server does not have yet.
   const local = getLibrary();
-  const remoteA = new Set(r.annotations.map((a) => a.id));
-  for (const a of local.annotations[documentId] ?? []) if (!remoteA.has(a.id)) void api("/api/annotations", { method: "POST", body: JSON.stringify(a) });
+  const remoteA = new Map(r.annotations.map((a) => [a.id, a.updatedAt]));
+  for (const a of local.annotations[documentId] ?? []) {
+    const ru = remoteA.get(a.id);
+    if (ru === undefined || a.updatedAt > ru) void api("/api/annotations", { method: "POST", body: JSON.stringify(a) });
+  }
   const remoteG = new Set(r.glosses.map((g) => g.id));
   for (const g of local.glosses[documentId] ?? []) if (!remoteG.has(g.id) && g.status === "done") void api("/api/glosses", { method: "POST", body: JSON.stringify(g) });
 }

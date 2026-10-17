@@ -58,8 +58,17 @@ export function Rail({ blocks, rootRef, progress, marks }: Props) {
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(progress * 100)}
-      tabIndex={-1}
-      className="group relative h-full cursor-pointer touch-none select-none"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const step = max * 0.05;
+        const map: Record<string, number | undefined> = { ArrowDown: step, ArrowRight: step, PageDown: step * 4, ArrowUp: -step, ArrowLeft: -step, PageUp: -step * 4, Home: -max, End: max };
+        const d = map[e.key];
+        if (d === undefined) return;
+        e.preventDefault();
+        window.scrollTo({ top: Math.min(max, Math.max(0, window.scrollY + d)), behavior: "auto" });
+      }}
+      className="group relative h-full cursor-pointer touch-none select-none rounded-sm"
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         seek(e.clientY, e.currentTarget);

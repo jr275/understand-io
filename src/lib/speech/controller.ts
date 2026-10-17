@@ -39,6 +39,11 @@ export class SpeechController {
   private voices: SpeechSynthesisVoice[] = [];
   private blocks: Block[] = [];
   private keepAlive: number | undefined;
+  private restartOnResume = false;
+  private onVoices = () => {
+    this.voices = window.speechSynthesis.getVoices();
+    this.emit();
+  };
 
   constructor() {
     const supported = typeof window !== "undefined" && "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
@@ -55,10 +60,7 @@ export class SpeechController {
     };
     if (supported) {
       this.voices = window.speechSynthesis.getVoices();
-      window.speechSynthesis.addEventListener?.("voiceschanged", () => {
-        this.voices = window.speechSynthesis.getVoices();
-        this.emit();
-      });
+      window.speechSynthesis.addEventListener?.("voiceschanged", this.onVoices);
     }
   }
 
@@ -230,6 +232,11 @@ export class SpeechController {
     if (this.snap.state !== "paused") return;
     // Some engines cannot resume reliably; restart the current sentence instead.
     this.emit({ state: "playing" });
+    if (this.restartOnResume) {
+      this.restartOnResume = false;
+      this.speakCurrent();
+      return;
+    }
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
       const seg = this.segs[this.idx];
@@ -240,10 +247,12 @@ export class SpeechController {
   toggle() {
     if (this.snap.state === "playing") this.pause();
     else if (this.snap.state === "paused") this.resume();
+    else if (this.snap.state === "error" && this.segs.length) this.start(this.idx, this.snap.passage);
   }
 
   stop() {
     if (!this.supported) return;
+    this.restartOnResume = false;
     this.token++;
     this.clearKeepAlive();
     window.speechSynthesis.cancel();
@@ -256,21 +265,31 @@ export class SpeechController {
     this.start(0, this.snap.passage);
   }
 
-  skip(delta: number) {
-    if (!this.segs.length) return;
-    const i = Math.min(this.segs.length - 1, Math.max(0, this.idx + delta));
+  /** Move to another sentence. While paused, the queued utterance is dropped so resume starts the new one. */
+  private goTo(i: number) {
     this.idx = i;
     if (this.snap.state === "paused") {
+      this.token++;
+      window.speechSynthesis.cancel();
+      this.restartOnResume = true;
       this.emit({ index: i, segment: this.segs[i], charIndex: 0 });
-    } else this.speakCurrent();
+    } else if (this.snap.state === "playing") {
+      this.speakCurrent();
+    } else {
+      this.start(i, this.snap.passage);
+    }
+  }
+
+  skip(delta: number) {
+    if (!this.segs.length) return;
+    this.goTo(Math.min(this.segs.length - 1, Math.max(0, this.idx + delta)));
   }
 
   /** Jump to a sentence that contains the given block offset (used when the user clicks a paragraph). */
   seekTo(blockId: string, offset = 0) {
     const i = this.segs.findIndex((s) => s.blockId === blockId && s.end > offset);
     if (i >= 0) {
-      this.idx = i;
-      this.speakCurrent();
+      this.goTo(i);
       return true;
     }
     return false;
@@ -279,6 +298,7 @@ export class SpeechController {
   dispose() {
     this.stop();
     this.listeners.clear();
+    if (this.supported) window.speechSynthesis.removeEventListener?.("voiceschanged", this.onVoices);
   }
 }
 

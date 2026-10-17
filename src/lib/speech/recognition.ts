@@ -94,7 +94,7 @@ export function describeRecognitionError(code: string) {
 }
 
 /** Record microphone audio to a Blob (for server-side transcription fallback). */
-export async function recordAudio(maxMs = 12000): Promise<{ stop: () => Promise<Blob>; stream: MediaStream }> {
+export async function recordAudio(maxMs = 12000): Promise<{ stop: () => Promise<Blob>; stream: MediaStream; done: Promise<Blob> }> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((m) => MediaRecorder.isTypeSupported(m));
   const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -110,6 +110,7 @@ export async function recordAudio(maxMs = 12000): Promise<{ stop: () => Promise<
   const timer = window.setTimeout(() => rec.state !== "inactive" && rec.stop(), maxMs);
   return {
     stream,
+    done,
     stop: () => {
       window.clearTimeout(timer);
       if (rec.state !== "inactive") rec.stop();

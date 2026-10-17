@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import { glosses, readers } from "@/lib/db/schema";
@@ -25,6 +26,6 @@ export async function POST(req: Request) {
   await db
     .insert(glosses)
     .values({ id: g.id, documentId: g.documentId, readerId, action: g.action, anchor: g.anchor, turns: g.turns, model: g.model ?? null, usage: g.usage ?? null, createdAt: new Date(g.createdAt) })
-    .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null } });
+    .onConflictDoUpdate({ target: glosses.id, set: { turns: g.turns, model: g.model ?? null, usage: g.usage ?? null }, setWhere: eq(glosses.readerId, readerId) });
   return Response.json({ persisted: true });
 }

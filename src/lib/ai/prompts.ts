@@ -14,7 +14,7 @@ const LENGTH: Record<string, string> = {
 
 export function systemPrompt(length: string) {
   return [
-    "You are Gloss, a careful reading companion. The reader has selected a passage in a text and asks about it.",
+    "You are Understand.io, a careful reading companion. The reader has selected a passage in a text and asks about it.",
     "Ground every claim in the text supplied. Cite the paragraphs you draw on with their number in the form ¶12 (use the ¶ sign and the number, nothing else).",
     "Start with the single most useful sentence and wrap that sentence in ==double equals== so it can be marked. Only one such sentence.",
     "Write plainly, in the reader's language (match the language of the question if there is one, otherwise the text). No headings. Use markdown only for *emphasis*, **bold**, `code` and short bullet lists.",

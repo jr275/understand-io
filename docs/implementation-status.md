@@ -1,13 +1,15 @@
-# Implementation status
+# Implementation status — Understand.io
 
 Statuses: **NOT IMPLEMENTED** · **IMPLEMENTED, NOT VERIFIED** · **PARTIALLY IMPLEMENTED** ·
 **VERIFIED WORKING** · **BLOCKED** · **NOT OBSERVABLE**. "Verified" means a Playwright or Vitest test
 in this repository, or a recorded manual check in the Browser pane noted below, exercised it.
 Untested code is never counted as working.
 
-_Last updated: 2026-10-16. Test evidence: `pnpm test` (25 unit tests, all passing) and
-`pnpm test:e2e` (26 end-to-end tests across desktop and mobile projects, all passing at the time of
-writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`._
+_Last updated: 2026-10-16 (final audit pass). Test evidence: `pnpm test` (35 unit tests, all passing)
+and `pnpm test:e2e` (27 end-to-end tests across desktop and mobile projects, all passing). Screenshots
+for visual QA are in `docs/qa/` (`ref-*` = reference, same viewports). The audit itself, the defects it
+found and the fixes are in `docs/final-qa-report.md`. The product is branded **Understand.io**; the
+code folder and package keep the name `gloss`._
 
 ## Completion
 
@@ -19,7 +21,7 @@ writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`
 | Text-to-speech | 9 requirements | 7 verified with a mock engine (play/pause/resume/stop/restart, whole text, selected passage then continue, sentence highlight, speed, voices, no overlap), 2 implemented not verified with real audio (resume position after reload, long-document keep-alive) | 78% verified · 100% implemented |
 | Voice semantic search | 10 requirements | 7 verified (typed transcript path, in-document search, ranked excerpts, navigation, highlight of the match, read-aloud of a hit via mock, honest no-match / low-confidence), 2 implemented not verified (microphone permission + live recognition, server transcription fallback), 1 partially (semantic re-rank only runs with a Together key) | 70% verified · 100% implemented |
 | Text annotations | 9 requirements | 8 verified (mouse selection, keyboard shortcuts H/U, highlight colours, underline, notes, edit, delete, persistence across reload, restoration, notebook view), 1 implemented not verified (touch selection on a real device) | 89% verified |
-| Automated test coverage | 13 test areas in the brief | 11 covered (routes, responsive, article loading, playback controls incl. errors via mock, transcription failure path *typed only*, exact + fuzzy retrieval, ambiguous/nonexistent results, underline/highlight/notes/edit/delete, persistence, integration of voice search → reading, keyboard, console errors + failed requests); 2 not covered (microphone permission prompt, live provider verification of LLM answers) | 85% |
+| Automated test coverage | 13 test areas listed in the brief | 11 covered (routes, responsive, article loading, playback controls incl. errors via mock, transcription failure path *typed only*, exact + fuzzy retrieval, ambiguous/nonexistent results, underline/highlight/notes/edit/delete, persistence, voice search → reading integration, gloss deletion regression, SSRF guard, keyboard, console errors + failed requests); 2 not covered (microphone permission prompt, live provider verification of LLM answers) | 85% |
 
 ## Items
 
@@ -38,6 +40,7 @@ writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`
 | Imported documents (URL, PDF, pasted text) open in the reader | `/read/[slug]` | VERIFIED WORKING | `landing.spec.ts` (paste), `api.spec.ts` (text); PDF verified manually with arXiv 1706.03762 (62 blocks) |
 | Sign in / accounts | — | NOT IMPLEMENTED | Reference uses Clerk. This build uses an anonymous signed cookie per browser; no cross-device sync |
 | Painted covers | — | NOT IMPLEMENTED | Toggle present, labelled "Not available in this build" |
+| Deleting a gloss while it streams, deletes surviving a reload (tombstones), cross-device document removal | `/read/[slug]`, `/library` | VERIFIED WORKING | `reader.spec.ts` regression test; store merge by `updatedAt` (added in the final audit) |
 | Web search inside answers ("Fact-check … Searches the web") | — | NOT IMPLEMENTED | Toggle kept for fidelity; answers are grounded in the text only |
 
 ### Reader interactions (existing product)
@@ -65,8 +68,9 @@ writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`
 | Resume from the correct position | PARTIALLY IMPLEMENTED | Pause/resume keeps the sentence; after a reload playback starts from the current paragraph, not mid-sentence |
 | Speed | VERIFIED WORKING (mock) | 0.75×–2× select |
 | Voices and languages | IMPLEMENTED, NOT VERIFIED with real voices | Voice list sorted by document language; Browser pane reported 180 voices but produced no audio events |
-| Long documents, interruptions, errors | IMPLEMENTED, NOT VERIFIED | One utterance per sentence, keep-alive nudge, watchdog that surfaces a stalled engine |
-| No overlapping sessions | VERIFIED WORKING (mock) | cancel-before-speak + token guard |
+| Long documents, interruptions, errors | VERIFIED WORKING (mock) | One utterance per sentence, keep-alive nudge, watchdog that surfaces a stalled engine and lets the user restart (`speech-controller.test.ts`) |
+| Skip / seek while paused, resume at the new sentence | VERIFIED WORKING (mock) | `speech-controller.test.ts` |
+| No overlapping sessions | VERIFIED WORKING (mock) | cancel-before-speak + token guard (`speech-controller.test.ts`, e2e) |
 | Server-side TTS | NOT IMPLEMENTED (evaluated) | Browser engine chosen first per brief; a provider voice would need a key and audio streaming |
 
 ### Voice semantic search (addition)
@@ -102,7 +106,9 @@ writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`
 | Anonymous reader identity (signed httpOnly cookie) | VERIFIED WORKING | `api.spec.ts` (same-browser ownership) |
 | Import: URL (Readability), PDF (unpdf), text/markdown | VERIFIED WORKING | `content.test.ts`, `api.spec.ts`, manual curl runs |
 | Annotations / glosses / progress / documents CRUD | VERIFIED WORKING (annotations, documents list) / IMPLEMENTED, NOT VERIFIED (glosses, progress PUT) | DB rows observed; no dedicated test for glosses/progress endpoints |
-| LLM proxy with user-key or server-key, explicit 402 without a key | VERIFIED WORKING (402 path) | `api.spec.ts`; live provider path not verified |
+| LLM proxy with user-key or server-key, explicit 402 without a key, request-size limits, client abort propagated | VERIFIED WORKING (402 path) | `api.spec.ts`; live provider path not verified |
+| URL import SSRF guard (DNS resolution, private IPv4/IPv6 ranges, manual redirects, 10 MB cap) | VERIFIED WORKING | `safeFetch.test.ts`, `api.spec.ts` |
+| Cookie secret required in production; owner-scoped upserts; cascading document delete | IMPLEMENTED, NOT VERIFIED | Code review; no production run yet |
 | Local-only mode when `DATABASE_URL` is unset | IMPLEMENTED, NOT VERIFIED | Code path returns `persisted:false`; tests ran with a database |
 
 ## Known deviations from the reference
@@ -114,11 +120,14 @@ writing; see "Test run" at the end). Screenshots for visual QA are in `docs/qa/`
   reference's logo artwork.
 - Deks for the Schopenhauer and Thoreau samples were written for this build; the Huxley dek matches.
 - Model credit reads the configured model id; the reference names "DeepSeek V4.1 Flash".
+- Highlight/underline keyboard shortcuts are Shift+H / Shift+U (plain letters start a question, as in the reference's "just start typing").
 
 ## Test run
 
 ```
-pnpm test        → 3 files, 25 tests passed
-pnpm test:e2e    → 26 tests passed (desktop 24, mobile 2)  — PLAYWRIGHT_PORT=3100 against `next dev`
+pnpm typecheck   → clean
+pnpm lint        → clean
+pnpm test        → 5 files, 35 tests passed
+pnpm test:e2e    → 27 tests passed (desktop 25, mobile 2)  — PLAYWRIGHT_PORT=3100 against `next dev` started in this folder
 pnpm build       → compiled, 18 routes
 ```

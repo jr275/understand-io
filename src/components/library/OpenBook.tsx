@@ -109,7 +109,7 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                 </p>
                 {doc.dek ? <p className="ob-dek">{doc.dek}</p> : null}
                 <p className="ob-tags">
-                  <span className="is-word">{doc.kind === "sample" ? "a sample from Gloss" : doc.kind === "pdf" ? "a PDF" : doc.kind === "text" ? "pasted text" : doc.sourceLabel || "a link"}</span>
+                  <span className="is-word">{doc.kind === "sample" ? "a sample from Understand.io" : doc.kind === "pdf" ? "a PDF" : doc.kind === "text" ? "pasted text" : doc.sourceLabel || "a link"}</span>
                 </p>
                 <div className="ob-progress">
                   <span className="ob-bar" aria-hidden="true">
@@ -157,7 +157,7 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                     <TopicGlyph topic={doc.topic} size={60} />
                   </div>
                   <p className="ex-head">From the library of</p>
-                  <p className="ex-name">A Gloss reader</p>
+                  <p className="ex-name">An Understand.io reader</p>
                   <span className="ex-rule" aria-hidden="true" />
                   <p className="ex-meta">No. {readerNo}</p>
                 </div>

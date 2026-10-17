@@ -1,4 +1,4 @@
-# Gloss — a from-scratch reconstruction
+# Understand.io — a from-scratch reconstruction of Gloss
 
 An independent reading app that reproduces the publicly observable [Gloss](https://www.usegloss.io)
 experience and adds three features: **read-aloud (text-to-speech)**, **voice semantic passage

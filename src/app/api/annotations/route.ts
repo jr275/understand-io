@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import { annotations, readers } from "@/lib/db/schema";
@@ -26,6 +27,6 @@ export async function POST(req: Request) {
   await db
     .insert(annotations)
     .values({ id: a.id, documentId: a.documentId, readerId, kind: a.kind, color: a.color ?? null, note: a.note ?? null, anchor: a.anchor, createdAt: new Date(a.createdAt), updatedAt: new Date(a.updatedAt) })
-    .onConflictDoUpdate({ target: annotations.id, set: { color: a.color ?? null, note: a.note ?? null, anchor: a.anchor, kind: a.kind, updatedAt: new Date(a.updatedAt) } });
+    .onConflictDoUpdate({ target: annotations.id, set: { color: a.color ?? null, note: a.note ?? null, anchor: a.anchor, kind: a.kind, updatedAt: new Date(a.updatedAt) }, setWhere: eq(annotations.readerId, readerId) });
   return Response.json({ persisted: true });
 }

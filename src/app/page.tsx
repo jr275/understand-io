@@ -5,7 +5,7 @@ import { ImportBar } from "@/components/landing/ImportBar";
 import { SampleRow } from "@/components/landing/SampleRow";
 import { Desk } from "@/components/landing/Desk";
 
-export const metadata: Metadata = { title: "Gloss" };
+export const metadata: Metadata = { title: "Understand.io" };
 
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;

@@ -1,9 +1,9 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDb } from "@/lib/db/client";
+import { getDb, type Db } from "@/lib/db/client";
 import { documents, readers } from "@/lib/db/schema";
 import type { GlossDocument } from "@/lib/content/types";
 import { getSample } from "@/lib/content/samples";
-import { newId } from "@/lib/content/slug";
+import { newId, slugFor } from "@/lib/content/slug";
 
 export function rowToDoc(r: typeof documents.$inferSelect): GlossDocument {
   return {
@@ -57,6 +57,22 @@ export async function saveDocument(readerId: string, doc: GlossDocument): Promis
   if (!db) return { ...doc, id: doc.id ?? `local:${doc.slug}`, persisted: false };
   await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
   const id = doc.id ?? newId();
+  let slug = doc.slug;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await insertDocument(db, { ...doc, slug }, id, readerId);
+    } catch (err) {
+      const code = (err as { code?: string; cause?: { code?: string } }).code ?? (err as { cause?: { code?: string } }).cause?.code;
+      if (code === "23505" && attempt < 3) {
+        slug = slugFor(doc.title); // another reader already owns this slug: pick a new suffix
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function insertDocument(db: Db, doc: GlossDocument, id: string, readerId: string): Promise<GlossDocument & { persisted: boolean }> {
   const [row] = await db
     .insert(documents)
     .values({

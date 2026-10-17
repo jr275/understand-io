@@ -55,8 +55,9 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
       if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (e.key === "h" || e.key === "H") return onHighlight(marker);
-        if (e.key === "u" || e.key === "U") return onUnderline(marker);
+        // Shift+H / Shift+U are shortcuts; plain letters start a question ("just start typing").
+        if (e.shiftKey && e.key === "H") return onHighlight(marker);
+        if (e.shiftKey && e.key === "U") return onUnderline(marker);
         e.preventDefault();
         setText(e.key);
         setMode("ask");
@@ -131,7 +132,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
             </div>
             <span className="mx-[3px] h-4 w-px shrink-0 bg-lens-mute/30" aria-hidden="true" />
             <div className="group/hl flex items-center">
-              <button type="button" aria-label="Highlight" data-tip="Highlight" data-tip-hint="Hover for colours" data-tip-kbd="H" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onHighlight(marker)}>
+              <button type="button" aria-label="Highlight" data-tip="Highlight" data-tip-hint="Hover for colours" data-tip-kbd="⇧H" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onHighlight(marker)}>
                 <span className="relative">
                   <Highlighter size={15} aria-hidden="true" />
                   <span aria-hidden="true" className="absolute -bottom-[3px] -right-[3px] size-[7px] rounded-full ring-2 ring-[var(--lens-bg)]" style={{ background: COLORS.find((c) => c.id === marker)?.c }} />
@@ -145,7 +146,7 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
                 </div>
               </div>
             </div>
-            <button type="button" aria-label="Underline" data-tip="Underline" data-tip-kbd="U" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onUnderline(marker)}>
+            <button type="button" aria-label="Underline" data-tip="Underline" data-tip-kbd="⇧U" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onUnderline(marker)}>
               <Underline size={15} aria-hidden="true" />
             </button>
             <button type="button" aria-label="Add a note" data-tip="Add a note" data-tip-hint="In your own words" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => setMode("note")}>

@@ -34,11 +34,11 @@ const description =
   "Highlight any line and ask it anything. An open model writes the answer in the margin, beside the words, citing the paragraphs it used.";
 
 export const metadata: Metadata = {
-  title: { default: "Gloss", template: "%s" },
+  title: { default: "Understand.io", template: "%s" },
   description,
-  applicationName: "Gloss",
-  openGraph: { title: "Gloss", description, siteName: "Gloss", type: "website" },
-  twitter: { card: "summary_large_image", title: "Gloss", description },
+  applicationName: "Understand.io",
+  openGraph: { title: "Understand.io", description, siteName: "Understand.io", type: "website" },
+  twitter: { card: "summary_large_image", title: "Understand.io", description },
 };
 
 export const viewport: Viewport = {

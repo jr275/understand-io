@@ -4,7 +4,10 @@ import { cookies } from "next/headers";
 export const READER_COOKIE = "gloss_reader";
 
 function secret() {
-  return process.env.GLOSS_COOKIE_SECRET || "gloss-dev-secret";
+  const s = process.env.GLOSS_COOKIE_SECRET;
+  if (s && s !== "change-me") return s;
+  if (process.env.NODE_ENV === "production") throw new Error("GLOSS_COOKIE_SECRET must be set in production.");
+  return "gloss-dev-secret";
 }
 
 function sign(id: string) {

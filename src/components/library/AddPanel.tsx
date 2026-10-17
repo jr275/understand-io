@@ -64,8 +64,8 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const bm = (kind: "read" | "save") => `javascript:void(window.open('${origin}/?${kind === "read" ? "url" : "save"}='+encodeURIComponent(location.href)))`;
 
   return (
-    <div className="fixed inset-0 z-[85]" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_62%,transparent)] backdrop-blur-[6px]" style={{ animation: "fade .3s var(--ease-out)" }} />
+    <div className="fixed inset-0 z-[85]">
+      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_62%,transparent)] backdrop-blur-[6px]" style={{ animation: "fade .3s var(--ease-out)" }} onPointerDown={onClose} />
       <section role="dialog" aria-modal="true" aria-label="Add to the library" className="add-panel scroll-thin">
         <header className="flex items-center justify-between gap-3">
           <div className="lib-sort !ml-0" role="tablist" aria-label="Add">
@@ -95,7 +95,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <div className="mt-5">
             <p className="font-serif text-[19px] leading-tight text-ink">Save links to your library</p>
             <p className="mt-1 text-[13px] text-ink-3">
-              One or many, a line each. Gloss reads each page in. PDFs work too. Leaving Pocket, Instapaper or Raindrop?{" "}
+              One or many, a line each. Understand.io reads each page in. PDFs work too. Leaving Pocket, Instapaper or Raindrop?{" "}
               <button type="button" className="text-ink-2 underline decoration-rule-strong underline-offset-2 hover:text-ink" onClick={() => fileRef.current?.click()}>
                 Drop its export here
               </button>
@@ -125,10 +125,10 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
               <p className="mt-1 text-[13px] text-ink-3">Drag one to your bookmarks bar, then click it on any article.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <a data-tip="Drag me to your bookmarks bar" className="inline-flex cursor-grab items-center gap-1.5 rounded-full border border-rule-strong bg-bg px-3 py-1.5 text-[13px] font-medium text-ink shadow-[var(--shadow-card)] active:cursor-grabbing" href={bm("read")} onClick={(e) => e.preventDefault()}>
-                  <BookOpen size={14} aria-hidden="true" className="text-ink-3" /> Read in Gloss
+                  <BookOpen size={14} aria-hidden="true" className="text-ink-3" /> Read in Understand
                 </a>
                 <a data-tip="Drag me to your bookmarks bar" className="inline-flex cursor-grab items-center gap-1.5 rounded-full border border-rule-strong bg-bg px-3 py-1.5 text-[13px] font-medium text-ink shadow-[var(--shadow-card)] active:cursor-grabbing" href={bm("save")} onClick={(e) => e.preventDefault()}>
-                  <BookmarkPlus size={14} aria-hidden="true" className="text-ink-3" /> Save to Gloss
+                  <BookmarkPlus size={14} aria-hidden="true" className="text-ink-3" /> Save to Understand
                 </a>
               </div>
               <details className="mt-3 text-[12.5px] text-ink-3">
@@ -138,7 +138,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium text-ink">Bookmark any page, then edit the bookmark</p>
-                        <p className="text-[12px] text-ink-3">Paste this as its address and name it Save to Gloss.</p>
+                        <p className="text-[12px] text-ink-3">Paste this as its address and name it Save to Understand.</p>
                       </div>
                       <button type="button" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-sunk px-2.5 py-1 text-[12px] font-medium text-ink-2 transition-colors hover:text-ink" onClick={() => void navigator.clipboard?.writeText(bm("save"))}>
                         <Copy size={12} aria-hidden="true" />

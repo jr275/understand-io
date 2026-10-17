@@ -94,7 +94,15 @@ test.describe("read aloud (mock speech engine)", () => {
     await page.getByRole("toolbar").getByRole("button", { name: "More actions" }).click({ force: true });
     await page.getByRole("menuitem", { name: /Read aloud/ }).click({ force: true });
     const region = page.getByRole("region", { name: "Reading aloud" });
-    await expect(region).toContainText(/Passage/);
-    await expect(region).toContainText(/Reading · 1\//, { timeout: 6000 });
+    await expect(region).toBeVisible();
+    // The fake engine finishes a sentence in 300 ms, so assert on what was spoken rather than on a
+    // transient label: the selected passage goes first, then reading continues with the next sentence.
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.length), { timeout: 6000 })
+      .toBeGreaterThan(1);
+    const spoken = await page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken);
+    expect(spoken[0]).toBe("Not only here, but over the whole county");
+    expect(spoken[1]).toMatch(/^of Norfolk, the well-sinker/);
+    await expect(region).toContainText(/Reading · \d+\/275/);
   });
 });

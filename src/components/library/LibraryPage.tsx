@@ -200,7 +200,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   <TopicGlyph topic={t.id} size={18} /> {t.label} <span className="lib-n">{t.count}</span>
                 </button>
               ))}
-              <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 self-center bg-rule-strong" />
+              {reading || finished || shortCount ? <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 self-center bg-rule-strong" /> : null}
               {reading ? (
                 <button type="button" aria-pressed={filter === "reading"} className="lib-chip" onClick={() => setFilter(filter === "reading" ? "all" : "reading")}>
                   <span className="lib-emoji">📕</span> Reading now <span className="lib-n">{reading}</span>
@@ -370,7 +370,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   <Link2 size={20} aria-hidden="true" />
                 </span>
                 <span className="starter-title">Save your own links</span>
-                <span className="starter-body">Paste one or many. Gloss reads each one in and sets it like an article.</span>
+                <span className="starter-body">Paste one or many. Understand.io reads each one in and sets it like an article.</span>
               </button>
               <Link href="/" className="starter-card">
                 <span className="starter-icon is-agent">

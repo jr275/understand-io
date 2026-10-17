@@ -27,6 +27,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
   const [phase, setPhase] = useState<Phase>("idle");
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
+  const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<(SearchResult & { topic: string; readAloud: boolean }) | null>(null);
   const [level, setLevel] = useState(0);
@@ -87,9 +88,13 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
     if (supported) {
       setPhase("listening");
       const stop = startRecognition(lang, {
-        onInterim: (t) => setInterim(t),
+        onInterim: (t) => {
+          setInterim(t);
+          setDraft(t);
+        },
         onFinal: (t) => {
           setTranscript(t);
+          setDraft(t);
           setInterim("");
           stopRef.current?.();
           stopRef.current = null;
@@ -127,10 +132,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
         setLevel(Math.min(1, sum / buf.length / 40));
         if (stopRef.current) requestAnimationFrame(tick);
       };
-      stopRef.current = () => {
-        stopRef.current = null;
-        void ctx.close();
-        void rec.stop().then(async (blob) => {
+      const finish = async (blob: Blob) => {
           setPhase("transcribing");
           const fd = new FormData();
           fd.append("audio", blob);
@@ -144,9 +146,22 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
             return;
           }
           setTranscript(j.text);
+          setDraft(j.text);
           setPhase("idle");
-        });
       };
+      stopRef.current = () => {
+        stopRef.current = null;
+        void ctx.close();
+        void rec.stop().then(finish);
+      };
+      // The recorder stops itself after 12 s; make sure the UI follows.
+      rec.done.then((blob) => {
+        if (stopRef.current) {
+          stopRef.current = null;
+          void ctx.close();
+          void finish(blob);
+        }
+      });
       requestAnimationFrame(tick);
     } catch (e) {
       setError(e instanceof Error && e.name === "NotAllowedError" ? "Microphone access was denied. Allow the microphone for this site and try again." : "Could not start the microphone.");
@@ -171,15 +186,16 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
 
   if (!open) return null;
   const shown = interim || transcript;
+  void shown;
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-start justify-center p-4 pt-[calc(var(--topbar-h)+20px)]" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_55%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} />
+    <div className="fixed inset-0 z-[70] grid place-items-start justify-center p-4 pt-[calc(var(--topbar-h)+20px)]">
+      <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_55%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} onPointerDown={onClose} />
       <section role="dialog" aria-modal="true" aria-label="Ask by voice" className="pop relative w-full max-w-[560px] p-5" style={{ ["--origin" as string]: "top center" }}>
         <header className="flex items-start justify-between gap-3">
           <div>
             <p className="font-serif text-[21px] leading-tight text-ink">Where does it talk about…</p>
-            <p className="mt-1 text-[13px] text-ink-3">Ask aloud, or type. Gloss searches this text only, and says so when nothing matches.</p>
+            <p className="mt-1 text-[13px] text-ink-3">Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches.</p>
           </div>
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />
@@ -201,7 +217,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
             className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border border-rule bg-bg px-3 transition-colors focus-within:border-rule-strong"
             onSubmit={(e) => {
               e.preventDefault();
-              const q = (inputRef.current?.value ?? "").trim();
+              const q = draft.trim();
               if (q) {
                 stopListening();
                 setTranscript(q);
@@ -211,8 +227,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, serve
           >
             <input
               ref={inputRef}
-              key={shown}
-              defaultValue={shown}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
               placeholder={phase === "listening" ? "Listening…" : phase === "transcribing" ? "Transcribing…" : "Find the part that talks about…"}
               aria-label="What to look for"
               className="h-11 min-w-0 flex-1 bg-transparent font-serif text-[16px] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"

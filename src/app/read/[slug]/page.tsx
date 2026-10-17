@@ -10,7 +10,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const doc = await loadDocument(slug, await getReaderId());
-  return { title: doc ? `${doc.title}, glossed` : "Gloss" };
+  return { title: doc ? `${doc.title}, glossed` : "Understand.io" };
 }
 
 export default async function ReadPage({ params }: Props) {

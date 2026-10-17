@@ -53,6 +53,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const [readSet, setReadSet] = useState<Set<string>>(new Set());
   const [sheet, setSheet] = useState(false);
   const [resizeTick, setResizeTick] = useState(0);
+  const [firstTop, setFirstTop] = useState(0);
   const [serverInfo, setServerInfo] = useState<{ serverKey: boolean; model: string } | null>(null);
   const abortRef = useRef<Map<string, AbortController>>(new Map());
   const mounted = useMounted();
@@ -66,8 +67,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   );
   useEffect(() => {
     speech.setBlocks(blocks);
-    return () => speech.dispose();
   }, [speech, blocks]);
+  useEffect(() => () => speech.dispose(), [speech]);
   useEffect(() => {
     speech.setRate(settings.rate);
   }, [speech, settings.rate]);
@@ -90,6 +91,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   /* ---------- mount: remember, sync, deep link, hint ---------- */
   useEffect(() => {
     rememberDocument(doc, !documentId.startsWith("local:"));
+    // `persisted` is decided by the server's answer in syncDocumentData, never guessed here.
     void syncDocumentData(documentId);
     fetch("/api/gloss")
       .then((r) => (r.ok ? r.json() : null))
@@ -117,13 +119,15 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   }, [documentId]);
 
   /* ---------- scroll: progress, read blocks, topbar ---------- */
+  const userScrolled = useRef(false);
   useEffect(() => {
     let raf = 0;
-    const onScroll = () => {
+    const onScroll = (e?: Event) => {
+      if (e) userScrolled.current = true;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const max = document.documentElement.scrollHeight - window.innerHeight;
-        const r = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 1;
+        const r = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
         setRatio(r);
         setScrolled(window.scrollY > 240);
         const els = rootRef.current?.querySelectorAll<HTMLElement>(".blk[data-n]") ?? [];
@@ -135,7 +139,9 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           if (!current && b.bottom > 100) current = el.dataset.block;
         }
         setReadSet(read);
-        setProgress(documentId, { ratio: r, blockId: current, finished: r > 0.97 });
+        // Only the reader's own scrolling counts as progress; the initial paint must not
+        // overwrite progress synced from the server.
+        if (userScrolled.current) setProgress(documentId, { ratio: r, blockId: current, finished: max > 0 && r > 0.97 });
       });
     };
     onScroll();
@@ -157,6 +163,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     const onChange = () => {
       const sel = document.getSelection();
       if (!sel || !rootRef.current) return;
+      if (document.activeElement?.closest?.(".lens")) return;
       if (sel.isCollapsed) {
         if (dismissRef.current) {
           setPending(null);
@@ -227,25 +234,32 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     return makeAnchor(blocks, { b: id, o: 0 }, { b: id, o: b.text.length });
   }, [blocks]);
 
+  const jumpedRef = useRef(false);
   useEffect(() => {
-    // Resume where the reader left off, or follow ?hl=
-    const sp = new URLSearchParams(window.location.search);
-    const hl = sp.get("hl");
+    // Resume where the reader left off, or follow ?hl=. Runs again as server data arrives,
+    // but only acts once, and never after the reader has started scrolling.
+    if (jumpedRef.current || userScrolled.current) return;
+    const hl = new URLSearchParams(window.location.search).get("hl");
     const t = window.setTimeout(() => {
+      if (jumpedRef.current || userScrolled.current) return;
       if (hl) {
         const a = annotations.find((x) => x.id === hl);
-        if (a) jumpToAnchor(a.anchor);
+        if (!a) return; // wait for sync
+        jumpedRef.current = true;
+        jumpToAnchor(a.anchor);
         return;
       }
       const p = lib.progress[documentId];
       if (p?.blockId && p.ratio > 0.03 && p.ratio < 0.97) {
         const el = blockEl(p.blockId);
-        if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140 });
+        if (el) {
+          jumpedRef.current = true;
+          window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 140 });
+        }
       }
     }, 120);
     return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [documentId, lib.remoteLoaded]);
+  }, [documentId, annotations, lib.progress, jumpToAnchor, blockEl]);
 
   /* ---------- annotations ---------- */
   const annotate = useCallback(
@@ -303,7 +317,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       const ctrl = new AbortController();
       abortRef.current.get(g.id)?.abort();
       abortRef.current.set(g.id, ctrl);
-      const history = g.turns.slice(0, -1).filter((t) => t.content);
+      // Everything before the pending assistant turn, minus the question itself (it goes in the prompt).
+      const history = g.turns.slice(0, question ? -2 : -1).filter((t) => t.content);
       let current: Gloss = { ...g, status: "streaming", error: undefined };
       upsertGloss(current);
       const meta: GlossMeta = await streamGloss(
@@ -314,7 +329,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         },
         ctrl.signal,
       ).catch((e: unknown): GlossMeta => ({ error: e instanceof Error && e.name === "AbortError" ? undefined : String(e) }));
-      abortRef.current.delete(g.id);
+      if (abortRef.current.get(g.id) === ctrl) abortRef.current.delete(g.id);
+      if (ctrl.signal.aborted) return; // deleted or superseded while streaming: leave the store alone
       if (meta.error) {
         current = { ...current, status: "error", error: meta.error };
         upsertGloss(current);
@@ -345,6 +361,16 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       void runGloss(g, question);
     },
     [documentId, clearSelection, runGloss],
+  );
+
+  const deleteGloss = useCallback(
+    (id: string) => {
+      abortRef.current.get(id)?.abort();
+      abortRef.current.delete(id);
+      removeGloss(documentId, id);
+      setActiveId((cur) => (cur === id ? null : cur));
+    },
+    [documentId],
   );
 
   const followUp = useCallback(
@@ -406,10 +432,14 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           break;
         }
         case "Enter": {
-          if (!cursor) break;
+          if (!cursor || document.activeElement !== document.body) break;
+          e.preventDefault();
           const el = blockEl(cursor);
           const a = blockAnchor(cursor);
-          if (el && a) setPending({ anchor: a, rect: el.getBoundingClientRect() });
+          if (el && a) {
+            dismissRef.current = false;
+            setPending({ anchor: a, rect: el.getBoundingClientRect() });
+          }
           break;
         }
         case "[":
@@ -490,6 +520,13 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   }, [blocks, marks]);
   const noteBlocks = useMemo(() => new Set(annotations.filter((a) => a.kind === "note").map((a) => a.anchor.start.b)), [annotations]);
   const layoutKey = `${resizeTick}:${marks.length}:${settings.size}:${settings.face}:${settings.width}:${settings.leading}`;
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const first = root?.querySelector<HTMLElement>(".prose-read .blk");
+    const margin = root?.querySelector<HTMLElement>(".rg-margin");
+    if (first && margin) setFirstTop(Math.max(0, first.getBoundingClientRect().top - margin.getBoundingClientRect().top));
+  }, [layoutKey]);
 
   const marginItems: MarginItem[] = useMemo(
     () => [...glosses.map((g) => ({ id: g.id, kind: "gloss" as const, gloss: g })), ...annotations.filter((a) => a.kind === "note").map((a) => ({ id: a.id, kind: "note" as const, note: a }))],
@@ -654,6 +691,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                     const a = blockAnchor(id);
                     if (el && a) {
                       setCursor(id);
+                      dismissRef.current = false;
                       setPending({ anchor: a, rect: el.getBoundingClientRect() });
                     }
                   }}
@@ -710,11 +748,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 layoutKey={layoutKey}
                 onActivate={(id) => setActiveId(id)}
                 onHover={setHoverId}
-                onDeleteGloss={(id) => {
-                  abortRef.current.get(id)?.abort();
-                  removeGloss(documentId, id);
-                  if (activeId === id) setActiveId(null);
-                }}
+                onDeleteGloss={deleteGloss}
                 onRetry={retry}
                 onFollowUp={followUp}
                 onCite={onCite}
@@ -724,6 +758,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                   if (activeId === id) setActiveId(null);
                 }}
                 sheet={false}
+                emptyTop={firstTop}
               />
             ) : null}
           </div>
@@ -731,7 +766,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       </main>
 
       {sheet ? (
-        <MarginGlosses items={marginItems} blocks={blocks} rootRef={rootRef} activeId={activeId} hoverId={hoverId} layoutKey={layoutKey} onActivate={setActiveId} onHover={setHoverId} onDeleteGloss={(id) => { removeGloss(documentId, id); setActiveId(null); }} onRetry={retry} onFollowUp={followUp} onCite={onCite} onEditNote={(id, t) => updateAnnotation(documentId, id, { note: t })} onDeleteNote={(id) => { removeAnnotation(documentId, id); setActiveId(null); }} sheet />
+        <MarginGlosses items={marginItems} blocks={blocks} rootRef={rootRef} activeId={activeId} hoverId={hoverId} layoutKey={layoutKey} onActivate={setActiveId} onHover={setHoverId} onDeleteGloss={deleteGloss} onRetry={retry} onFollowUp={followUp} onCite={onCite} onEditNote={(id, t) => updateAnnotation(documentId, id, { note: t })} onDeleteNote={(id) => { removeAnnotation(documentId, id); setActiveId(null); }} sheet />
       ) : null}
 
       {pending ? (
@@ -777,7 +812,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           if (sheet) setNbOpen(false);
         }}
         onRemoveAnnotation={(id) => removeAnnotation(documentId, id)}
-        onDeleteGloss={(id) => removeGloss(documentId, id)}
+        onDeleteGloss={deleteGloss}
         onCite={onCite}
         persisted={lib.persisted}
       />

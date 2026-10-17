@@ -11,6 +11,10 @@ export async function POST(req: Request) {
   const readerId = await ensureReaderId();
   const doc = documentFromText(parsed.data.text, parsed.data.title);
   if (!doc.blocks.length) return Response.json({ error: "Nothing to read." }, { status: 422 });
-  const saved = await saveDocument(readerId, doc);
-  return Response.json({ document: saved, persisted: saved.persisted });
+  try {
+    const saved = await saveDocument(readerId, doc);
+    return Response.json({ document: saved, persisted: saved.persisted });
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : "Could not save that text." }, { status: 500 });
+  }
 }

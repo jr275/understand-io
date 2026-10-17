@@ -6,16 +6,19 @@ import { actionQuestion, systemPrompt, userPrompt } from "@/lib/ai/prompts";
 export const maxDuration = 60;
 
 const Body = z.object({
-  title: z.string(),
-  author: z.string().nullable().optional(),
-  action: z.string(),
-  question: z.string().optional(),
+  title: z.string().max(400),
+  author: z.string().max(200).nullable().optional(),
+  action: z.string().max(20),
+  question: z.string().max(2000).optional(),
   anchor: z
     .object({ start: z.object({ b: z.string(), o: z.number() }), end: z.object({ b: z.string(), o: z.number() }), quote: z.string(), prefix: z.string().optional(), suffix: z.string().optional() })
     .nullable(),
-  context: z.array(z.object({ id: z.string(), n: z.number().optional(), text: z.string() })).max(80),
-  length: z.string().optional(),
-  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string() })).optional(),
+  context: z
+    .array(z.object({ id: z.string().max(40), n: z.number().optional(), text: z.string().max(6000) }))
+    .max(80)
+    .refine((c) => c.reduce((n, b) => n + b.text.length, 0) <= 30000, "Too much context."),
+  length: z.string().max(10).optional(),
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(8000) })).max(40).optional(),
 });
 
 export const SENTINEL = "\u001e";
@@ -42,6 +45,7 @@ export async function POST(req: Request) {
       messages,
       temperature: 0.4,
       maxOutputTokens: b.length === "long" ? 900 : b.length === "short" ? 220 : 480,
+      abortSignal: req.signal,
     });
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({

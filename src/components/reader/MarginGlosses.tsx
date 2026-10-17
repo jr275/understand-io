@@ -30,6 +30,8 @@ interface Props {
   onDeleteNote: (id: string) => void;
   /** Below 1080px the active item is shown as a bottom sheet instead. */
   sheet: boolean;
+  /** Offset (px) of the first paragraph, used to place the empty-margin hint. */
+  emptyTop?: number;
 }
 
 const ACTION_LABEL: Record<string, string> = { explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text" };
@@ -119,6 +121,17 @@ export function MarginGlosses(p: Props) {
             <X size={14} aria-hidden="true" />
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (!p.items.length) {
+    return (
+      <div ref={wrap} className="relative">
+        <p className="focus-hide absolute left-0 right-0 border-l border-rule pl-4 text-[13.5px] leading-[1.55] text-ink-3" style={{ top: p.emptyTop ?? 0, animation: "fade .6s .4s var(--ease-out) both" }}>
+          <span className="block text-ink-2">This area is for notes.</span>
+          Select any passage, then just start typing to ask.
+        </p>
       </div>
     );
   }
@@ -318,23 +331,14 @@ function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHov
     );
   }
   return (
-    <div
-      ref={refCb}
-      role="button"
-      tabIndex={0}
-      aria-label={`Note on paragraph ${pn ?? "—"}`}
-      className={`mnote ${active ? "is-active" : ""}`}
-      style={{ ...style, ["--note-c" as string]: `var(--mk-${n.color ?? "yellow"})` }}
-      onClick={() => (active ? setEditing(true) : onActivate())}
-      onKeyDown={(e) => (e.key === "Enter" ? (active ? setEditing(true) : onActivate()) : null)}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
-    >
-      <span className="block whitespace-pre-wrap">{n.note || <span className="text-ink-4">Empty note</span>}</span>
+    <div ref={refCb} className={`mnote ${active ? "is-active" : ""}`} style={{ ...style, ["--note-c" as string]: `var(--mk-${n.color ?? "yellow"})` }} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
+      <button type="button" aria-label={`Note on paragraph ${pn ?? "—"}`} className="block w-full text-left font-serif text-inherit" onClick={() => (active ? setEditing(true) : onActivate())}>
+        <span className="block whitespace-pre-wrap">{n.note || <span className="text-ink-4">Empty note</span>}</span>
+      </button>
       {active ? (
         <span className="mt-1.5 flex items-center justify-between font-sans text-[11.5px] text-ink-4">
           <span>{pn ? `¶${pn} · ` : ""}click to edit</span>
-          <button type="button" aria-label="Delete note" className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+          <button type="button" aria-label="Delete note" className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={onDelete}>
             <Trash2 size={13} aria-hidden="true" />
           </button>
         </span>

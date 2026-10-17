@@ -110,8 +110,8 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
         }}
       />
       {pasteOpen ? (
-        <div className="fixed inset-0 z-[80] grid place-items-center p-4" onPointerDown={(e) => e.target === e.currentTarget && setPasteOpen(false)}>
-          <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" />
+        <div className="fixed inset-0 z-[80] grid place-items-center p-4">
+          <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_60%,transparent)] backdrop-blur-[3px]" onPointerDown={() => setPasteOpen(false)} />
           <form
             role="dialog"
             aria-modal="true"
@@ -129,7 +129,7 @@ export function ImportBar({ initialUrl }: { initialUrl?: string }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-serif text-[19px] leading-tight text-ink">Paste text</p>
-                <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Gloss will set it like an article.</p>
+                <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Understand.io will set it like an article.</p>
               </div>
               <button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink" onClick={() => setPasteOpen(false)}>
                 <X size={17} aria-hidden="true" />

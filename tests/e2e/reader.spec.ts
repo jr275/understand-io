@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { SAMPLE, collectErrors, openReader, selectInBlock } from "./helpers";
+import { collectErrors, openReader, selectInBlock } from "./helpers";
 
 test.describe("reader", () => {
   test("loads a sample with header, numbered blocks, composer and no console errors", async ({ page }) => {
@@ -11,6 +11,9 @@ test.describe("reader", () => {
     await expect(page.locator(".blk[data-n]")).toHaveCount(63);
     await expect(page.locator(".blk[data-type=h2]")).toHaveText("Notes");
     await expect(page.getByLabel("Ask anything about the whole text")).toBeVisible();
+    // Reading time matches the reference rounding and the margin shows its empty-state hint.
+    await expect(page.getByText("38 min read")).toBeVisible();
+    await expect(page.locator(".rg-margin")).toContainText("This area is for notes.");
     await page.waitForTimeout(800);
     expect(errors.filter((e) => !e.includes("favicon"))).toEqual([]);
   });
@@ -69,6 +72,26 @@ test.describe("reader", () => {
     await expect(card).toBeVisible();
     await expect(card).toContainText(/Together AI key/);
     await expect(page.locator(".m-gloss")).toHaveCount(1);
+  });
+
+  test("deleting a gloss stays deleted after reload; clicking the backdrop closes dialogs", async ({ page }) => {
+    await openReader(page);
+    await page.evaluate(() => localStorage.removeItem("gloss:key"));
+    await selectInBlock(page, "p6", 0, 30);
+    await page.getByRole("toolbar").getByRole("button", { name: "Simplify" }).click();
+    const card = page.locator("article.gloss.is-active");
+    await expect(card).toBeVisible();
+    await card.getByRole("button", { name: "Delete" }).click();
+    await expect(page.locator("article.gloss")).toHaveCount(0);
+    await page.reload();
+    await page.locator("[data-reader-ready]").waitFor({ state: "attached" });
+    await page.waitForTimeout(600); // give the server sync a moment to merge
+    await expect(page.locator("article.gloss")).toHaveCount(0);
+    await expect(page.locator(".m-gloss")).toHaveCount(0);
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.mouse.click(20, 400);
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
   });
 
   test("keyboard: J/K move the cursor, ? opens keys, F toggles focus, Esc steps back", async ({ page }) => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ArrowUpRight, Headphones, Keyboard, NotebookPen } from "lucide-react";
 import type { Anchor, Annotation, Gloss, GlossAction, GlossDocument, HighlightColor } from "@/lib/content/types";
+import { decideAnnotate, marksOnRange } from "@/lib/anchors/annotate";
 import { anchorBlockIds, anchorFromSelection, blockIndex, clampNote, makeAnchor, rangeForAnchor, resolveAll, resolveCached, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
 import { SpeechController } from "@/lib/speech/controller";
@@ -271,14 +272,27 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const annotate = useCallback(
     (kind: Annotation["kind"], color: HighlightColor, note?: string) => {
       if (!pending) return;
+      // The same kind on an identical range does not stack: the same colour takes the mark off, another colour recolours it.
+      const decision = decideAnnotate(resolvedAnn, pending.anchor, kind, color);
+      if (decision.type !== "add") {
+        for (const id of decision.ids) {
+          if (decision.type === "remove") removeAnnotation(documentId, id);
+          else updateAnnotation(documentId, id, { color });
+        }
+        clearSelection();
+        toast(decision.type === "remove" ? (kind === "underline" ? "Underline removed." : "Highlight removed.") : "Colour changed.", { ttl: 2200 });
+        return;
+      }
       const a: Annotation = { id: newId(), documentId, kind, color, note: note === undefined ? undefined : clampNote(note), anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
       addAnnotation(a);
       clearSelection();
       if (kind === "note") setActiveId(a.id);
       toast(lib.persisted ? "Kept in your library." : "Kept in this browser.", { ttl: 2600 });
     },
-    [pending, documentId, clearSelection, lib.persisted],
+    [pending, documentId, clearSelection, lib.persisted, resolvedAnn],
   );
+  // Highlights and underlines that already cover exactly the selected range (the lens offers to remove them).
+  const pendingMarks = useMemo(() => (pending ? marksOnRange(resolvedAnn, pending.anchor) : []), [pending, resolvedAnn]);
 
   /* ---------- glosses ---------- */
   const index = useMemo(() => new Bm25Index(buildPassages(blocks)), [blocks]);
@@ -549,6 +563,10 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         return;
       }
       if (kind === "hl" || kind === "ul") {
+        // A click that ends a drag-selection must not replace what the reader just selected, and with nested marks only the innermost one answers.
+        if (document.getSelection()?.isCollapsed === false) return;
+        const inner = (e.target as Element).closest?.(".m-hl, .m-ul") as HTMLElement | null;
+        if (inner && inner.dataset.mark !== id) return;
         // The resolved anchor (where the text is now), not the stored one: they differ after the text moved.
         const anchor = resolvedAnn.find((x) => x.item.id === id)?.anchor;
         if (!anchor) return;
@@ -790,6 +808,12 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             annotate("highlight", c);
           }}
           onUnderline={(c) => annotate("underline", c)}
+          existing={pendingMarks.map((a) => ({ id: a.id, kind: a.kind === "underline" ? ("underline" as const) : ("highlight" as const) }))}
+          onRemove={(ids) => {
+            ids.forEach((id) => removeAnnotation(documentId, id));
+            clearSelection();
+            toast("Removed.", { ttl: 2200 });
+          }}
           onNote={(t) => annotate("note", settings.marker, t)}
           onCopy={() => {
             const n = blocks.find((b) => b.id === pending.anchor.start.b)?.n;

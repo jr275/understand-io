@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, BookOpenText, Copy, Ellipsis, Feather, Headphones, Highlighter, Lightbulb, Link2, PenLine, ScanSearch, ShieldCheck, Underline } from "lucide-react";
+import { ArrowUp, BookOpenText, Copy, Ellipsis, Feather, Headphones, Eraser, Highlighter, Lightbulb, Link2, PenLine, ScanSearch, ShieldCheck, Underline } from "lucide-react";
 import { NOTE_MAX_LENGTH, type GlossAction, type HighlightColor } from "@/lib/content/types";
 import { clampNote } from "@/lib/anchors";
 
@@ -11,6 +11,9 @@ export interface LensProps {
   onAction: (a: GlossAction, question?: string) => void;
   onHighlight: (c: HighlightColor) => void;
   onUnderline: (c: HighlightColor) => void;
+  /** Highlights/underlines that already cover exactly this selection; the lens then offers to remove them. */
+  existing?: { id: string; kind: "highlight" | "underline" }[];
+  onRemove?: (ids: string[]) => void;
   onNote: (text: string) => void;
   onCopy: () => void;
   onListen: () => void;
@@ -25,7 +28,7 @@ const COLORS: { id: HighlightColor; label: string; c: string }[] = [
 ];
 
 /** Selection toolbar ("lens"). Appears above the selection; morphs into an input for Ask / notes. */
-export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote, onCopy, onListen, onClose }: LensProps) {
+export function Lens({ rect, marker, onAction, onHighlight, onUnderline, existing = [], onRemove, onNote, onCopy, onListen, onClose }: LensProps) {
   const [mode, setMode] = useState<"bar" | "ask" | "note">("bar");
   const [menu, setMenu] = useState(false);
   const [text, setText] = useState("");
@@ -150,6 +153,14 @@ export function Lens({ rect, marker, onAction, onHighlight, onUnderline, onNote,
             <button type="button" aria-label="Underline" data-tip="Underline" data-tip-kbd="⇧U" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onUnderline(marker)}>
               <Underline size={15} aria-hidden="true" />
             </button>
+            {(["highlight", "underline"] as const).map((k) => {
+              const ids = existing.filter((x) => x.kind === k).map((x) => x.id);
+              return ids.length && onRemove ? (
+                <button key={k} type="button" aria-label={`Remove ${k}`} data-tip={`Remove ${k}`} data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => onRemove(ids)}>
+                  <Eraser size={15} aria-hidden="true" />
+                </button>
+              ) : null;
+            })}
             <button type="button" aria-label="Add a note" data-tip="Add a note" data-tip-hint="In your own words" data-tip-side="top" className="lens-btn w-8 justify-center text-lens-fg/85 hover:text-lens-fg" onClick={() => setMode("note")}>
               <PenLine size={15} aria-hidden="true" />
             </button>

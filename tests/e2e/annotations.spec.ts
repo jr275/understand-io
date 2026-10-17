@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { openReader, selectInBlock } from "./helpers";
 
 const DOC = "sample:on-a-piece-of-chalk";
@@ -27,6 +27,16 @@ function onQuote(id: string, b: string, quote: string, shift: number, over: obje
 }
 /** An annotation whose passage is not in the document at all. */
 const missing = (id: string, b: string, quote: string, over: object = {}) => ({ id, documentId: DOC, kind: "highlight", color: "pink", createdAt: now - 4000, updatedAt: now - 4000, ...over, anchor: { start: { b, o: 0 }, end: { b, o: quote.length }, quote } });
+
+/** Remove every notebook item (one at a time, waiting for the list to settle) so tests leave the shared database as they found it. */
+async function removeAll(nb: Locator) {
+  const buttons = nb.getByRole("button", { name: "Remove" });
+  for (let i = 0; i < 10 && (await buttons.count()) > 0; i++) {
+    const before = await buttons.count();
+    await buttons.first().click({ force: true });
+    await expect(buttons).toHaveCount(before - 1);
+  }
+}
 
 test.describe("annotations in the reader", () => {
   test("ANNOT-10: a note is capped at 5000 characters in the lens and in the margin editor, with a counter", async ({ page }) => {
@@ -93,7 +103,8 @@ test.describe("annotations in the reader", () => {
     await expect(page.locator(".m-hl")).toHaveText(quote);
     // Clicking the mark selects the passage it paints (not whatever sits at the old offsets).
     await page.locator(".m-hl").click();
-    await expect.poll(() => page.evaluate(() => getSelection()!.toString())).toBe(quote);
+    // (the lens paints the pending selection as .m-pending; the native selection is replaced by that paint)
+    await expect(page.locator(".m-pending")).toHaveText(quote);
     await page.keyboard.press("Escape");
     // The note's mark, card and dot follow the resolved position.
     await expect(page.locator(".m-note")).toHaveText("a thickness of more than a thousand feet");
@@ -102,8 +113,7 @@ test.describe("annotations in the reader", () => {
     // Clean up through the UI (this also exercises the server DELETE for a seeded, then uploaded, item).
     await page.keyboard.press("n");
     const nb = page.getByRole("complementary", { name: "Notebook" });
-    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
-    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
+    await removeAll(nb);
     await expect(page.locator(".m-hl, .m-note")).toHaveCount(0);
   });
 
@@ -128,8 +138,97 @@ test.describe("annotations in the reader", () => {
     // Clean up through the notebook.
     await page.keyboard.press("n");
     const nb = page.getByRole("complementary", { name: "Notebook" });
-    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
-    await nb.getByRole("button", { name: "Remove" }).first().click({ force: true });
+    await removeAll(nb);
     await expect(page.locator(".m-hl")).toHaveCount(0);
+  });
+
+  test("ANNOT-14: the same highlight on the same range toggles off, another colour recolours it, and the lens offers Remove", async ({ page }) => {
+    await openReader(page);
+    const lens = page.getByRole("toolbar", { name: "Actions for the selection" });
+    const stored = () => page.evaluate(() => (JSON.parse(localStorage.getItem("gloss:v1")!).annotations["sample:on-a-piece-of-chalk"] as unknown[]).length);
+    await selectInBlock(page, "p2", 0, 40);
+    await page.keyboard.press("Shift+H");
+    await expect(page.locator(".m-hl")).toHaveCount(1);
+    // Pressing Shift+H again on the same range (selected again) takes the highlight off instead of stacking a second one.
+    await selectInBlock(page, "p2", 0, 40);
+    await expect(lens.getByRole("button", { name: "Remove highlight" })).toBeVisible();
+    await page.keyboard.press("Shift+H");
+    await expect(page.locator(".m-hl")).toHaveCount(0);
+    expect(await stored()).toBe(0);
+    // Highlight again, then pick another colour for the same range: one mark, new colour.
+    await selectInBlock(page, "p2", 0, 40);
+    await page.keyboard.press("Shift+H");
+    await expect(page.locator(".m-hl")).toHaveCount(1);
+    await selectInBlock(page, "p2", 0, 40);
+    await lens.getByRole("button", { name: "Highlight", exact: true }).hover();
+    await lens.getByRole("button", { name: "Highlight in green" }).click();
+    await expect(page.locator(".m-hl")).toHaveCount(1);
+    await expect(page.locator(".m-hl").first()).toHaveAttribute("data-c", "green");
+    expect(await stored()).toBe(1);
+    // The Remove button takes it off too; a different range is not affected.
+    await selectInBlock(page, "p2", 0, 20);
+    await expect(lens.getByRole("button", { name: "Remove highlight" })).toHaveCount(0);
+    await selectInBlock(page, "p2", 0, 40);
+    await lens.getByRole("button", { name: "Remove highlight" }).click();
+    await expect(page.locator(".m-hl")).toHaveCount(0);
+    expect(await stored()).toBe(0);
+  });
+
+  test("ANNOT-13: dragging a selection inside an existing highlight keeps that selection (the click does not replace it)", async ({ page }) => {
+    await openReader(page);
+    await selectInBlock(page, "p2", 0, 60);
+    await page.keyboard.press("Shift+H");
+    await expect(page.locator(".m-hl")).toHaveCount(1);
+    const [from, to] = [8, 26];
+    // Screen positions of characters [from, to) of paragraph 2, then a real mouse drag from one to the other.
+    const pts = await page.evaluate(
+      ({ from, to }) => {
+        const text = document.querySelector('.blk[data-block="p2"] .blk-text')!;
+        const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+        const at = (k: number, side: "left" | "right") => {
+          let o = 0;
+          let n: Node | null;
+          while ((n = walker.nextNode())) {
+            const len = n.textContent!.length;
+            const lo = side === "left" ? k : k - 1;
+            if (lo < o + len) {
+              const r = document.createRange();
+              r.setStart(n, lo - o);
+              r.setEnd(n, lo - o + 1);
+              const b = r.getBoundingClientRect();
+              walker.currentNode = text;
+              return { x: side === "left" ? b.left + 1 : b.right - 1, y: b.top + b.height / 2 };
+            }
+            o += len;
+          }
+          return null;
+        };
+        const a = at(from, "left");
+        walker.currentNode = text;
+        const b = at(to, "right");
+        return { a, b };
+      },
+      { from, to },
+    );
+    expect(pts.a && pts.b).toBeTruthy();
+    await page.mouse.move(pts.a!.x, pts.a!.y);
+    await page.mouse.down();
+    await page.mouse.move(pts.b!.x, pts.b!.y, { steps: 6 });
+    await page.mouse.up();
+    const half = textOf("p2").slice(from, to);
+    // The lens shows the dragged half as the pending selection (not the whole highlight), and acts on it.
+    await expect(page.getByRole("toolbar", { name: "Actions for the selection" })).toBeVisible();
+    await page.waitForTimeout(400); // give a wrong replacement of the selection time to happen
+    await expect(page.locator(".m-pending")).toHaveText(half);
+    await page.keyboard.press("Shift+U");
+    const quotes = await page.evaluate(() => (JSON.parse(localStorage.getItem("gloss:v1")!).annotations["sample:on-a-piece-of-chalk"] as { kind: string; anchor: { quote: string } }[]).map((a) => [a.kind, a.anchor.quote]));
+    expect(quotes).toContainEqual(["underline", half]);
+    // The paragraph is still its own text exactly once (a mark spanning several segments used to give them equal React keys and leave a stale copy of the text behind).
+    await expect(page.locator('.blk[data-block="p2"] .blk-text')).toHaveText(textOf("p2"));
+    await expect(page.locator(".m-pending")).toHaveCount(0);
+    await page.keyboard.press("n");
+    const nb = page.getByRole("complementary", { name: "Notebook" });
+    await removeAll(nb);
+    await expect(page.locator(".m-hl, .m-ul")).toHaveCount(0);
   });
 });

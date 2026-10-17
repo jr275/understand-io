@@ -44,7 +44,7 @@ async function pageTexts(pdf: Pdf, deadline: number): Promise<string[]> {
     if (Date.now() > deadline) throw new ReadError("That PDF took too long to read.");
     const page = await pdf.getPage(n);
     const content = await page.getTextContent();
-    const text = content.items.map((item) => ("str" in item && item.str != null ? item.str + (item.hasEOL ? "\n" : "") : "")).join("");
+    const text = textWithParagraphGaps(content.items);
     page.cleanup();
     chars += text.length;
     if (chars > PDF_LIMITS.textChars) throw new ReadError("That PDF holds too much text to read here. Import a shorter extract.");
@@ -52,6 +52,51 @@ async function pageTexts(pdf: Pdf, deadline: number): Promise<string[]> {
     await new Promise((resolve) => setImmediate(resolve));
   }
   return pages;
+}
+
+interface TextItemLike {
+  str?: string;
+  hasEOL?: boolean;
+  transform?: number[];
+}
+
+/**
+ * A page's text, line by line (as unpdf builds it), with a blank line wherever the vertical gap between two lines is clearly larger
+ * than the page's usual line spacing: that gap is how a PDF shows a paragraph break, and the text alone does not carry it.
+ */
+export function textWithParagraphGaps(items: readonly unknown[]): string {
+  const lines: { text: string; y: number | null }[] = [];
+  let cur = "";
+  let y: number | null = null;
+  for (const raw of items) {
+    const item = raw as TextItemLike; // pdf.js also yields marked-content items without text
+    if (item.str == null) continue;
+    if (y === null && item.str.trim() && item.transform) y = item.transform[5];
+    cur += item.str;
+    if (item.hasEOL) {
+      lines.push({ text: cur, y });
+      cur = "";
+      y = null;
+    }
+  }
+  if (cur) lines.push({ text: cur, y });
+  const gaps: number[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const a = lines[i - 1].y;
+    const b = lines[i].y;
+    if (a !== null && b !== null && a - b > 0) gaps.push(a - b);
+  }
+  gaps.sort((p, q) => p - q);
+  // The usual line spacing is the lower quartile of the gaps: paragraph gaps are the larger ones, so the median would not do on a page with few lines.
+  const usual = gaps.length ? gaps[Math.floor(gaps.length / 4)] : 0;
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const prev = lines[i - 1]?.y;
+    const here = lines[i].y;
+    if (i > 0 && usual > 0 && prev != null && here != null && prev - here > usual * 1.5) out.push("");
+    out.push(lines[i].text);
+  }
+  return out.join("\n");
 }
 
 async function readPdf(pdf: Pdf, filename: string): Promise<GlossDocument> {

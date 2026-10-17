@@ -1,16 +1,20 @@
 import { z } from "zod";
 import { documentFromExtracted, extractArticle } from "@/lib/content/extract";
+import { readJsonLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
-import { UnsafeUrlError, fetchPublic } from "@/lib/server/safeFetch";
+import { fetchPublic } from "@/lib/server/safeFetch";
 import { describeFetchStatus } from "@/lib/server/importStatus";
+import { importErrorResponse } from "@/lib/server/importErrors";
 
 export const maxDuration = 45;
 
 const Body = z.object({ url: z.string().url().max(2048) });
 
 export async function POST(req: Request) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const json = await readJsonLimited(req, 16 * 1024);
+  if (json === "too-large") return Response.json({ error: "That request is too large." }, { status: 413 });
+  const parsed = Body.safeParse(json);
   if (!parsed.success) return Response.json({ error: "That does not look like a link." }, { status: 400 });
   const url = parsed.data.url;
   try {
@@ -34,9 +38,6 @@ export async function POST(req: Request) {
     const saved = await saveDocument(readerId, doc);
     return Response.json({ document: saved, persisted: saved.persisted });
   } catch (err) {
-    if (err instanceof UnsafeUrlError) return Response.json({ error: err.message }, { status: 400 });
-    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) return Response.json({ error: "That page took too long to answer." }, { status: 504 });
-    if (err instanceof TypeError) return Response.json({ error: "That page could not be reached." }, { status: 502 });
-    return Response.json({ error: err instanceof Error ? err.message : "Could not read that page." }, { status: 422 });
+    return importErrorResponse(err, "Could not read that page.", true);
   }
 }

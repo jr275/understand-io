@@ -1,12 +1,17 @@
 import { z } from "zod";
 import { documentFromText } from "@/lib/content/text";
+import { readJsonLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
+import { importErrorResponse } from "@/lib/server/importErrors";
 
 const Body = z.object({ text: z.string().min(1).max(2_000_000), title: z.string().max(200).optional() });
 
 export async function POST(req: Request) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  // 4 bytes per character at most, plus the envelope.
+  const json = await readJsonLimited(req, 2_000_000 * 4 + 8192);
+  if (json === "too-large") return Response.json({ error: "That text is too long." }, { status: 413 });
+  const parsed = Body.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Nothing to read." }, { status: 400 });
   const readerId = await ensureReaderId();
   const doc = documentFromText(parsed.data.text, parsed.data.title);
@@ -15,6 +20,6 @@ export async function POST(req: Request) {
     const saved = await saveDocument(readerId, doc);
     return Response.json({ document: saved, persisted: saved.persisted });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Could not save that text." }, { status: 500 });
+    return importErrorResponse(err, "Could not save that text.");
   }
 }

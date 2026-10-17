@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { documentFromExtracted, extractArticle } from "@/lib/content/extract";
+import { HTML_LIMITS } from "@/lib/content/limits";
+import { readJsonLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
+import { importErrorResponse } from "@/lib/server/importErrors";
 
 export const maxDuration = 30;
 
@@ -12,12 +15,15 @@ export const maxDuration = 30;
  */
 const Body = z.object({
   url: z.string().url().max(2048),
-  html: z.string().min(1).max(10_000_000),
+  html: z.string().min(1).max(HTML_LIMITS.chars),
   title: z.string().max(300).optional(),
 });
 
 export async function POST(req: Request) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  // 4 bytes per character at most, plus the envelope.
+  const json = await readJsonLimited(req, HTML_LIMITS.chars * 4 + 8192);
+  if (json === "too-large") return Response.json({ error: "That page is too large to read here (over 4 MB of HTML). Paste its text instead." }, { status: 413 });
+  const parsed = Body.safeParse(json);
   if (!parsed.success) return Response.json({ error: "No page content received." }, { status: 400 });
   const { url, html, title } = parsed.data;
   if (!/^https?:$/.test(new URL(url).protocol)) return Response.json({ error: "Only http(s) pages can be read." }, { status: 400 });
@@ -29,6 +35,6 @@ export async function POST(req: Request) {
     const saved = await saveDocument(readerId, doc);
     return Response.json({ document: saved, persisted: saved.persisted });
   } catch (err) {
-    return Response.json({ error: err instanceof Error ? err.message : "Could not read that page." }, { status: 422 });
+    return importErrorResponse(err, "Could not read that page.");
   }
 }

@@ -21,10 +21,12 @@ export function googleConfig(): GoogleConfig | null {
   return { clientId, clientSecret };
 }
 
-/** Public origin for OAuth redirects: APP_URL when set, else the request's own origin. */
+/** Public origin for OAuth redirects: APP_URL when set, else (outside production) the request's own origin. */
 export function appOrigin(req: Request) {
   const configured = process.env.APP_URL?.replace(/\/$/, "");
   if (configured) return configured;
+  // Without APP_URL the origin would come from forwarded headers and Host, which whoever reaches a bare server controls.
+  if (process.env.NODE_ENV === "production") throw new Error("APP_URL must be set in production (the public origin used for the Google sign-in redirect).");
   const u = new URL(req.url);
   const proto = req.headers.get("x-forwarded-proto") ?? u.protocol.replace(":", "");
   const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? u.host;
@@ -43,8 +45,13 @@ export interface OAuthState {
   next: string;
 }
 
+/** A same-site path only: one leading slash (never `//` or `/\`), no scheme, no control characters. Anything else becomes the library. */
+export function safeNext(next: string): string {
+  return next.length <= 512 && /^\/(?![/\\])[\w\-./?=&%#]*$/.test(next) ? next : "/library";
+}
+
 export function newOAuthState(next: string): OAuthState {
-  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: next.startsWith("/") ? next : "/library" };
+  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: safeNext(next) };
 }
 
 export function codeChallenge(verifier: string) {
@@ -112,9 +119,26 @@ export interface Account {
 }
 
 /**
+ * What a Google sign-in may do with the reader this browser already carries. A reader that belongs to an
+ * account is never merged away or adopted by another account (that would delete the owner's account row, or
+ * give a second account the same library); only a reader nobody owns is an anonymous library.
+ */
+export function planSignIn(input: { existingReaderId: string | null; currentReaderId: string | null; currentReaderOwnerId: string | null }): { mergeFrom: string | null; adopt: string | null } {
+  const { existingReaderId, currentReaderId, currentReaderOwnerId } = input;
+  const anonymous = currentReaderId && currentReaderOwnerId === null ? currentReaderId : null;
+  if (existingReaderId) return { mergeFrom: anonymous && anonymous !== existingReaderId ? anonymous : null, adopt: null };
+  return { mergeFrom: null, adopt: anonymous };
+}
+
+function isUniqueViolation(err: unknown) {
+  const e = err as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === "23505" || e?.cause?.code === "23505";
+}
+
+/**
  * Find or create the account for a Google profile. A new account adopts this browser's anonymous
  * reader (nothing to merge). An existing account absorbs this browser's anonymous library, so what
- * was read before signing in follows the account.
+ * was read before signing in follows the account. A reader that already belongs to an account is left alone.
  */
 export async function signInGoogle(profile: GoogleProfile, currentReaderId: string | null): Promise<Account> {
   const db = getDb();
@@ -125,25 +149,37 @@ export async function signInGoogle(profile: GoogleProfile, currentReaderId: stri
     .where(and(eq(accounts.provider, "google"), eq(accounts.subject, profile.sub)))
     .limit(1);
   const patch = { email: profile.email ?? null, name: profile.name ?? null, picture: profile.picture ?? null, lastSeenAt: new Date() };
+  const [owner] = currentReaderId ? await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.readerId, currentReaderId)).limit(1) : [];
+  const plan = planSignIn({ existingReaderId: existing[0]?.readerId ?? null, currentReaderId, currentReaderOwnerId: owner?.id ?? null });
   if (existing[0]) {
     const acc = existing[0];
-    if (currentReaderId && currentReaderId !== acc.readerId) await mergeReaders(db, currentReaderId, acc.readerId);
+    if (plan.mergeFrom) await mergeReaders(db, plan.mergeFrom, acc.readerId);
     await db.update(accounts).set(patch).where(eq(accounts.id, acc.id));
     return { id: acc.id, readerId: acc.readerId, ...patch };
   }
-  const readerId = currentReaderId ?? newReaderId();
-  await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
   const id = `a_${randomBytes(9).toString("base64url")}`;
-  await db.insert(accounts).values({ id, provider: "google", subject: profile.sub, readerId, ...patch });
-  return { id, readerId, ...patch };
+  // accounts.reader_id is unique: if another sign-in claimed the adopted reader in the meantime, take a fresh one.
+  let readerId = plan.adopt ?? newReaderId();
+  for (let attempt = 0; ; attempt++) {
+    await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
+    try {
+      await db.insert(accounts).values({ id, provider: "google", subject: profile.sub, readerId, ...patch });
+      return { id, readerId, ...patch };
+    } catch (err) {
+      if (attempt >= 2 || !isUniqueViolation(err)) throw err;
+      readerId = newReaderId();
+    }
+  }
 }
 
-/** Move everything owned by reader `from` to reader `to`, then drop `from`. */
+/** Move everything owned by reader `from` to reader `to`, then drop `from`. A reader that belongs to an account is never merged or dropped. */
 export async function mergeReaders(db: Db, from: string, to: string) {
   if (from === to) return;
   await db.transaction(async (tx) => {
     const [fromRow] = await tx.select({ id: readers.id }).from(readers).where(eq(readers.id, from)).limit(1);
     if (!fromRow) return; // anonymous reader never touched the server
+    const [owned] = await tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.readerId, from)).limit(1);
+    if (owned) return; // dropping it would cascade-delete that account
     await tx.insert(readers).values({ id: to }).onConflictDoNothing();
     await tx.update(documents).set({ readerId: to }).where(eq(documents.readerId, from));
     await tx.update(annotations).set({ readerId: to }).where(eq(annotations.readerId, from));

@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb, type Db } from "@/lib/db/client";
 import { documents, readers } from "@/lib/db/schema";
 import type { GlossDocument } from "@/lib/content/types";
+import { ReadError } from "@/lib/content/errors";
 import { getSample } from "@/lib/content/samples";
 import { newId, slugFor } from "@/lib/content/slug";
 import { describeDbError, isConnectionError } from "./dbErrors";
@@ -111,9 +112,9 @@ export async function saveDocument(readerId: string, doc: GlossDocument): Promis
       console.warn(`[db] unavailable while saving a document; kept local (${describeDbError(err)})`);
       return local;
     }
-    // Drizzle error messages embed the SQL and its parameters: log them here, never send them to the client.
-    console.error("[db] saving a document failed", err);
-    throw new Error("Could not save that to your library.");
+    // Drizzle error messages embed the SQL and its parameters (the whole document): never log or send the error object.
+    console.error(`[db] saving a document failed (${describeDbError(err)})`);
+    throw new ReadError("Could not save that to your library.");
   }
 }
 

@@ -93,7 +93,7 @@ export const Block = memo(function Block({ block, first, cursor, speaking, flash
       ) : null}
       {block.type === "figure" && block.src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="fig-img" src={block.src} alt={block.alt ?? ""} loading="lazy" />
+        <img className="fig-img" src={block.src} alt={block.alt ?? ""} loading="lazy" referrerPolicy="no-referrer" />
       ) : null}
       <span className="blk-text">
         {content}

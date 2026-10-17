@@ -9,7 +9,7 @@ import { PasteDialog } from "./PasteDialog";
 export { ACCEPT };
 
 interface Props {
-  /** Bookmarklet entry `/?url=…`: fetch this page on the server right away. */
+  /** `/?url=…` or `/?save=…`: only fills the field. Reading starts when the reader presses Read, never from the link itself. */
   initialUrl?: string;
   /** Bookmarklet entry `/?capture=read|save`: wait for the opener tab to post the page HTML. */
   capture?: "read" | "save";
@@ -17,31 +17,57 @@ interface Props {
 
 const CAPTURE_WAIT_MS = 6000;
 
+function originOf(raw: string | undefined) {
+  try {
+    return raw ? new URL(normaliseUrl(raw)).origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ImportBar({ initialUrl, capture }: Props) {
   const [url, setUrl] = useState(initialUrl ?? "");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState("");
   const [waiting, setWaiting] = useState(!!capture);
   const fileRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { busy, importUrl, importText, importFile, importPage } = useImport();
   const started = useRef(false);
 
-  // Bookmarklet entry: /?url=… (server fetch) or /?capture=… (HTML posted by the opener tab).
-  // The capture effect is re-runnable (StrictMode runs effects twice in development): the listener
-  // and the fallback timer are re-registered on every run, and `started` only guards the import itself.
+  // A link that arrives with a URL (`/?url=…`, `/?save=…`) is only a suggestion: it must never fetch or import on its own
+  // (any site could link here and make this server fetch a page for the visitor). Fill the field and let the reader press Read.
   useEffect(() => {
-    if (!capture) {
-      if (initialUrl && !started.current) {
-        started.current = true;
-        void importUrl(normaliseUrl(initialUrl));
-      }
-      return;
-    }
+    if (initialUrl && !capture) inputRef.current?.focus();
+  }, [initialUrl, capture]);
+
+  // Bookmarklet entry /?capture=…: the opener tab (the article) posts its HTML. Only a real opener is listened to, and what it
+  // posts must come from the origin of the page it says it captured (a hostile page that opens this URL cannot pose as another site).
+  // The effect is re-runnable (StrictMode runs effects twice in development): the listener and the fallback timer are
+  // re-registered on every run, and `started` only guards the import itself.
+  useEffect(() => {
+    if (!capture) return;
     const after = capture === "save" ? "library" : "read";
+    if (!window.opener) {
+      // Opened directly, not by the bookmarklet: nothing will arrive. Behave like a plain link.
+      const t = window.setTimeout(() => {
+        setWaiting(false);
+        if (initialUrl) toast("Press Read to fetch that page from here.", { ttl: 6000 });
+      }, 0);
+      return () => window.clearTimeout(t);
+    }
+    const expected = originOf(initialUrl);
     const onMessage = (e: MessageEvent) => {
       if (started.current || !window.opener || e.source !== window.opener) return;
       const d = e.data as { type?: string; url?: string; html?: string; title?: string } | null;
       if (!d || d.type !== "understand:page" || typeof d.html !== "string" || typeof d.url !== "string") return;
+      let captured: URL;
+      try {
+        captured = new URL(d.url);
+      } catch {
+        return;
+      }
+      if (!/^https?:$/.test(captured.protocol) || captured.origin !== e.origin || (expected && captured.origin !== expected)) return;
       started.current = true;
       window.clearTimeout(timer);
       setUrl(d.url);
@@ -51,24 +77,22 @@ export function ImportBar({ initialUrl, capture }: Props) {
     window.addEventListener("message", onMessage);
     // Tell the opener we are listening; it answers with the page.
     try {
-      window.opener?.postMessage("understand:ready", "*");
+      window.opener.postMessage("understand:ready", expected ?? "*");
     } catch {
-      /* no opener */
+      /* the opener is gone or on another origin than the link says */
     }
     const timer = window.setTimeout(() => {
       if (started.current) return;
-      started.current = true;
       setWaiting(false);
-      if (initialUrl) {
-        toast("The page did not hand over its content; fetching it from here instead.", { ttl: 5000 });
-        void importUrl(normaliseUrl(initialUrl), after);
-      } else toast("The page did not hand over its content. Click the bookmarklet again on the article.", { ttl: 8000 });
+      // Never import on our own here either: the opener could be any page. The reader decides.
+      toast(initialUrl ? "The page did not hand over its content. Press Read to fetch it from here instead." : "The page did not hand over its content. Click the bookmarklet again on the article.", { ttl: 8000 });
+      if (initialUrl) inputRef.current?.focus();
     }, CAPTURE_WAIT_MS);
     return () => {
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
     };
-  }, [capture, initialUrl, importPage, importUrl]);
+  }, [capture, initialUrl, importPage]);
 
   // ⌘V / Ctrl+V anywhere: a URL opens it, longer text becomes a document.
   useEffect(() => {
@@ -114,6 +138,7 @@ export function ImportBar({ initialUrl, capture }: Props) {
       >
         <Link2 size={18} aria-hidden="true" className="shrink-0 text-ink-3" />
         <input
+          ref={inputRef}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={waiting ? "Waiting for the page…" : "Paste a link to any article"}

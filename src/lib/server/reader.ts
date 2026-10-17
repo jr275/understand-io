@@ -3,10 +3,16 @@ import { cookies } from "next/headers";
 
 export const READER_COOKIE = "gloss_reader";
 
+const MIN_SECRET_LENGTH = 32;
+
 function secret() {
   const s = process.env.GLOSS_COOKIE_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    // Fail closed: a short or example secret makes every cookie guessable offline. Generate one with `openssl rand -hex 32`.
+    if (!s || s === "change-me" || s.length < MIN_SECRET_LENGTH) throw new Error(`GLOSS_COOKIE_SECRET must be set to at least ${MIN_SECRET_LENGTH} characters in production (openssl rand -hex 32).`);
+    return s;
+  }
   if (s && s !== "change-me") return s;
-  if (process.env.NODE_ENV === "production") throw new Error("GLOSS_COOKIE_SECRET must be set in production.");
   return "gloss-dev-secret";
 }
 
@@ -38,10 +44,15 @@ const COOKIE_OPTS = {
   maxAge: 60 * 60 * 24 * 365 * 2,
 };
 
+/** The cookie value for a reader id: `id.signature`. The format is fixed; changing it would log every existing reader out. */
+export function readerCookieValue(id: string) {
+  return `${id}.${sign(id)}`;
+}
+
 /** Point this browser at a specific reader id (used when an account signs in). */
 export async function setReaderCookie(id: string) {
   const jar = await cookies();
-  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
+  jar.set(READER_COOKIE, readerCookieValue(id), COOKIE_OPTS);
 }
 
 export function newReaderId() {
@@ -69,6 +80,6 @@ export async function ensureReaderId(): Promise<string> {
   const existing = verifyReaderCookie(jar.get(READER_COOKIE)?.value);
   if (existing) return existing;
   const id = newReaderId();
-  jar.set(READER_COOKIE, `${id}.${sign(id)}`, COOKIE_OPTS);
+  jar.set(READER_COOKIE, readerCookieValue(id), COOKIE_OPTS);
   return id;
 }

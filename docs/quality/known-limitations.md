@@ -60,4 +60,4 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 - **Content Security Policy has no `script-src`.** It covers framing, `<base>` and form targets only; the one raw-HTML sink is a static constant, and imported content is rendered through React.
 - **No monitoring or alerting.** Logs are the platform's request logs and 10 `console` calls that record error codes, not text.
 - **The browser suite is a dev-server suite.** Run against a production build, 181 of 185 tests pass; see `phase-b-data-and-security.md` section 3c. One end-to-end test (ANNOT-1, real server) is intermittent under parallel load on the dev server.
-- **Google sign-in and the account merge** have not been exercised against a real provider or a production database.
+- **Google sign-in** has not run against Google. The account merge after it is tested against a local PostgreSQL (`accountMerge.test.ts`), never against a production database.

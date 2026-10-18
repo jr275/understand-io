@@ -78,7 +78,7 @@ Not re-run after the last edit (a test file only): the build and the browser sui
 
 ## 5. Not covered
 
-- Google sign-in and the account merge against a real database (no credentials; the planner is unit-tested).
+- Google's token exchange against Google (no credentials). The account merge itself **is** tested against a real PostgreSQL by `accountMerge.test.ts` (planner plus five database tests, with a made-up Google subject), not against a production database.
 - A database outage in the middle of a request; concurrent writers racing on one row.
 - The AI routes (no key).
 - Behaviour on production, which still runs the earlier commit with no database.

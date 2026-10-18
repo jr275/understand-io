@@ -50,4 +50,4 @@ Two readers, each with their own cookie, plus a reader with no cookie and one wi
 
 ## What it does not cover
 
-Google sign-in (no credentials), the account merge on sign-in (covered by unit tests of the planner only), a database outage mid-request, concurrent writers racing on the same row, and the AI routes (no key). Each is listed in `docs/quality/phase-b-data-and-security.md`.
+Google's token exchange (no credentials; the account merge after it is covered by `tests/unit/accountMerge.test.ts` against a real PostgreSQL), a database outage mid-request, concurrent writers racing on the same row, and the AI routes (no key). Each is listed in `docs/quality/phase-b-data-and-security.md`.

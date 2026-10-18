@@ -1,6 +1,6 @@
 # Phase A: baseline and risk assessment
 
-_Run 2026-10-18 (UTC afternoon). Read-only: no source was changed to produce this document. Each fact names its basis: **G** git, **V** Vercel CLI (read-only), **C** curl against the live site, **S** source inspection, **T** a command run now with its exit code. Anything not so marked is not claimed._
+_Run 2026-10-18 (UTC afternoon). **Corrections made later are marked in place** (R7, R9). Read-only: no source was changed to produce this document. Each fact names its basis: **G** git, **V** Vercel CLI (read-only), **C** curl against the live site, **S** source inspection, **T** a command run now with its exit code. Anything not so marked is not claimed._
 
 ## 1. Repository and git safety
 
@@ -93,7 +93,7 @@ Severity is judgement; "basis" says what it rests on. P0 = data loss or a securi
 | R6 | P2 | **JSON API responses carry no `Cache-Control: private, no-store`** (`/api/documents` answered `public, max-age=0, must-revalidate`). With a database the body varies by cookie; an intermediary that ignores `max-age=0` could store it. | C, S | Set `private, no-store` on every cookie-dependent route; unit test. |
 | R7 | P2 | **No data or import route has a rate limit** (only the AI, search and transcribe routes meter, and only when the server key pays; an earlier version of this row said otherwise because a count matched Drizzle's `.limit(1)`; corrected in Phase B). Imports fetch external pages and parse PDFs, so repeated calls consume server time. SSRF is well covered: DNS-pinned connections, per-hop redirect re-validation, 10 MB and 20 s bounds. | S | Add a bounded limiter to `import*`; reuse `rateLimit.ts`. Note it is per process, so it is a speed bump on Vercel, not a quota. |
 | R8 | P2 | **Observability is minimal**: 10 `console` calls, no structured errors, no release-health signal. | S | Add a small structured error logger with redaction and categories; no paid service. |
-| R9 | P1 | **Database behaviour has never been exercised in this environment** (integration tests need a database that is not provided). Slug clash handling, transactions and migration 0003 are therefore unverified here. | S | Phase B on a disposable local PostgreSQL; never the shared one. |
+| R9 | P1 | **Most database behaviour had no test.** (Corrected in Phase B: an earlier version of this row said none existed and that no database was available. Two unit files, `accountMerge.test.ts` and `importErrors.test.ts`, do run against a real PostgreSQL when `DATABASE_URL` is set, and the machine has a local PostgreSQL; they are skipped otherwise, which is why a clean CI run skips 6 tests.) What had no test: ownership across readers, slug clash, cascade delete, migrations from empty. | S, CI log | Phase B on a disposable local PostgreSQL; never the shared one. |
 | R10 | P2 | `local:` documents never sync when an account appears (ANNOT-17). | defect backlog | Re-key on sign-in (Phase C), tested with a database. |
 | R11 | P3 | Library search timing at scale unmeasured (RETR-10); duplicate normalisation drops `ref`/`spm`. | known-limitations | Measure; make normalisation more conservative. |
 | R12 | P2 | No screen-reader pass; audible speech and real microphone capture not human-verified. | docs | Stays "unverified"; a person is needed. |

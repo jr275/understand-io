@@ -28,7 +28,7 @@ _Branch `release/phase-b`, 2026-10-18. Release notes, gate results, risks, rollb
 | --- | --- | --- | --- |
 | Types | `npx tsc --noEmit -p .` | 0 | no errors |
 | Lint | `npx eslint src tests playwright.config.ts` | 0 | no findings |
-| Unit | `npx vitest run` | 0 | 44 files, **800 passed** |
+| Unit | `npx vitest run` | 0 | 44 files, **800 passed** with a database available; **794 passed and 6 skipped** without one (the account-merge and import-error tests need PostgreSQL). Also run under Node 24.21.0, the CI version, in both modes: exit 0 |
 | Build | `npx next build` (clean `.next`) | 0 | |
 | Integration | `vitest --config vitest.integration.config.ts` against a production build and a disposable PostgreSQL, default limits | 0 | **17 passed** |
 | Browser | `npx playwright test` (desktop, phone, visual) on the dev server and a disposable database | **1** | **230 passed, 1 failed:** `ANNOT-13` (dragging a selection inside a highlight). See section 4. |
@@ -47,9 +47,9 @@ The browser gate is therefore **not clean**. It is recorded as "230 of 231, one 
 ## 5. Not verified
 
 - The deployed site with a database, a model key or sign-in: none is configured, so none can be observed.
-- Google OAuth against a real client; the account merge against a database.
+- Google OAuth against a real client (the account merge after it is tested against a local PostgreSQL).
 - A screen reader, audible speech, a real microphone, Safari, Firefox, a phone.
-- The CI workflow on GitHub (it parses; it has never run).
+- (Resolved after this record was first written: the CI workflow has now run on GitHub; see section 9.)
 - Library search speed on a large shelf.
 - The browser suite on a production build (181 of 185; `phase-b-data-and-security.md` section 3c).
 
@@ -71,9 +71,24 @@ Possible regressions to watch after deploy: a reader on a shared office address 
 
 `vercel rollback understand-13ucxhsjk-menlo6.vercel.app --scope menlo6` returns production to the build of `a13f28a`, the last deployment before this release (not exercised). In git, `git revert -m 1 <merge commit>` and push. There is no database change to undo.
 
-## 9. Deployment record
+## 9. Deployment record and what the first CI run found
 
-Filled in during Phase F.
+| Item | Value | Basis |
+| --- | --- | --- |
+| Preview of `release/phase-b` | `understand-4h8jpni2c-menlo6.vercel.app`, built from `31d5461` | Vercel `meta` |
+| Preview smoke test | pages 200; `/api/documents` 200 with `private, no-store`; `POST /api/reader` `{"persisted":false}` and no cookie; import 200; security headers present; Backup panel in the library page | `vercel curl` |
+| Production, first release | `understand-olfrsw0yr-menlo6.vercel.app`, commit `31d5461` | Vercel `meta` |
+| **Production now** | `understand-nihmo0j05-menlo6.vercel.app`, commit **`12e3d33`**, aliased to `understand-io.vercel.app` | Vercel `meta`, `git rev-parse HEAD` |
+| Production smoke test | `/`, `/library`, `/read/on-a-piece-of-chalk` 200; `/api/documents` `{"documents":[],"persisted":false}` with `private, no-store` | curl, 2026-10-18 |
+| Public URL | **`understand-io.vercel.app`**. The team-scoped aliases (`understand-io-menlo6`, `understand-io-git-main-menlo6`) and every deployment URL, including the one before this release, redirect to a Vercel sign-in (302): that is the project's existing deployment protection, not something changed here | curl |
+| Previous production (rollback target) | `understand-13ucxhsjk-menlo6.vercel.app`, `a13f28a` | Vercel |
+| CI on GitHub, first run (`39178083135`, commit `31d5461`) | `integration` and `audit` passed; **`checks` failed** | `gh run view` |
+| What the failure was | `vitest` exited 1 with all tests passing: an unhandled `ReadableStream is already closed` raised after `serverKeyAbuse.test.ts` "refuses an oversized recording". The runner uses **Node 24.21.0**, the developer machine 24.9.0; a `FormData` request body's internal generator enqueues after the route cancels it. Reproduced locally with Node 24.21.0 (2 of 2), fixed by streaming a pre-serialised body in the test, verified under both versions | CI log, local reproduction |
+| Also found by CI | 6 unit tests are skipped without a database (account merge and import-error tests against real PostgreSQL); the `integration` job now runs them | CI log |
+| Found while fixing it | `accountMerge.test.ts` left 8 readers and 5 documents in whatever database it ran against; its cleanup now finds them; leftover 0 | measured on a disposable database |
+| CI on GitHub, second run (`39178434985`, commit `12e3d33`) | **all three jobs passed**: `checks` 794 passed and 6 skipped (no database), `integration` 13 database unit tests and 17 integration tests, `audit` | `gh run view` |
+
+Lesson recorded: a floating `node-version: 24` found a runtime difference the pinned local version hid. Keep CI on the floating version.
 
 ## 10. Needs from the owner (not blocking this release)
 

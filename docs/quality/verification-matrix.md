@@ -1,5 +1,7 @@
 # Verification matrix
 
+> **Status note (2026-10-18, later the same day):** this file records the first library-search round. The gate results for the server-hardening round are in `phase-b-data-and-security.md` section 4 and the release candidate's in `release-candidate.md`; where numbers differ, those are newer.
+
 _What was checked, how, and what was not. Run 2026-10-18 on the working tree at commit `7d490f3` plus one added unit test (`backup.test.ts`, oversize and non-JSON refusal). Every number is from a command run in this session. Claims about earlier rounds are in `docs/final-qa-report.md` and `docs/evolution-report.md`, not repeated here._
 
 ## 1. Gate commands

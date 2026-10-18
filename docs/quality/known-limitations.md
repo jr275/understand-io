@@ -50,3 +50,14 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 | A saved link has nothing to annotate or search until its text is brought in | `docs/evolution-report.md` section 12 |
 | The rate limiter is per process; no server backups; no deployment | operational readiness items 9 and 10 |
 | Not built: connect an agent (MCP), painted covers, web search inside answers, server TTS and transcription | REF-7, REF-24, REF-25, TTS-R12, VS-R3 |
+
+## Server and sessions (Phase B)
+
+- **There is no production database.** The deployed site runs in local-only mode: every reader's library exists only in that browser. Backup is the only recovery path, and it is manual.
+- **Counters are per process.** The AI limits and the import limit (60 per ten minutes) count in one function instance's memory; on Vercel the effective cap is that times the number of warm instances. A speed bump, not a quota or a spending cap.
+- **Overlapping first requests.** The client now settles the reader cookie before its first save, but the import routes still mint a cookie themselves, and two tabs opened together by a brand-new visitor can still end up as two readers.
+- **Sessions cannot be revoked.** A signed-in session is a signed cookie valid for 90 days; signing out deletes the cookie, but a copied one stays valid until it expires. Relevant only once sign-in is configured.
+- **Content Security Policy has no `script-src`.** It covers framing, `<base>` and form targets only; the one raw-HTML sink is a static constant, and imported content is rendered through React.
+- **No monitoring or alerting.** Logs are the platform's request logs and 10 `console` calls that record error codes, not text.
+- **The browser suite is a dev-server suite.** Run against a production build, 181 of 185 tests pass; see `phase-b-data-and-security.md` section 3c. One end-to-end test (ANNOT-1, real server) is intermittent under parallel load on the dev server.
+- **Google sign-in and the account merge** have not been exercised against a real provider or a production database.

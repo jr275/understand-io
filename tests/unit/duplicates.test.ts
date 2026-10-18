@@ -17,6 +17,11 @@ describe("normalizeSourceUrl", () => {
     expect(normalizeSourceUrl("https://example.com/p?id=1")).not.toBe(normalizeSourceUrl("https://example.com/p?id=2"));
     expect(normalizeSourceUrl("https://example.com:8080/a")).not.toBe(normalizeSourceUrl("https://example.com/a"));
   });
+  it("does not treat `ref` or `spm` as tracking, because some sites use them to choose the content", () => {
+    expect(normalizeSourceUrl("https://example.com/repo?ref=main")).not.toBe(normalizeSourceUrl("https://example.com/repo?ref=dev"));
+    expect(normalizeSourceUrl("https://example.com/p?spm=a")).not.toBe(normalizeSourceUrl("https://example.com/p?spm=b"));
+    expect(normalizeSourceUrl("https://example.com/p?ref_src=twitter")).toBe(normalizeSourceUrl("https://example.com/p"));
+  });
   it("is null for anything that is not a web address", () => {
     expect(normalizeSourceUrl("ftp://example.com/a")).toBeNull();
     expect(normalizeSourceUrl("javascript:alert(1)")).toBeNull();

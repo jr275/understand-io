@@ -33,7 +33,7 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 
 ## Duplicates (new)
 
-- An address is compared after normalisation: host in lower case, no `www.`, default port dropped, no fragment, no trailing slash, query parameters sorted, and the tracking parameters `utm_*`, `fbclid`, `gclid`, `mc_cid`, `mc_eid`, `igshid`, `ref_src`, `ref` and `spm` removed. A site that uses `ref` or `spm` to choose the page would have two different pages treated as one; the reader is then taken to the saved one. No such site has been seen, and none has been looked for.
+- An address is compared after normalisation: host in lower case, no `www.`, default port dropped, no fragment, no trailing slash, query parameters sorted, and only the tracking parameters `utm_*`, `fbclid`, `gclid`, `mc_cid`, `mc_eid`, `igshid` and `ref_src` removed. `ref` and `spm` are kept (some sites use them to pick the content), so a link shared with `?ref=newsletter` is saved as a separate text from the plain link; that is the conservative choice. `http` and `https` of the same address are treated as one.
 - A pasted text is compared by a fingerprint of its words (case and spacing ignored) and only when it has 200 or more characters; a shorter text is always added.
 - A saved link card is never called a duplicate, so the reader can try the address again.
 - Different edits of the same article are different texts.

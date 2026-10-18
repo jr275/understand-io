@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything that needs no database and no secret.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # the version comes from "packageManager" in package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  # Ownership, migrations and transactions against a real PostgreSQL (docs/quality/integration-testing.md).
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gloss_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/gloss_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply all migrations to the empty database
+        run: pnpm db:migrate
+      - run: pnpm build
+      - name: Start the production server on the database
+        run: |
+          echo "GLOSS_COOKIE_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          set -a; . "$GITHUB_ENV"; set +a
+          nohup pnpm start --port 3201 > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3201/api/documents > /dev/null && exit 0; sleep 1; done
+          cat server.log; exit 1
+      - name: Integration tests
+        run: INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration
+      - name: Server log on failure
+        if: failure()
+        run: cat server.log
+
+  # Kept apart so a newly published advisory shows up on its own and does not hide the other results.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod

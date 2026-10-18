@@ -21,7 +21,7 @@ npx drizzle-kit migrate
 
 # 3. a production build, served against that database (any free port)
 npx next build
-GLOSS_COOKIE_SECRET=$(openssl rand -hex 32) npx next start -p 3201 &
+GLOSS_COOKIE_SECRET=$(openssl rand -hex 32) npx next start -p 3201 &   # keep the default import limit: the 429 test needs it
 
 # 4. the suite
 INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration

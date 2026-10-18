@@ -1,7 +1,11 @@
 import type { GlossDocument } from "@/lib/content/types";
 
-/** Query parameters that only say where a click came from; the page is the same without them. */
-const TRACKING = /^(utm_[a-z]+|fbclid|gclid|mc_cid|mc_eid|igshid|ref_src|ref|spm)$/i;
+/**
+ * Query parameters that only say where a click came from; the page is the same without them. Deliberately short: a parameter
+ * is listed only when it is never part of what a page shows. `ref` and `spm` are left out because some sites use them to pick
+ * the content (a branch, a revision), and merging two different pages would hide one of them from the reader.
+ */
+const TRACKING = /^(utm_[a-z]+|fbclid|gclid|mc_cid|mc_eid|igshid|ref_src)$/i;
 
 /**
  * One form for the addresses of the same page: scheme and host in lower case, no `www.`, no fragment, no tracking parameters,

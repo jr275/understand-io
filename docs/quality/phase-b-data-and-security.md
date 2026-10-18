@@ -56,6 +56,10 @@ The test was left unchanged. Treat a single failure of this test in a full dev-s
 
 `playwright.config.ts` starts `pnpm dev`, which reads `.env.local`; here that names `postgres://localhost:5432/gloss`, the developer database. Every full end-to-end run therefore adds readers and documents to it (451 → 514 documents and 1,707 readers across this phase's runs). This was true of earlier rounds too; it was not noticed until now. Nothing was deleted from it. Recommendation (Phase D): run the browser suite against a production build and a disposable database, as `PLAYWRIGHT_PORT=3201` with `reuseExistingServer` already allows, and make that the CI default.
 
+## 3c. The browser suite against a production build (tried, not adopted)
+
+To see whether CI could run the browser suite, `pnpm test:e2e` (desktop and phone, 185 tests) was run once against a clean production build and a disposable database: **181 passed, 4 failed**. Three failures are assumptions of a suite written for the dev server: two count aborted RSC prefetch requests (`?_rsc=`, which only production issues) as "request failed", and one expects no `Strict-Transport-Security` header (production sends it). The fourth is an axe `color-contrast` finding on the find bar's hint text (`find.spec.ts` "the open bar has no accessibility violations"); it did not appear in dev-server runs and **was not diagnosed** (an animation caught mid-fade is possible, a real contrast fault is not excluded). Because of this, the CI workflow has no browser job yet; the suite stays a local gate. The integration suite on the same server had one expected failure: the 429 test, because the limiter was switched off for the browser run.
+
 ## 4. Gates for this phase (final source of the phase)
 
 Run on the final source of the phase (a clean `.next`, then `next build`, then the browser suite).

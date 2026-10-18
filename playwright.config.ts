@@ -19,6 +19,8 @@ export default defineConfig({
     command: `pnpm dev --port ${PORT}`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: true,
+    // The browser suites import dozens of texts from one address; the import limiter is covered by its own tests.
+    env: { GLOSS_RATE_IMPORT: "off" },
     timeout: 120_000,
   },
   projects: [

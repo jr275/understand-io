@@ -4,7 +4,23 @@ import { useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 
-export function PasteDialog({ initial = "", busy = false, onClose, onRead }: { initial?: string; busy?: boolean; onClose: () => void; onRead: (text: string) => void }) {
+/**
+ * `onRead` resolves true when the text was saved (the parent then closes the dialog); on false the dialog stays open with
+ * `error` shown and the typed text intact, so a failed import never costs the reader what they pasted.
+ */
+export function PasteDialog({
+  initial = "",
+  busy = false,
+  error = null,
+  onClose,
+  onRead,
+}: {
+  initial?: string;
+  busy?: boolean;
+  error?: string | null;
+  onClose: () => void;
+  onRead: (text: string) => void | Promise<unknown>;
+}) {
   const [pasted, setPasted] = useState(initial);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalFocus(dialogRef);
@@ -41,6 +57,11 @@ export function PasteDialog({ initial = "", busy = false, onClose, onRead }: { i
               <X size={17} aria-hidden="true" />
             </button>
           </div>
+          {error ? (
+            <p role="alert" className="mt-3 rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
+              {error}
+            </p>
+          ) : null}
           <textarea data-autofocus value={pasted} onChange={(e) => setPasted(e.target.value)} rows={9} placeholder="Paste anything…" aria-label="Text to read" className="add-text font-serif text-[15px]" />
           <div className="mt-3 flex items-center justify-between gap-3">
             <span className="text-[12.5px] text-ink-4">{pasted.trim() ? `${pasted.trim().split(/\s+/).length} words` : ""}</span>

@@ -5,6 +5,7 @@ import { readJsonLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
 import { importErrorResponse } from "@/lib/server/importErrors";
+import { limitImports } from "@/lib/server/rateLimit";
 
 export const maxDuration = 30;
 
@@ -20,6 +21,8 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
+  const limited = limitImports(req);
+  if (limited) return limited;
   // 4 bytes per character at most, plus the envelope.
   const json = await readJsonLimited(req, HTML_LIMITS.chars * 4 + 8192);
   if (json === "too-large") return Response.json({ error: "That page is too large to read here (over 4 MB of HTML). Paste its text instead." }, { status: 413 });

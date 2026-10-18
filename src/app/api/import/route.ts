@@ -9,12 +9,15 @@ import { classifyFetched } from "@/lib/content/uploadKind";
 import { documentFromText } from "@/lib/content/text";
 import { linkDocument, pageMeta } from "@/lib/content/linkDoc";
 import { importErrorResponse } from "@/lib/server/importErrors";
+import { limitImports } from "@/lib/server/rateLimit";
 
 export const maxDuration = 45;
 
 const Body = z.object({ url: z.string().url().max(2048), keep: z.boolean().optional() });
 
 export async function POST(req: Request) {
+  const limited = limitImports(req);
+  if (limited) return limited;
   const json = await readJsonLimited(req, 16 * 1024);
   if (json === "too-large") return Response.json({ error: "That request is too large." }, { status: 413 });
   const parsed = Body.safeParse(json);

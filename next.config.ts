@@ -28,7 +28,11 @@ const nextConfig: NextConfig = {
   // largest upload the import routes accept (25 MB file).
   experimental: { proxyClientMaxBodySize: "30mb" },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Every API answer depends on the reader's cookie (or is a one-off): none may be stored by a shared cache.
+      { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "private, no-store" }] },
+    ];
   },
 };
 

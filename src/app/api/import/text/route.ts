@@ -4,11 +4,14 @@ import { readJsonLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
 import { importErrorResponse } from "@/lib/server/importErrors";
+import { limitImports } from "@/lib/server/rateLimit";
 
 const MAX_CHARS = 2_000_000;
 const Body = z.object({ text: z.string(), title: z.string().max(200).optional() });
 
 export async function POST(req: Request) {
+  const limited = limitImports(req);
+  if (limited) return limited;
   // 4 bytes per character at most, plus the envelope.
   const json = await readJsonLimited(req, 2_000_000 * 4 + 8192);
   if (json === "too-large") return Response.json({ error: "That text is too long." }, { status: 413 });

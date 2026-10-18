@@ -49,6 +49,25 @@ test.describe("landing", () => {
     await expect(page.locator(".blk[data-n]")).toHaveCount(2);
   });
 
+  test("a refused import (too many in a short time) tells the reader why, in words, and keeps the text they typed", async ({ page }) => {
+    await page.route("**/api/import/text", (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        headers: { "retry-after": "240" },
+        body: JSON.stringify({ error: "That is more than 60 imports in 10 minutes. Try again in about 4 minutes.", code: "rate-limited" }),
+      }),
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: "Paste text" }).click();
+    const dialog = page.getByRole("dialog", { name: "Paste text" });
+    await dialog.getByLabel("Text to read").fill("A note that must not be lost.\n\nSecond paragraph.");
+    await dialog.getByRole("button", { name: "Read" }).click();
+    await expect(dialog.getByText(/more than 60 imports in 10 minutes\. Try again in about 4 minutes/)).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(dialog.getByLabel("Text to read")).toHaveValue(/A note that must not be lost/);
+  });
+
   test("theme switch applies data-theme and persists across reload", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Appearance and answers" }).click();

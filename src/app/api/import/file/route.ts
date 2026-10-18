@@ -4,12 +4,15 @@ import { readFormLimited } from "@/lib/server/body";
 import { ensureReaderId } from "@/lib/server/reader";
 import { saveDocument } from "@/lib/server/documents";
 import { importErrorResponse } from "@/lib/server/importErrors";
+import { limitImports } from "@/lib/server/rateLimit";
 
 export const maxDuration = 60;
 
 const MAX_FILE = 25 * 1024 * 1024;
 
 export async function POST(req: Request) {
+  const limited = limitImports(req);
+  if (limited) return limited;
   // Counted while the body streams in, so an oversized upload is refused before it is parsed into memory.
   const form = await readFormLimited(req, MAX_FILE + 64 * 1024);
   if (form === "too-large") return Response.json({ error: "That file is larger than 25 MB." }, { status: 413 });

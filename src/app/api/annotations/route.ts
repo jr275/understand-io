@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db/client";
 import { annotations, readers } from "@/lib/db/schema";
 import { AnnotationZ } from "@/lib/anchors/schema";
 import { ensureReaderId } from "@/lib/server/reader";
+import { canAttachTo } from "@/lib/server/documents";
 import { guarded, readJson, readerKeyOf } from "./_guard";
 
 export async function POST(req: Request) {
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
   return guarded("annotation upsert", async () => {
     const readerId = await ensureReaderId();
     await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
+    if (!(await canAttachTo(db, readerId, a.documentId))) return Response.json({ error: "unknown-document" }, { status: 404 });
     const updatedAt = new Date(a.updatedAt);
     // Last write wins on the client's clock, and only on the reader's own row.
     const written = await db

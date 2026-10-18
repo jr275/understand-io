@@ -10,7 +10,7 @@ export function QuickAdd() {
   const [url, setUrl] = useState("");
   const [pasteOpen, setPasteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const { busy, importUrl, importFile, importText } = useImport();
+  const { busy, error, importUrl, importFile, importText } = useImport();
   const canRead = looksLikeUrl(url) && !busy;
   return (
     <section aria-label="Read something else" className="focus-hide mt-10 rounded-[18px] border border-rule bg-raised p-4 sm:p-5">
@@ -53,10 +53,10 @@ export function QuickAdd() {
       {pasteOpen ? (
         <PasteDialog
           busy={!!busy}
+          error={error}
           onClose={() => setPasteOpen(false)}
-          onRead={(t) => {
-            setPasteOpen(false);
-            void importText(t);
+          onRead={async (t) => {
+            if (await importText(t)) setPasteOpen(false);
           }}
         />
       ) : null}

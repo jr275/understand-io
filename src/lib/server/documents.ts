@@ -34,6 +34,17 @@ export interface LoadResult {
   unavailable: boolean;
 }
 
+/**
+ * A mark, a saved question or a reading position may point only at a built-in sample or at a document this reader owns.
+ * Without this check a reader could store rows against a document that does not exist, or against someone else's document id.
+ * (Samples have no row, so a foreign key could not express this rule; the check is the guarantee.)
+ */
+export async function canAttachTo(db: Db, readerId: string, documentId: string): Promise<boolean> {
+  if (documentId.startsWith("sample:")) return getSample(documentId.slice("sample:".length)) !== null;
+  const [row] = await db.select({ id: documents.id }).from(documents).where(and(eq(documents.id, documentId), eq(documents.readerId, readerId))).limit(1);
+  return !!row;
+}
+
 /** Sample first, then the reader's own documents (when a database is configured and reachable). */
 export async function loadDocumentResult(slug: string, readerId: string | null): Promise<LoadResult> {
   const sample = getSample(slug);

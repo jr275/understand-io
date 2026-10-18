@@ -188,10 +188,10 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
       {pasteOpen ? (
         <PasteDialog
           busy={!!imp.busy}
+          error={imp.error}
           onClose={() => setPasteOpen(false)}
-          onRead={(t) => {
-            setPasteOpen(false);
-            void imp.importText(t);
+          onRead={async (t) => {
+            if (await imp.importText(t)) setPasteOpen(false);
           }}
         />
       ) : null}

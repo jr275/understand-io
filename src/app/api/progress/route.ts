@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db/client";
 import { readers, readingProgress } from "@/lib/db/schema";
 import { ProgressZ } from "@/lib/anchors/schema";
 import { ensureReaderId } from "@/lib/server/reader";
+import { canAttachTo } from "@/lib/server/documents";
 import { guarded, readJson } from "../annotations/_guard";
 
 export async function PUT(req: Request) {
@@ -13,6 +14,7 @@ export async function PUT(req: Request) {
   return guarded("progress upsert", async () => {
     const readerId = await ensureReaderId();
     await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
+    if (!(await canAttachTo(db, readerId, p.documentId))) return Response.json({ error: "unknown-document" }, { status: 404 });
     await db
       .insert(readingProgress)
       .values({ documentId: p.documentId, readerId, blockId: p.blockId ?? null, ratio: p.ratio, finished: p.finished ? 1 : 0, updatedAt: new Date(p.updatedAt) })

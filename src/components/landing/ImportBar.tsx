@@ -32,7 +32,7 @@ export function ImportBar({ initialUrl, capture }: Props) {
   const [waiting, setWaiting] = useState(!!capture);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { busy, importUrl, importText, importFile, importPage } = useImport();
+  const { busy, error, importUrl, importText, importFile, importPage } = useImport();
   const started = useRef(false);
 
   // A link that arrives with a URL (`/?url=…`, `/?save=…`) is only a suggestion: it must never fetch or import on its own
@@ -187,10 +187,11 @@ export function ImportBar({ initialUrl, capture }: Props) {
         <PasteDialog
           initial={pasted}
           busy={!!busy}
+          error={error}
           onClose={() => setPasteOpen(false)}
-          onRead={(text) => {
-            setPasteOpen(false);
-            void importText(text);
+          onRead={async (text) => {
+            setPasted(text);
+            if (await importText(text)) setPasteOpen(false);
           }}
         />
       ) : null}

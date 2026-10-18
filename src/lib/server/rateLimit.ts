@@ -103,6 +103,43 @@ function windowLabel(ms: number) {
 }
 
 /** Test hook: forget all counters. */
+/** Imports per window and per key. Imports fetch other sites and parse files, so they cost server time even without any provider key. */
+const IMPORT_MAX = 60;
+const IMPORT_WINDOW_MS = 10 * 60 * 1000;
+
+/** Requests allowed per `IMPORT_WINDOW_MS` and per key (reader id, client IP); null when switched off (`GLOSS_RATE_IMPORT=off`). */
+export function importLimit(): { max: number; windowMs: number } | null {
+  const raw = process.env.GLOSS_RATE_IMPORT?.trim().toLowerCase();
+  if (raw === "off" || raw === "0") return null;
+  const n = Number(raw);
+  return { max: raw && Number.isFinite(n) && n > 0 ? Math.floor(n) : IMPORT_MAX, windowMs: IMPORT_WINDOW_MS };
+}
+
+/**
+ * Call at the top of every import route. A speed bump against a client that loops: the counters live in one process's
+ * memory (see the note above), so on several instances the cap is per instance. Returns a 429 Response or null.
+ */
+export function limitImports(req: Request): Response | null {
+  const cfg = importLimit();
+  if (!cfg) return null;
+  const keys = [`import:ip:${clientIp(req)}`];
+  const reader = readerFromCookieHeader(req);
+  if (reader) keys.push(`import:reader:${reader}`);
+  let blocked = 0;
+  for (const k of keys) {
+    const r = limiter.hit(k, cfg.max, cfg.windowMs);
+    if (!r.ok) blocked = Math.max(blocked, r.retryAfterMs);
+  }
+  if (!blocked) return null;
+  const secs = Math.ceil(blocked / 1000);
+  const wait = secs >= 120 ? `${Math.ceil(secs / 60)} minutes` : `${secs} seconds`;
+  return Response.json(
+    // `error` is what the import screen shows the reader (as in every import route); `code` is for programs.
+    { error: `That is more than ${cfg.max} imports in ${Math.round(cfg.windowMs / 60000)} minutes. Try again in about ${wait}.`, code: "rate-limited" },
+    { status: 429, headers: { "retry-after": String(secs), "cache-control": "no-store" } },
+  );
+}
+
 export function resetRateLimits() {
   limiter.clear();
 }

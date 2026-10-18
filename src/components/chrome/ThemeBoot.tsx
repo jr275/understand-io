@@ -22,5 +22,7 @@ export function ThemeBoot() {
     () => false,
   );
   if (hydrated) return null;
-  return <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />;
+  // Hosts (e.g. the v0 preview) may inject their own inline <script> at the top of <head>, which
+  // hydration then pairs with this element; the content differing is expected and harmless.
+  return <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />;
 }

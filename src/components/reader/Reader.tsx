@@ -287,9 +287,28 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     // Resume where the reader left off, or follow ?hl=. Runs again as server data arrives,
     // but only acts once, and never after the reader has started scrolling.
     if (jumpedRef.current || userScrolled.current) return;
-    const hl = new URLSearchParams(window.location.search).get("hl");
+    const params = new URLSearchParams(window.location.search);
+    const hl = params.get("hl");
+    const at = params.get("at");
     const t = window.setTimeout(() => {
       if (jumpedRef.current || userScrolled.current) return;
+      if (at) {
+        // A passage found by the library search: open on it and mark the sentence for a few seconds.
+        const b = blocks.find((x) => x.id === at);
+        if (!b) return; // wait for the text to load
+        const num = (k: string, fallback: number) => {
+          const v = Number(params.get(k));
+          return Number.isInteger(v) && v >= 0 ? Math.min(v, b.text.length) : fallback;
+        };
+        const start = num("s", 0);
+        const end = Math.max(start, num("e", b.text.length));
+        const a: Anchor = { start: { b: at, o: start }, end: { b: at, o: end }, quote: b.text.slice(start, end) };
+        jumpedRef.current = true;
+        setHit(a);
+        scrollToBlock(at, true);
+        window.setTimeout(() => setHit((x) => (x === a ? null : x)), 6000);
+        return;
+      }
       if (hl) {
         const a = annotations.find((x) => x.id === hl);
         if (!a) return; // wait for sync
@@ -307,7 +326,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       }
     }, 120);
     return () => window.clearTimeout(t);
-  }, [documentId, annotations, lib.progress, jumpToAnchor, blockEl]);
+  }, [documentId, annotations, lib.progress, jumpToAnchor, blockEl, blocks, scrollToBlock]);
 
   /* ---------- annotations ---------- */
   const annotate = useCallback(

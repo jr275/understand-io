@@ -1547,3 +1547,137 @@ button.starter-card:active {
     animation: none;
   }
 }
+
+/* Library search: passages and marks found across every saved text */
+.libs {
+  margin: 4px 0 28px;
+  max-width: 760px;
+}
+.libs-summary {
+  color: var(--ink-3);
+  margin: 0 0 12px;
+  font-size: 13.5px;
+}
+.libs-h {
+  color: var(--ink-2);
+  margin: 22px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.libs-list {
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+.libs-item {
+  border: 1px solid var(--rule);
+  background: var(--bg-raised);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 10px 14px 12px;
+  text-decoration: none;
+  transition: border-color 0.2s;
+  display: block;
+}
+.libs-item:hover,
+.libs-item:focus-visible {
+  border-color: var(--rule-strong);
+}
+.libs-meta {
+  color: var(--ink-3);
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  display: flex;
+  flex-wrap: wrap;
+}
+.libs-meta b {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.libs-part {
+  color: var(--ink-4);
+}
+.libs-text {
+  font-size: 14.5px;
+  line-height: 1.55;
+  display: block;
+}
+.libs-quote {
+  color: var(--ink-2);
+  font-style: italic;
+}
+.libs-mark {
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* Backup and restore */
+.lib-backup {
+  border-top: 1px solid var(--rule);
+  max-width: 760px;
+  margin: 48px auto 0;
+  padding-top: 20px;
+}
+.lib-backup h2 {
+  color: var(--ink-2);
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.lib-backup p {
+  color: var(--ink-3);
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.lib-backup-n {
+  color: var(--ink-4);
+}
+.lib-backup-row {
+  flex-wrap: wrap;
+  gap: 8px;
+  display: flex;
+}
+.lib-backup-btn {
+  border: 1px solid var(--rule);
+  background: var(--bg-raised);
+  color: var(--ink-2);
+  border-radius: 999px;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  transition: border-color 0.2s;
+  display: inline-flex;
+}
+.lib-backup-btn:hover:not(:disabled) {
+  border-color: var(--rule-strong);
+}
+.lib-backup-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.lib-backup-btn.is-primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+.lib-backup-plan {
+  border: 1px solid var(--rule);
+  background: var(--bg-sunk);
+  border-radius: 12px;
+  margin-top: 12px;
+  padding: 12px 14px 14px;
+}
+.lib-backup-error {
+  color: #a3361f;
+  margin-top: 10px !important;
+}

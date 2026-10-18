@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import type { Annotation, Gloss, GlossDocument, ReadingProgress } from "@/lib/content/types";
 import { clampNote } from "@/lib/anchors";
 import { toast } from "./toast";
+import type { RestorePlan } from "./backup";
 
 /**
  * Local-first store. Everything is kept in localStorage under `gloss:v1` so the app works
@@ -225,6 +226,20 @@ export function removeDocument(slug: string): Promise<unknown> {
   });
   if (d?.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) return apiDelete("document", `/api/documents/${d.id}`, d.id);
   return Promise.resolve();
+}
+
+/** Adds what a backup plan says to add (see `planRestore`); never replaces or removes anything. */
+export function applyRestore(plan: RestorePlan) {
+  set((s) => {
+    const docs = { ...s.docs };
+    for (const d of plan.docs) docs[d.slug] = d;
+    const annotations = { ...s.annotations };
+    for (const [id, list] of Object.entries(plan.annotations)) annotations[id] = [...(s.annotations[id] ?? []), ...list];
+    const glosses = { ...s.glosses };
+    for (const [id, list] of Object.entries(plan.glosses)) glosses[id] = [...(s.glosses[id] ?? []), ...list];
+    const restored = new Set(plan.docs.map((d) => d.slug));
+    return { docs, annotations, glosses, progress: { ...s.progress, ...plan.progress }, hidden: s.hidden.filter((slug) => !restored.has(slug)) };
+  });
 }
 
 export function hideSample(slug: string) {

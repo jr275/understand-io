@@ -3,7 +3,8 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { GlossDocument } from "@/lib/content/types";
-import { rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
+import { getLibrary, rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
+import { findDuplicate } from "@/lib/store/duplicates";
 import { toast } from "@/lib/store/toast";
 
 export interface ImportResult {
@@ -75,8 +76,30 @@ export function useImport(defaultAfter: After = "read") {
     [finish],
   );
 
-  const importUrl = useCallback((url: string, after: After = defaultAfter) => run("url", () => post("/api/import", JSON.stringify({ url, keep: true })), after), [run, defaultAfter]);
-  const importText = useCallback((text: string, title?: string, after: After = defaultAfter) => run("text", () => post("/api/import/text", JSON.stringify({ text, title })), after), [run, defaultAfter]);
+  /** The text is already on the shelf: say so and open it, instead of keeping a second copy. */
+  const alreadyHere = useCallback(
+    (d: GlossDocument, after: After) => {
+      toast(`“${d.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${d.slug}`) } });
+      if (after === "read") router.push(`/read/${d.slug}`);
+      return true;
+    },
+    [router],
+  );
+
+  const importUrl = useCallback(
+    (url: string, after: After = defaultAfter) => {
+      const dup = findDuplicate(Object.values(getLibrary().docs), { url });
+      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("url", () => post("/api/import", JSON.stringify({ url, keep: true })), after);
+    },
+    [run, alreadyHere, defaultAfter],
+  );
+  const importText = useCallback(
+    (text: string, title?: string, after: After = defaultAfter) => {
+      const dup = findDuplicate(Object.values(getLibrary().docs), { text });
+      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("text", () => post("/api/import/text", JSON.stringify({ text, title })), after);
+    },
+    [run, alreadyHere, defaultAfter],
+  );
   const importFile = useCallback(
     (file: File, after: After = defaultAfter) =>
       run(

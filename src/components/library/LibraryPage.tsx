@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Library, LayoutGrid, Link2, Plus, Search } from "lucide-react";
 import type { GlossDocument } from "@/lib/content/types";
 import { TOPICS, topicInfo } from "@/lib/content/types";
@@ -15,6 +15,9 @@ import { Spine } from "./Spine";
 import { TopicArt, TopicGlyph } from "./TopicGlyph";
 import { OpenBook } from "./OpenBook";
 import { AddPanel } from "./AddPanel";
+import { LibrarySearch } from "./LibrarySearch";
+import { BackupPanel } from "./BackupPanel";
+import { EMPTY_SEARCH, searchLibrary } from "@/lib/search/library";
 import { layoutShelf, shortAuthor, spineFor, type Sort } from "./shelf";
 
 type Meta = Omit<GlossDocument, "blocks">;
@@ -72,6 +75,28 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
     }
     return [...map.values()];
   }, [lib.docs, serverDocs, hidden]);
+
+  // Every text whose words are in this browser (a sample or a text kept only here), for "where did I read about this?".
+  const searchable = useMemo(() => {
+    const out: GlossDocument[] = [];
+    const seen = new Set<string>();
+    for (const d of Object.values(lib.docs)) {
+      if (hidden.has(d.slug)) continue;
+      const sample = SAMPLES.find((s) => s.slug === d.slug);
+      out.push(d.blocks.length ? d : sample ? { ...d, blocks: sample.blocks } : d);
+      seen.add(d.slug);
+    }
+    for (const s of SAMPLES) if (!hidden.has(s.slug) && !seen.has(s.slug)) out.push(s);
+    return out;
+  }, [lib.docs, hidden]);
+  const deferredQuery = useDeferredValue(query);
+  const found = useMemo(() => {
+    if (!deferredQuery.trim()) return EMPTY_SEARCH;
+    const r = searchLibrary(searchable, (d) => (d.id ? (lib.annotations[d.id] ?? []) : []), deferredQuery);
+    // Texts only on the account have no words here; they are the shelf documents without a searchable copy.
+    const have = new Set(searchable.filter((d) => d.blocks.length).map((d) => d.slug));
+    return { ...r, unsearched: docs.filter((d) => !have.has(d.slug)).length };
+  }, [searchable, lib.annotations, deferredQuery, docs]);
 
   const progressOf = (d: Meta) => (d.id ? lib.progress[d.id] : undefined);
   const q = query.trim().toLowerCase();
@@ -175,7 +200,23 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
           </div>
           <label className="lib-search">
             <Search size={15} aria-hidden="true" className="shrink-0 text-ink-4" />
-            <input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the library" aria-label="Search the library" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // From the box straight into the results, without tabbing past the shelf controls.
+                if (e.key === "ArrowDown") {
+                  const first = document.querySelector<HTMLElement>("[data-libs-item]");
+                  if (first) {
+                    e.preventDefault();
+                    first.focus();
+                  }
+                }
+              }}
+              placeholder="Search the library"
+              aria-label="Search the library"
+            />
             <kbd className="max-sm:hidden">/</kbd>
           </label>
           {view === "shelf" ? (
@@ -226,6 +267,8 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
             </button>
           </div>
         ) : null}
+
+        {query.trim().length >= 2 ? <LibrarySearch query={deferredQuery} result={found} titleMatches={filtered.length} /> : null}
 
         <div className="lib-screen">
           {view === "shelf" ? (
@@ -383,6 +426,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
             </section>
           ) : null}
         </div>
+              <BackupPanel />
       </main>
 
       {open && openDoc ? (

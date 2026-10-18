@@ -166,4 +166,30 @@ describe.skipIf(!BASE)("ownership across readers (real server, real database)", 
     const calm = await alice.importText("Still welcome.\n\nSecond.", `Calm ${uid("t")}`);
     expect(calm.id).toBeTruthy();
   });
+
+  it("two cookie-less writes sent together each mint their own reader (why the client settles the cookie first)", async () => {
+    const sample = { id: "sample:on-a-piece-of-chalk", blocks: [{ id: "p1", text: "A sentence of the sample text." }] };
+    const one = new Reader("one");
+    const two = new Reader("two");
+    const [a, b] = await Promise.all([one.post("/api/annotations", annotationFor(sample)), two.post("/api/annotations", annotationFor(sample))]);
+    // Same browser, same moment, no cookie yet: the server cannot tell they are one visitor.
+    expect(a.json?.readerKey).toBeTruthy();
+    expect(a.json?.readerKey).not.toBe(b.json?.readerKey);
+  });
+
+  it("the reader bootstrap is idempotent, and writes sent together after it all land under one reader", async () => {
+    const fresh = new Reader("fresh");
+    const first = await fresh.post("/api/reader", {});
+    expect(first.json?.persisted).toBe(true);
+    expect(fresh.cookie).toMatch(/^gloss_reader=/);
+    const cookie = fresh.cookie;
+    expect((await fresh.post("/api/reader", {})).json?.readerKey).toBe(first.json?.readerKey);
+    expect(fresh.cookie).toBe(cookie);
+
+    const mine = await fresh.importText("Concurrent writes.\n\nSecond paragraph.", `Concurrent ${uid("t")}`);
+    const notes = Array.from({ length: 5 }, () => annotationFor(mine));
+    const replies = await Promise.all(notes.map((n) => fresh.post("/api/annotations", n)));
+    expect(replies.map((r) => r.json?.readerKey)).toEqual(notes.map(() => first.json?.readerKey));
+    expect(ids((await fresh.data(mine.id)).annotations).sort()).toEqual(ids(notes).sort());
+  });
 });

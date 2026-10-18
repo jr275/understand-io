@@ -21,6 +21,10 @@ function makeServer() {
     annotations: new Map<string, Annotation>(),
     glosses: new Map<string, Gloss>(),
     calls: [] as Call[],
+    /** For each POST /api/reader (the cookie bootstrap), how many other requests had been made before it. Kept apart from `calls`. */
+    bootstraps: [] as number[],
+    /** When set, the next bootstrap request fails at the network level (then it recovers). */
+    failBootstrapOnce: false,
     readerKey: "reader-a",
     /** Answer for DELETE: the real route says persisted:false when there is no cookie / no database. */
     deletePersisted: true,
@@ -33,6 +37,14 @@ function makeServer() {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
     const method = init?.method ?? "GET";
+    if (path === "/api/reader" && method === "POST") {
+      if (server.failBootstrapOnce) {
+        server.failBootstrapOnce = false;
+        throw new TypeError("network down");
+      }
+      server.bootstraps.push(server.calls.length);
+      return json({ persisted: true, readerKey: server.readerKey });
+    }
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     server.calls.push({ method, path, body });
     if (method === "GET" && path.includes("/data")) return json({ persisted: true, readerKey: server.readerKey, annotations: [...server.annotations.values()], glosses: [...server.glosses.values()], progress: null });
@@ -263,5 +275,42 @@ describe("ANNOT-11: ordered updates with a client timestamp", () => {
     expect(server.calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
     expect(server.annotations.get("ann_000000001")?.note).toBe("new");
     expect(lib.getLibrary().annotations[DOC][0].syncedAt).toBe(lib.getLibrary().annotations[DOC][0].updatedAt);
+  });
+});
+
+describe("the reader cookie is settled before the first save", () => {
+  it("asks for it once, before any save, however many saves start together", async () => {
+    const server = makeServer();
+    const lib = await freshStore();
+    lib.addAnnotation(ann({ id: "ann_000000001" }));
+    lib.addAnnotation(ann({ id: "ann_000000002" }));
+    lib.addAnnotation(ann({ id: "ann_000000003" }));
+    await flush();
+    expect(posts(server)).toHaveLength(3);
+    expect(server.bootstraps).toEqual([0]); // once, with no data request ahead of it
+    lib.addAnnotation(ann({ id: "ann_000000004" }));
+    await flush();
+    expect(server.bootstraps).toEqual([0]); // not again for later saves
+  });
+
+  it("does not ask for it just to read", async () => {
+    const server = makeServer();
+    const lib = await freshStore();
+    await lib.syncDocumentData(DOC);
+    await flush();
+    expect(server.bootstraps).toEqual([]);
+  });
+
+  it("tries again on the next save if it failed, and the save itself is not lost", async () => {
+    const server = makeServer();
+    server.failBootstrapOnce = true;
+    const lib = await freshStore();
+    lib.addAnnotation(ann({ id: "ann_000000001" }));
+    await flush();
+    expect(posts(server)).toHaveLength(1); // the save went ahead despite the failed bootstrap
+    lib.addAnnotation(ann({ id: "ann_000000002" }));
+    await flush();
+    expect(server.bootstraps).toHaveLength(1); // the retry happened and succeeded
+    expect(posts(server)).toHaveLength(2);
   });
 });

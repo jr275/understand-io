@@ -30,7 +30,7 @@ INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration
 psql -h localhost -d postgres -c "DROP DATABASE gloss_phaseb_it"
 ```
 
-## What it covers (`ownership.test.ts`, 14 tests)
+## What it covers (`ownership.test.ts`, 17 tests)
 
 Two readers, each with their own cookie, plus a reader with no cookie and one with a forged cookie:
 
@@ -44,7 +44,9 @@ Two readers, each with their own cookie, plus a reader with no cookie and one wi
 - saving the same mark twice is idempotent and an older copy never overwrites a newer one;
 - two readers importing a text with the same title each keep their own document;
 - deleting a document removes its marks, questions and position together;
-- every reader-dependent API response is `private, no-store`.
+- every reader-dependent API response is `private, no-store`;
+- a client that loops on imports gets a 429 while other readers are unaffected;
+- two cookie-less writes sent together mint two readers, and after the reader bootstrap writes sent together all land under one reader.
 
 ## What it does not cover
 

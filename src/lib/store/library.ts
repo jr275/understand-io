@@ -101,11 +101,27 @@ export function useLibrary() {
 
 /* ------------------------------------------------------------------ API helpers */
 
+/**
+ * The first save of a new visitor must not race another one: with no cookie yet, two concurrent requests each create a reader.
+ * One bootstrap request, shared by every caller, settles the cookie first. A failure is forgotten so the next save tries again.
+ */
+let readerReady: Promise<void> | null = null;
+function ensureReader(): Promise<void> {
+  readerReady ??= fetch("/api/reader", { method: "POST" }).then(
+    () => undefined,
+    () => {
+      readerReady = null;
+    },
+  );
+  return readerReady;
+}
+
 let warned = 0;
 /** One request. `null` = the network failed; otherwise the status and the parsed body (null for non-2xx). `quiet` statuses are expected and never toast. */
 async function call<T>(path: string, init?: RequestInit, quiet: number[] = []): Promise<{ status: number; data: T | null } | null> {
   const mutating = !!init?.method && init.method !== "GET";
   try {
+    if (mutating) await ensureReader();
     const res = await fetch(path, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
     if (!res.ok) {
       if (mutating && res.status >= 400 && !quiet.includes(res.status) && Date.now() - warned > 8000) {

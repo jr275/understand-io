@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allNotesMarkdown, buildBackup, parseBackup, planRestore } from "@/lib/store/backup";
+import { MAX_BACKUP_BYTES, allNotesMarkdown, buildBackup, parseBackup, planRestore } from "@/lib/store/backup";
 import type { Annotation, Block, Gloss, GlossDocument, ReadingProgress } from "@/lib/content/types";
 
 const B = (id: string, text: string, n?: number): Block => ({ id, type: "p", text, n });
@@ -52,6 +52,15 @@ describe("parseBackup", () => {
     const r = parseBackup(raw as string);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(reason as RegExp);
+  });
+
+  it("refuses a file too large to be a backup before parsing it, and one that is not JSON", () => {
+    const big = parseBackup(" ".repeat(MAX_BACKUP_BYTES + 1));
+    expect(big.ok).toBe(false);
+    if (!big.ok) expect(big.error).toMatch(/too large/);
+    const bad = parseBackup("not json at all");
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error).toMatch(/not valid JSON/);
   });
 
   it("refuses a damaged backup as a whole, so nothing is half restored", () => {

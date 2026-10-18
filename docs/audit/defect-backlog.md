@@ -12,13 +12,13 @@ Severity: P0 data loss or security breach in normal use; P1 a main feature broke
 | Voice and retrieval (VOICE-1..19, RETR-1..12) | 31 | 25 | 4 | 1 | 1 |
 | Annotations (ANNOT-1..22) | 22 | 18 | 3 | 1 | 0 |
 | Security (SEC-1..16) | 16 | 9 | 5 | 0 | 2 |
-| Import, build, hygiene, accessibility, found in testing | 15 | 9 | 2 | 4 | 0 |
+| Import, build, hygiene, accessibility, found in testing | 15 | 10 | 2 | 3 | 0 |
 | Second brief: AI, import, interface (below) | 10 | 7 | 1 | 2 | 0 |
 | Visual pass: phones and panels (below) | 5 | 5 | 0 | 0 | 0 |
 | Saving every link (below) | 1 | 1 | 0 | 0 | 0 |
-| **All** | **123** | **93** | **19** | **8** | **3** |
+| **All** | **123** | **94** | **19** | **7** | **3** |
 
-Open items by priority: AI-4 (the live model has never answered, needs a key), A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync), IMP-3 (duplicate imports), IMP-7 (a text link is titled by its file name), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
+Open items by priority: AI-4 (the live model has never answered, needs a key), A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync; a file backup now protects them), IMP-7 (a text link is titled by its file name), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
 
 ## Read aloud (fixes: commit 2b76932, later 5edb3fa and the Stop-focus commit)
 
@@ -104,7 +104,7 @@ Open items by priority: AI-4 (the live model has never answered, needs a key), A
 | ANNOT-14 | P2 | no way to remove or recolour a mark; duplicates stacked | Fixed | unit, e2e |
 | ANNOT-15 | P3 | Unicode handled by code unit only | Fixed | unit. Multi-block quotes are not folded |
 | ANNOT-16 | P3 | notebook export lossy and could corrupt Markdown | Fixed | unit |
-| ANNOT-17 | P3 | `local:` documents never sync; sign-in merges anonymous local marks | Open | no re-keying when a `local:` document gains a server id; no test |
+| ANNOT-17 | P3 | `local:` documents never sync; sign-in merges anonymous local marks | Open | no re-keying when a `local:` document gains a server id; no test. Mitigated, not fixed: backup and restore keep the marks (`backup.test.ts`) |
 | ANNOT-18 | P3 | mark segmentation O(blocks^2) | Fixed | unit threshold only (not measured in a browser) |
 | ANNOT-19 | P3 | keyboard, touch and focus | Partial | Space no longer starts a question inside the lens. Existing marks are still not focusable, focus never moves into the lens, the lens does not reposition on scroll |
 | ANNOT-20 | P3 | small UI and state issues | Partial | note draft resets on open. Empty note still saved; toast still optimistic; unknown `?hl=` id skips progress resume |
@@ -138,7 +138,7 @@ Open items by priority: AI-4 (the live model has never answered, needs a key), A
 | --- | --- | --- | --- | --- |
 | IMP-1 | P2 | a GIF was imported as a text document ("GIF89a") | Fixed | content sniffing (`uploadKind.test.ts`, e2e) |
 | IMP-2 | P3 | "Nothing to read." for malformed JSON, oversize and other errors | Fixed | e2e names the real problem |
-| IMP-3 | P3 | the same text imported twice creates two documents | Open | by design so far; no de-duplication |
+| IMP-3 | P3 | the same text imported twice creates two documents | Fixed | importing an address (normalised) or a text (fingerprint, 200+ characters) already on the shelf opens the saved one (`duplicates.test.ts`, e2e in `library-search.spec.ts`). Limits in `docs/quality/known-limitations.md` |
 | IMP-4 | P2 | sites that block servers (403) gave "That page answered 403." | Fixed | capture bookmarklet, honest message (`importStatus.test.ts`, e2e); needs the reader's own browser tab |
 | IMP-5 | P3 | PDF text lost paragraph breaks, so headings fused with paragraphs | Fixed | `pdf-paragraphs.test.ts` with a real PDF fixture. Cost and its mitigation: on a real paper (arXiv 1706.03762) blocks went from 62 to 258 with 103 shorter than 40 characters. Runs of three or more tiny pieces are now merged back (`mergeFragmentRuns`): 189 blocks and 29 shorter than 40 characters, of which 26 are headings, formulas or table rows. A second paper (arXiv 1810.04805): 297 blocks and 44 short before the merge, 280 and 24 after. Figure text is still its own blocks, only fewer |
 | DB-1 | P1 | library returned 500 and an overlay when PostgreSQL was unreachable; SQL and document leaked in errors | Fixed | `db-outage.test.ts` against a dead port; real app run on a dead port |

@@ -40,8 +40,14 @@ async function addDoc(readerId: string, n: string) {
 describe.skipIf(!db)("account merge safety (real PostgreSQL)", () => {
   afterAll(async () => {
     if (!db) return;
+    // signInGoogle gives each new account a reader with a random id, so the readers to remove are found through what they own;
+    // deleting a reader cascades to its account and its documents.
+    const owned = new Set<string>();
+    for (const r of await db.select({ id: accounts.readerId }).from(accounts).where(like(accounts.subject, `${tag}%`))) owned.add(r.id);
+    for (const r of await db.select({ id: documents.readerId }).from(documents).where(like(documents.id, `${tag}%`))) owned.add(r.id);
+    if (owned.size) await db.delete(readers).where(inArray(readers.id, [...owned]));
     await db.delete(accounts).where(like(accounts.subject, `${tag}%`));
-    await db.delete(readers).where(like(readers.id, `${tag}%`)); // cascades to the documents created here
+    await db.delete(readers).where(like(readers.id, `${tag}%`));
     await db.$client.end({ timeout: 2 });
     globalThis.__glossDb = undefined;
   });

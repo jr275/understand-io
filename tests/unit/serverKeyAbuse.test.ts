@@ -161,6 +161,30 @@ describe("/api/search on the server key", () => {
   });
 });
 
+/**
+ * Same request, but the multipart body is serialised first and handed over as a stream the test controls (no Content-Length).
+ * A `FormData` body is produced by an internal generator that, on Node 24.21 and later, still enqueues after the reader has
+ * cancelled it and raises an unhandled "ReadableStream is already closed" long after the test; a pull-based stream simply
+ * stops being pulled. The route's behaviour (counting bytes and cancelling at the limit) is what is under test.
+ */
+async function streamedAudioRequest(blob: Blob, headers: Record<string, string> = {}) {
+  const fd = new FormData();
+  fd.append("audio", blob, "speech.webm");
+  fd.append("language", "en");
+  const probe = new Response(fd);
+  const type = probe.headers.get("content-type") ?? "";
+  const bytes = new Uint8Array(await probe.arrayBuffer());
+  let offset = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (offset >= bytes.length) return controller.close();
+      controller.enqueue(bytes.subarray(offset, offset + 65_536));
+      offset += 65_536;
+    },
+  });
+  return new Request("http://localhost/api/speech/transcribe", { method: "POST", headers: { "x-forwarded-for": ip(), "content-type": type, ...headers }, body, duplex: "half" } as RequestInit);
+}
+
 function audioRequest(blob: Blob, headers: Record<string, string> = {}) {
   const fd = new FormData();
   fd.append("audio", blob, "speech.webm");
@@ -171,7 +195,7 @@ function audioRequest(blob: Blob, headers: Record<string, string> = {}) {
 describe("/api/speech/transcribe", () => {
   it("refuses an oversized recording without forwarding it (streamed body, no Content-Length)", async () => {
     const { POST } = await import("@/app/api/speech/transcribe/route");
-    const res = await POST(audioRequest(new Blob([new Uint8Array(LIMITS.audioBytes + 200_000)], { type: "audio/webm" })));
+    const res = await POST(await streamedAudioRequest(new Blob([new Uint8Array(LIMITS.audioBytes + 200_000)], { type: "audio/webm" })));
     expect(res.status).toBe(413);
     expect(upstream).not.toHaveBeenCalled();
   });

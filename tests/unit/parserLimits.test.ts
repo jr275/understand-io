@@ -37,14 +37,16 @@ describe("HTML limits", () => {
     });
   }
 
-  it("still reads a normal article, and one near the element cap in about a second or less", () => {
+  it("still reads a normal article, and one near the element cap without a blow-up in time", () => {
     const para = "<p>Chalk is a soft white porous sedimentary carbonate rock composed of calcite and the shells of sea creatures.</p>";
     const normal = `<html><head><title>Chalk</title></head><body><nav><a href=/>home</a></nav><article><h1>Chalk</h1>${para.repeat(40)}</article><script>if (a<b && c>d) { document.write("<div><div><div>"); }</script></body></html>`;
     expect(extractArticle(normal, url).blocks.length).toBeGreaterThanOrEqual(40);
     const big = `<html><body><article>${"<p>Chalk is a soft white rock.</p>".repeat(Math.floor(HTML_LIMITS.elements * 0.95))}</article></body></html>`;
     const { out, ms } = timed(() => extractArticle(big, url));
     expect(out).not.toBeInstanceOf(Error);
-    expect(ms).toBeLessThan(3000); // generous bound for slow CI; measured about 0.7 s
+    // Measured about 0.7 s on an idle machine and up to 3.6 s while the machine was busy. The bound exists to catch a blow-up
+    // (a quadratic pass over 550,000 elements takes minutes), not to time the parser.
+    expect(ms).toBeLessThan(10_000);
   });
 
   it("does not count text inside script/style, comments or quoted attributes as markup", () => {

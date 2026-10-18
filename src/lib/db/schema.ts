@@ -9,7 +9,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { Anchor, Block, GlossResult, GlossTurn } from "@/lib/content/types";
+import type { Anchor, Block, DocumentKind, GlossResult, GlossTurn } from "@/lib/content/types";
 
 export const readers = pgTable("readers", {
   id: text("id").primaryKey(),
@@ -24,7 +24,7 @@ export const documents = pgTable(
       .notNull()
       .references(() => readers.id, { onDelete: "cascade" }),
     slug: text("slug").notNull(),
-    kind: text("kind").$type<"url" | "pdf" | "text" | "sample">().notNull(),
+    kind: text("kind").$type<DocumentKind>().notNull(),
     title: text("title").notNull(),
     author: text("author"),
     dek: text("dek"),

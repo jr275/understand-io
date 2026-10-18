@@ -15,7 +15,8 @@ Severity: P0 data loss or security breach in normal use; P1 a main feature broke
 | Import, build, hygiene, accessibility, found in testing | 15 | 9 | 2 | 4 | 0 |
 | Second brief: AI, import, interface (below) | 10 | 7 | 1 | 2 | 0 |
 | Visual pass: phones and panels (below) | 5 | 5 | 0 | 0 | 0 |
-| **All** | **122** | **92** | **19** | **8** | **3** |
+| Saving every link (below) | 1 | 1 | 0 | 0 | 0 |
+| **All** | **123** | **93** | **19** | **8** | **3** |
 
 Open items by priority: AI-4 (the live model has never answered, needs a key), A11Y-4 (no screen-reader pass, needs a person), ANNOT-17 (`local:` documents never sync), IMP-3 (duplicate imports), IMP-7 (a text link is titled by its file name), RETR-10 (no inverted index), A11Y-5 (lens toolbar roving tabindex), BUILD-1 (font metrics warning). None blocks the product; each is described below.
 
@@ -175,4 +176,10 @@ Open items by priority: AI-4 (the live model has never answered, needs a key), A
 | UI-6 | P2 | the selection toolbar scrolled sideways with no sign of it on a phone, and the highlight colours opened only on hover (no hover on touch) | Fixed | two rows on phones, colour dots always shown; `phone-layout.spec` |
 | UI-7 | P3 | the Notebook and Understand sheets covered the whole phone screen | Fixed | they start at 14 % of the height so text stays visible above; `phone-layout.spec` |
 | UI-8 | P3 | the Understand panel stacked a large tool block above long cards with no way to scan them | Fixed | every action described before anything is made, tools tuck away afterwards, the newest result open and older ones collapsed with a preview, tabs by kind from the third result; `understand.spec`, axe, baselines |
+
+## Found and fixed: saving every link
+
+| ID | Sev | Finding | Status | Guard / remaining |
+| --- | --- | --- | --- | --- |
+| LNK-1 | P2 | a link whose page could not be read (an app or landing page with no article, a site that blocks servers, a missing page) showed a toast and saved nothing, so the reader lost the link (reported with https://finalosint.lat/) | Fixed | the import keeps the link as a link card with the page's own title and description and the reason; `linkDoc.test`, `links.spec`, live. A card has no text to read until it is brought in; the card says how (bookmarklet, paste, file) |
 

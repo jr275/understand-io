@@ -124,7 +124,13 @@ Done without a model key. Order: phones first, then a visual regression net, the
 
 **Understand panel.** Before anything is made every action is described under its name (and the key and privacy notes stay visible); afterwards the tools tuck behind "Make something new", the newest result is open and older ones are collapsed with a two-line preview (keyboard and mouse), and from the third result tabs filter by kind. No example result is shown: nothing in the product presents invented output as real.
 
-**Tests (final for this pass).** `pnpm typecheck` 0, `pnpm lint` 0, `pnpm test` 752 passed, `pnpm test:e2e` 169 passed, `pnpm test:visual` 46 passed, `pnpm build` 0, `pnpm audit --prod` 0.
+**Tests (final for this pass).** `pnpm typecheck` 0, `pnpm lint` 0, `pnpm test` 760 passed, `pnpm test:e2e` 174 passed, `pnpm test:visual` 46 passed, `pnpm build` 0, `pnpm audit --prod` 0.
 
 **Not done from the list, on purpose.** Notebook integration of AI results and the landing page copy wait until the AI features have run against a live model; the library's "many items" state and the generated covers, and the remaining accessibility polish (focusable existing marks, lens roving focus, a screen-reader pass), are still open (see `docs/audit/defect-backlog.md`).
+
+## 12. Saving every kind of link
+
+Reported with `https://finalosint.lat/`: the page is an application page with no article, so the import answered "Could not find a readable article on that page." and saved nothing. Now every link is kept. Readable pages, PDFs and plain text are read as before. Anything else (no article, a site that blocks servers, a missing page, an unreachable host, an address that is not public) becomes a **link card**: a document of kind `link` holding the address, the title and description the page gives about itself (taken from the start of its HTML by plain pattern matching, without credentials typed into the address), and a sentence on why it could not be read. The card has its own page with Open the original, Try reading it again (a success replaces the card with the text), Remove, and the honest ways to read it here (paste the text, the bookmarklet that hands over the page you are looking at, or a downloaded PDF). In the library it is labelled a saved link. Live: finalosint.lat is saved as "FinalOSINT | Plataforma OSINT para investigação digital" with its own description, example.com as "Example Domain". The server API keeps its old answers unless the client asks to keep the link (`keep: true`), which every screen now does; links that are not web addresses (`ftp:`, `javascript:`, `file:`) are still refused.
+
+Limits: a link card has nothing to annotate, summarize or search until its text is brought in. Saved links are not de-duplicated. Reading a card again is one fetch, so a site that blocks servers will still refuse; the bookmarklet is the way in for those.
 

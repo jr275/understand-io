@@ -284,7 +284,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                               className="bk"
                               aria-label={`${b.doc.title} ${shortAuthor(b.doc)}`.trim()}
                               data-tip={b.doc.title}
-                              data-tip-hint={`${b.doc.author ?? b.doc.sourceLabel ?? ""} · ${b.doc.minutes} min${p?.finished ? " · read" : p && p.ratio > 0.02 ? ` · ${Math.round(p.ratio * 100)}% read` : ""}`}
+                              data-tip-hint={`${b.doc.author ?? b.doc.sourceLabel ?? ""} · ${b.doc.kind === "link" ? "saved link" : `${b.doc.minutes} min`}${p?.finished ? " · read" : p && p.ratio > 0.02 ? ` · ${Math.round(p.ratio * 100)}% read` : ""}`}
                               onClick={(e) => setOpen({ slug: b.doc.slug, rect: (e.currentTarget.querySelector(".spine") as HTMLElement).getBoundingClientRect() })}
                               onKeyDown={(e) => {
                                 if (e.key === "ArrowRight" || e.key === "ArrowLeft") {

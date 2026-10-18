@@ -108,12 +108,12 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                   {doc.author || doc.sourceLabel || "Unknown author"}
                   <span className="ob-meta">
                     {doc.year ? `${doc.year} · ` : ""}
-                    {doc.minutes} min
+                    {doc.kind === "link" ? "saved link" : `${doc.minutes} min`}
                   </span>
                 </p>
                 {doc.dek ? <p className="ob-dek">{doc.dek}</p> : null}
                 <p className="ob-tags">
-                  <span className="is-word">{doc.kind === "sample" ? "a sample from Understand.io" : doc.kind === "pdf" ? "a PDF" : doc.kind === "text" ? "pasted text" : doc.sourceLabel || "a link"}</span>
+                  <span className="is-word">{doc.kind === "sample" ? "a sample from Understand.io" : doc.kind === "pdf" ? "a PDF" : doc.kind === "text" ? "pasted text" : doc.kind === "link" ? "a saved link, not read yet" : doc.sourceLabel || "a link"}</span>
                 </p>
                 <div className="ob-progress">
                   <span className="ob-bar" aria-hidden="true">
@@ -123,7 +123,7 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                 </div>
                 <div className="ob-actions">
                   <button type="button" className="ob-read" onClick={() => router.push(`/read/${doc.slug}`)}>
-                    {pct > 2 && !progress?.finished ? "Continue" : progress?.finished ? "Read again" : "Start reading"}
+                    {doc.kind === "link" ? "Open the link" : pct > 2 && !progress?.finished ? "Continue" : progress?.finished ? "Read again" : "Start reading"}
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
                   <div className="ob-sub">

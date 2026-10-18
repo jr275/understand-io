@@ -9,6 +9,9 @@ import { toast } from "@/lib/store/toast";
 export interface ImportResult {
   document: GlossDocument;
   persisted: boolean;
+  /** The page could not be read, so only the link was saved; `reason` says why. */
+  linkOnly?: boolean;
+  reason?: string;
 }
 
 /** File types the import endpoints accept. */
@@ -33,6 +36,14 @@ export function useImport(defaultAfter: After = "read") {
   const finish = useCallback(
     (r: ImportResult, after: After) => {
       rememberDocument(r.document, r.persisted);
+      if (r.linkOnly) {
+        // Saved, but not readable here: say so and why, and go where the link's own page explains what can be done.
+        toast(`Saved the link. ${r.reason ?? "The page could not be read here."}`, { ttl: 9000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (after === "read") router.push(`/read/${r.document.slug}`);
+        else if (after === "library") router.push("/library");
+        else void syncRemoteLibrary();
+        return;
+      }
       if (after === "read") router.push(`/read/${r.document.slug}`);
       else if (after === "library") {
         toast(`Shelved “${r.document.title}”.`, { action: { label: "Read", onClick: () => router.push(`/read/${r.document.slug}`) } });
@@ -64,7 +75,7 @@ export function useImport(defaultAfter: After = "read") {
     [finish],
   );
 
-  const importUrl = useCallback((url: string, after: After = defaultAfter) => run("url", () => post("/api/import", JSON.stringify({ url })), after), [run, defaultAfter]);
+  const importUrl = useCallback((url: string, after: After = defaultAfter) => run("url", () => post("/api/import", JSON.stringify({ url, keep: true })), after), [run, defaultAfter]);
   const importText = useCallback((text: string, title?: string, after: After = defaultAfter) => run("text", () => post("/api/import/text", JSON.stringify({ text, title })), after), [run, defaultAfter]);
   const importFile = useCallback(
     (file: File, after: After = defaultAfter) =>
@@ -91,7 +102,8 @@ export function useImport(defaultAfter: After = "read") {
 export function looksLikeUrl(s: string) {
   const t = s.trim();
   if (/\s/.test(t)) return false;
-  return /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(t);
+  // Any address with a scheme counts (an IP address, a port, a local name), and so does a bare domain.
+  return /^https?:\/\/\S+$/i.test(t) || /^([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(t);
 }
 
 export function normaliseUrl(s: string) {

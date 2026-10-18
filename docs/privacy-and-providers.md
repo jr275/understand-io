@@ -8,7 +8,7 @@ What leaves the browser, where it goes, and what this app keeps. Written from th
 | --- | --- | --- | --- | --- |
 | Reading, highlights, notes, progress, settings | nothing | nobody (browser storage) | always local | in the browser, and in your library on this server when a database is configured |
 | Library on the server | documents you import, annotations, glosses and results, progress | this app's PostgreSQL | when a database is configured; the browser keeps its own copy anyway | until you delete them. A document's text is stored with it |
-| Open a link | the link | the website you named, from this server (public hosts, ports 80 and 443 only) | when you press Read | the extracted text as a document |
+| Open or save a link | the link | the website you named, from this server (public hosts, ports 80 and 443 only) | when you press Read | the extracted text as a document, or for a page that cannot be read only its address, the title and description it gives itself and the reason (a link card) |
 | Upload a PDF or text, paste text | the file or text | this server | when you press Read | as a document |
 | Explain, Ask, Simplify, Define, Fact-check, Related, Counterpoint, Gloss this text | your question, the selected passage, and the paragraphs judged relevant (up to about 24,000 characters) | Together AI (the model provider) | when you press the button | the answer, the paragraph ids the model was given, and token counts |
 | Summaries, key concepts, Test me | the text of the document, from the start or from the chosen paragraph, up to about 110,000 characters, read in sections when long | Together AI | only when you press one of the buttons in the Understand panel | the result with its coverage statement and checked quotes |

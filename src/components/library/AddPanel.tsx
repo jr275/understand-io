@@ -8,7 +8,7 @@ import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 
-type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string };
+type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string; note?: string };
 
 export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (count: number) => void }) {
   const [tab, setTab] = useState<"agent" | "links">("links");
@@ -37,7 +37,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const urls = text
     .split(/\s+/)
     .map((s) => s.trim())
-    .filter((s) => /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(s))
+    .filter((s) => /^https?:\/\/\S+$/i.test(s) || /^([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(s))
     .map((s) => (/^https?:\/\//i.test(s) ? s : `https://${s}`));
 
   const save = async () => {
@@ -48,12 +48,12 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
     let saved = 0;
     for (let i = 0; i < next.length; i++) {
       try {
-        const res = await fetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: next[i].url }) });
+        const res = await fetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: next[i].url, keep: true }) });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error || `Failed (${res.status})`);
         rememberDocument(j.document, j.persisted);
         saved++;
-        setRows((r) => r.map((x, k) => (k === i ? { ...x, state: "saved", title: j.document.title } : x)));
+        setRows((r) => r.map((x, k) => (k === i ? { ...x, state: "saved", title: j.document.title, note: j.linkOnly ? `Saved as a link. ${j.reason ?? ""}`.trim() : undefined } : x)));
       } catch (e) {
         setRows((r) => r.map((x, k) => (k === i ? { ...x, state: "failed", error: e instanceof Error ? e.message : "Failed" } : x)));
       }
@@ -124,6 +124,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                     <span className="add-dot">{r.state === "saved" ? <Check size={12} aria-hidden="true" /> : r.state === "failed" ? <X size={12} aria-hidden="true" /> : <span className="size-2 animate-pulse rounded-full bg-current" />}</span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{r.title ?? r.url}</span>
                     {r.error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{r.error}</span> : null}
+                    {r.note ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-ink-3">{r.note}</span> : null}
                   </li>
                 ))}
               </ul>

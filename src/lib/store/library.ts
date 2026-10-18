@@ -207,7 +207,8 @@ export function updateDocumentMeta(slug: string, patch: Partial<Pick<GlossDocume
   if (d.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) void api(`/api/documents/${d.id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-export function removeDocument(slug: string) {
+/** Resolves when the server has been told (or at once for a document that only lives in this browser), so a caller can navigate without the next page still listing it. */
+export function removeDocument(slug: string): Promise<unknown> {
   ensure();
   const d = state.docs[slug];
   set((s) => {
@@ -222,7 +223,8 @@ export function removeDocument(slug: string) {
     delete progress[id];
     return { docs, annotations, glosses, progress };
   });
-  if (d?.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) void apiDelete("document", `/api/documents/${d.id}`, d.id);
+  if (d?.id && !d.id.startsWith("local:") && !d.id.startsWith("sample:")) return apiDelete("document", `/api/documents/${d.id}`, d.id);
+  return Promise.resolve();
 }
 
 export function hideSample(slug: string) {

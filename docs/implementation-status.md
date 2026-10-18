@@ -17,8 +17,8 @@ _Canonical status of the current code, including the second brief (intelligent r
 | C. Voice semantic search | 6 | 0 | 2 | 2 | 0 | 0 | 10 |
 | D. Annotations | 7 | 1 | 1 | 0 | 0 | 0 | 9 |
 | E. Non-functional and cross-cutting | 12 | 0 | 0 | 1 | 1 | 0 | 14 |
-| F. Evolution: intelligent reading and understanding | 19 | 1 | 0 | 3 | 0 | 0 | 23 |
-| **All** | **67** | **7** | **6** | **9** | **1** | **4** | **94** |
+| F. Evolution: intelligent reading and understanding | 20 | 1 | 0 | 3 | 0 | 0 | 24 |
+| **All** | **68** | **7** | **6** | **9** | **1** | **4** | **95** |
 
 ## A. Reference product
 
@@ -143,6 +143,7 @@ _Canonical status of the current code, including the second brief (intelligent r
 | UND-21 | The reader, landing and library are usable from 320 to 768 px: every top-bar control on screen and tappable, no overlap, no sideways scroll, panels fit and leave text visible, the selection toolbar fits in rows | `VERIFIED WORKING` | reader, landing, library at 320-768 px | components/chrome/Topbar.tsx, AccountControl.tsx, reader/Lens.tsx, Reader.tsx, InsightsPanel.tsx, Notebook.tsx | none | phone-layout.spec | E (viewport sizes in Chromium, not a real phone) | 2026-10-17 | docs/audit/requirements-traceability.md section F; docs/evolution-report.md; docs/privacy-and-providers.md | no real touch device | human check on a phone |
 | UND-22 | Visual regression baselines for landing, library and reader in five themes at desktop and phone size, plus the Understand panel (empty and with a result), selection toolbar and find bar | `VERIFIED WORKING` | pnpm test:visual | tests/visual/visual.spec.ts, playwright.config.ts | this machine's Chromium and fonts | visual.spec (separate command, not part of pnpm test:e2e) | pixel comparison against baselines | 2026-10-17 | docs/audit/requirements-traceability.md section F; docs/evolution-report.md; docs/privacy-and-providers.md | baselines not portable across operating systems | regenerate on another OS and review |
 | UND-23 | The Understand panel is easy to scan: every action described before anything is made, the newest result open and older ones collapsed with a preview, tabs by kind once there are three results | `VERIFIED WORKING` | Understand panel | components/reader/InsightsPanel.tsx | none | understand.spec, visual.spec | E, axe, pixel baselines | 2026-10-17 | docs/audit/requirements-traceability.md section F; docs/evolution-report.md; docs/privacy-and-providers.md | none | none |
+| UND-24 | Every link can be saved: readable pages, PDFs and text are read; a page that cannot be read (a site that blocks servers, an app page with no article, a missing page, an unreachable host) is kept as a link card with its address, the title and description the page gives about itself, and the reason; the card offers Open the original, Try reading it again and Remove, and says how to read it here | `VERIFIED WORKING` | /, /library Add panel, any page (drop or paste), /read/[slug] for a link card | app/api/import/route.ts, lib/content/linkDoc.ts, lib/client/import.ts, components/reader/LinkPage.tsx, library/AddPanel.tsx | network for the page's title and description | linkDoc.test, links.spec | U, E, live saves of real links | 2026-10-17 | docs/audit/requirements-traceability.md section F; docs/evolution-report.md; docs/privacy-and-providers.md | a link card has no text to read, annotate or summarize until the text is brought in (bookmarklet, paste, file) | none |
 
 ## Completion metrics
 
@@ -156,10 +157,10 @@ Each percentage is `VERIFIED WORKING` divided by the stated set. Items that are 
 | Passage retrieval | 5 | 5 requirements: lexical retrieval, semantic re-rank, jump and highlight, read the match, honest confidence | 4 | 80 % | blocked 1 |
 | Annotations and persistence | 9 | 9 requirements AN-R1..9 | 7 | 78 % | partially implemented 1; implemented, not verified 1 |
 | AI provider integration | 8 | 8 requirements that depend on the provider: streamed answers, whole-text answers, key panel, transcription, embeddings, abuse protection of the server key, live structured answers, live translation | 2 | 25 % | blocked 6 |
-| Intelligent reading features (second brief) | 23 | UND-1..23: logo, links and PDFs, summaries, evidence checks, concepts and questions, translation, checked citations, persistence, find, sections, position, voice questions, spoken answers, shortcut switch, dialog focus, phone layout, visual baselines, the panel redesign, plus the three live-provider and audible items | 19 | 83 % | partially implemented 1; blocked 3 |
+| Intelligent reading features (second brief) | 24 | UND-1..24: logo, links and PDFs, summaries, evidence checks, concepts and questions, translation, checked citations, persistence, find, sections, position, voice questions, spoken answers, shortcut switch, dialog focus, phone layout, visual baselines, the panel redesign, saving every link, plus the three live-provider and audible items | 20 | 83 % | partially implemented 1; blocked 3 |
 | Authentication | 3 | 3 requirements: sign-in as a whole, production guards, real OAuth round trip. (Unconfigured-state honesty and the merge planner are part of REF-23) | 1 | 33 % | implemented, not verified 1; blocked 1 |
 | Route coverage | 6 | the 6 reference entry points `/`, `/library`, `/read/[slug]`, `/?url=`, `/?save=`, `/read/[slug]?hl=`; complete = loads and its main behaviour is exercised by an automated test | 5 | 83 % | partially implemented 1 (`?hl=` deep link). Note: `/?url=` and `/?save=` now only fill the field and wait for Read, a deliberate security deviation from the reference |
-| Automated test coverage of requirements | 94 | requirements in this file that name at least one automated test (U, I or E) in the Test coverage column | 75 | 80 % | requirements with no automated test: REF-2, REF-3, REF-5, REF-7, REF-14, REF-24, REF-25, REF-26, TTS-R10, TTS-R11, TTS-R12, AN-R2, AN-R9, NFR-12, NFR-13, NFR-14, UND-18, UND-19, UND-20. A requirement with a test is not necessarily verified (see Status) |
+| Automated test coverage of requirements | 95 | requirements in this file that name at least one automated test (U, I or E) in the Test coverage column | 76 | 80 % | requirements with no automated test: REF-2, REF-3, REF-5, REF-7, REF-14, REF-24, REF-25, REF-26, TTS-R10, TTS-R11, TTS-R12, AN-R2, AN-R9, NFR-12, NFR-13, NFR-14, UND-18, UND-19, UND-20. A requirement with a test is not necessarily verified (see Status) |
 | Security review | 16 | findings SEC-1..16 of `docs/audit/security-review.md`; complete = marked Fixed in the security review (main harm removed, regression test); small named residuals stay listed there | 9 | 56 % | partially fixed 5 (SEC-1, 2, 7, 9, 12), information only 2 (SEC-15, 16) |
 | Operational readiness | 10 | checklist below; complete = `VERIFIED WORKING` | 6 | 60 % | not implemented: CI, logging and monitoring, shared limiter and backups, deployment |
 | Visual fidelity | n/a | no defensible requirement count exists | n/a | n/a | measured instead: pixel difference against the reference at six screens (0.42 % to 16.40 %), see `docs/audit/visual-accessibility-review.md`. A percentage of "fidelity" is not claimed |
@@ -194,8 +195,8 @@ Each percentage is `VERIFIED WORKING` divided by the stated set. Items that are 
 ```
 pnpm typecheck        exit 0
 pnpm lint             exit 0
-pnpm test             exit 0   39 files, 752 tests passed
-pnpm test:e2e         exit 0   169 passed (167 desktop, 2 mobile); pnpm test:visual 46 passed (separate)
+pnpm test             exit 0   40 files, 760 tests passed
+pnpm test:e2e         exit 0   174 passed (172 desktop, 2 mobile); pnpm test:visual 46 passed (separate)
 pnpm build            exit 0   one font-metric warning (BUILD-1)
 pnpm audit --prod     exit 0   no known vulnerabilities
 ```

@@ -22,7 +22,8 @@ export interface Block {
   alt?: string;
 }
 
-export type DocumentKind = "url" | "pdf" | "text" | "sample";
+/** `link` is a saved link the page of which could not be read: only its address, title and description (when known) are kept. */
+export type DocumentKind = "url" | "pdf" | "text" | "sample" | "link";
 
 export interface GlossDocument {
   id?: string;

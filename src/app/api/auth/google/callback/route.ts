@@ -1,4 +1,4 @@
-import { appOrigin, exchangeGoogleCode, googleConfig, readOAuthCookie, redirectUri, safeNext, signInGoogle, writeSession } from "@/lib/server/auth";
+import { appOrigin, exchangeGoogleCode, googleConfig, readOAuthCookie, redirectUri, safeNext, signInFailure, signInGoogle, writeSession } from "@/lib/server/auth";
 import { getReaderId } from "@/lib/server/reader";
 
 export async function GET(req: Request) {
@@ -23,6 +23,6 @@ export async function GET(req: Request) {
     await writeSession(account);
     return Response.redirect(`${origin}${safeNext(saved.next)}`, 302);
   } catch (err) {
-    return back(err instanceof Error ? err.message : "Sign-in failed.");
+    return back(signInFailure(err));
   }
 }

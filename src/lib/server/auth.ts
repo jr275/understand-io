@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { getDb, type Db } from "@/lib/db/client";
 import { accounts, annotations, documents, glosses, readers, readingProgress, settings } from "@/lib/db/schema";
+import { describeDbError } from "./dbErrors";
 import { newReaderId, setReaderCookie, signToken, verifyToken } from "./reader";
 
 export const SESSION_COOKIE = "gloss_session";
@@ -91,6 +92,19 @@ export interface GoogleProfile {
   picture?: string;
 }
 
+/** An error whose message is meant for the reader. Anything else that fails during sign-in is a server fault and is never shown as is. */
+export class SignInError extends Error {}
+
+/**
+ * The text to show on the home page when sign-in fails. A database error carries the SQL text of the failed query in its
+ * message, so only `SignInError` messages pass through; the rest is logged by code and replaced by a fixed sentence.
+ */
+export function signInFailure(err: unknown): string {
+  if (err instanceof SignInError) return err.message;
+  console.error(`gloss: google sign-in: server error (${describeDbError(err)})`);
+  return "Sign-in could not be completed on the server. Please try again in a moment.";
+}
+
 export async function exchangeGoogleCode(cfg: GoogleConfig, code: string, verifier: string, redirect: string): Promise<GoogleProfile> {
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -98,13 +112,13 @@ export async function exchangeGoogleCode(cfg: GoogleConfig, code: string, verifi
     body: new URLSearchParams({ code, client_id: cfg.clientId, client_secret: cfg.clientSecret, redirect_uri: redirect, grant_type: "authorization_code", code_verifier: verifier }),
     signal: AbortSignal.timeout(15000),
   });
-  if (!tokenRes.ok) throw new Error(`Google did not accept the sign-in (${tokenRes.status}).`);
+  if (!tokenRes.ok) throw new SignInError(`Google did not accept the sign-in (${tokenRes.status}).`);
   const tok = (await tokenRes.json()) as { access_token?: string };
-  if (!tok.access_token) throw new Error("Google returned no access token.");
+  if (!tok.access_token) throw new SignInError("Google returned no access token.");
   const infoRes = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${tok.access_token}` }, signal: AbortSignal.timeout(15000) });
-  if (!infoRes.ok) throw new Error(`Could not read the Google profile (${infoRes.status}).`);
+  if (!infoRes.ok) throw new SignInError(`Could not read the Google profile (${infoRes.status}).`);
   const p = (await infoRes.json()) as GoogleProfile;
-  if (!p.sub) throw new Error("Google returned no subject id.");
+  if (!p.sub) throw new SignInError("Google returned no subject id.");
   return p;
 }
 
@@ -142,7 +156,7 @@ function isUniqueViolation(err: unknown) {
  */
 export async function signInGoogle(profile: GoogleProfile, currentReaderId: string | null): Promise<Account> {
   const db = getDb();
-  if (!db) throw new Error("Sign-in needs a database.");
+  if (!db) throw new SignInError("Sign-in needs a database.");
   const existing = await db
     .select()
     .from(accounts)

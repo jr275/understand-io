@@ -1,20 +1,38 @@
 #!/usr/bin/env bash
 # Points the production app (Vercel project understand-io, Production) at a Neon database.
 #
-#   bash scripts/set-production-database.sh            asks for the URL, then: tests the connection, applies the migrations,
-#                                                       saves DATABASE_URL in Vercel and redeploys
-#   bash scripts/set-production-database.sh --dry-run  does the first two steps only (nothing is sent to Vercel)
+#   bash scripts/set-production-database.sh              asks for the URL at a hidden prompt, then: tests the connection,
+#                                                         applies the migrations, saves DATABASE_URL in Vercel and redeploys
+#   bash scripts/set-production-database.sh --clipboard  same, but reads the URL from the macOS clipboard (copy it in Neon first;
+#                                                         the clipboard is emptied afterwards)
+#   bash scripts/set-production-database.sh --dry-run    does the first two steps only (nothing is sent to Vercel)
 #
-# The URL is typed at a hidden prompt, so it never lands in the shell history or on screen. Nothing here edits files.
+# The URL never lands in the shell history or on screen. It may be pasted as Neon shows it: plain, in quotes, as
+# DATABASE_URL='...' or as psql '...'. Nothing here edits files.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 DRY=0
-[ "${1:-}" = "--dry-run" ] && DRY=1
+CLIP=0
+for a in "$@"; do
+  case "$a" in
+    --dry-run) DRY=1 ;;
+    --clipboard) CLIP=1 ;;
+  esac
+done
 
-read -rsp "Cole a URL completa do banco (nada aparece) e aperte Enter: " DB
-echo
+if [ "$CLIP" = "1" ]; then
+  DB="$(pbpaste)"
+  printf '' | pbcopy
+  echo "(URL lida da area de transferencia, que foi esvaziada)"
+else
+  read -rsp "Cole a URL completa do banco (nada aparece) e aperte Enter: " DB
+  echo
+fi
 trap 'unset DB' EXIT
+
+# Accept what Neon's tabs give: DATABASE_URL='...', export DATABASE_URL="...", psql '...', with or without quotes.
+DB="$(printf %s "$DB" | tr -d '\r\n' | sed -E "s/^[[:space:]]*(export[[:space:]]+)?(DATABASE_URL=)?(psql[[:space:]]+)?//; s/^['\"]//; s/['\"][[:space:]]*\$//")"
 
 case "$DB" in
   postgres://*|postgresql://*) ;;

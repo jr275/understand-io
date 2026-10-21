@@ -40,4 +40,6 @@ The browser suite started by `pnpm test:e2e` runs `pnpm dev`, which reads `.env.
 5. Redeploy (or wait for the next deploy) and check `GET /api/documents` answers `"persisted":true`.
 6. Optional, in this order: `APP_URL`, then `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (register the redirect URI first), then `TOGETHER_API_KEY`.
 
+`bash scripts/set-production-database.sh` does steps 3 to 5 in one go (it asks for the URL at a hidden prompt, checks the connection, applies the migrations, stores `DATABASE_URL` in Vercel for Production and redeploys); `--dry-run` stops before Vercel. Its connection check, migration and error paths were run against a local database; the Vercel steps reuse commands that worked for this project.
+
 Do not run step 4 against a database whose contents matter without reading `docs/quality/phase-b-data-and-security.md` section 3.

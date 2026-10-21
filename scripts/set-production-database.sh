@@ -72,7 +72,8 @@ if ! printf %s "$DB" | vercel env add DATABASE_URL production --force --sensitiv
 fi
 
 echo "4/4 refazendo o deploy de producao..."
-LAST=$(vercel list understand-io --scope menlo6 2>/dev/null | grep Production | head -1 | grep -o 'understand-[a-z0-9]*-menlo6\.vercel\.app')
+# the CLI prints its table on stderr, so both streams are read
+LAST=$(vercel list understand-io --scope menlo6 2>&1 | grep Production | head -1 | grep -o 'understand-[a-z0-9]*-menlo6\.vercel\.app')
 if [ -z "$LAST" ]; then
   echo "Nao achei o ultimo deploy. Na Vercel, abra Deployments, o primeiro de Production, e clique em Redeploy."
   exit 1

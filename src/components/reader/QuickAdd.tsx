@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, FileUp, Link2, TextCursorInput } from "lucide-react";
 import { ACCEPT, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { handleFiles } from "@/lib/client/importQueue";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 
 /** Compact “read something else” strip for the end of a text. */
@@ -32,7 +33,7 @@ export function QuickAdd() {
       </form>
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-3">
         <button type="button" className="inline-flex items-center gap-1.5 hover:text-ink" onClick={() => fileRef.current?.click()}>
-          <FileUp size={14} aria-hidden="true" /> Open a PDF
+          <FileUp size={14} aria-hidden="true" /> Open files
         </button>
         <button type="button" className="inline-flex items-center gap-1.5 hover:text-ink" onClick={() => setPasteOpen(true)}>
           <TextCursorInput size={14} aria-hidden="true" /> Paste text
@@ -42,11 +43,11 @@ export function QuickAdd() {
         ref={fileRef}
         type="file"
         accept={ACCEPT}
+        multiple
         className="hidden"
-        aria-label="Open a file to read next"
+        aria-label="Open files to read next"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void importFile(f);
+          if (e.target.files) handleFiles(e.target.files, (f) => void importFile(f));
           e.target.value = "";
         }}
       />

@@ -48,7 +48,7 @@ Library search, backup and restore are client-side: open `/library`, add a paste
 | 429 on AI calls | the server-key limits | wait, raise the limit, or the reader adds their own key |
 | "needs a key" everywhere | `TOGETHER_API_KEY` unset | expected until you set it |
 | Sign-in answers 503 | `APP_URL`, `GOOGLE_*` or `DATABASE_URL` missing | `docs/ops/configuration.md` |
-| Build fails on Vercel | previously: esbuild's build script was undecided; fixed in `217cf7e` | read the build log (`vercel inspect <url> --logs`), reproduce with `npx next build` |
+| Build fails on Vercel | previously: esbuild's build script was undecided (fixed in `217cf7e`). Now also: "The database migration failed, so this build is stopped" | read the build log (`vercel inspect <url> --logs`). For a migration failure the current deployment is still live and nothing changed in the code that serves; check that `DATABASE_URL` is right and the database is reachable, then rebuild once. Do not start two production builds at once |
 | A mark seems to have come back after being deleted on another device | the reader was split across two anonymous readers by overlapping first requests (R16) | fixed from the Phase B release on; an older browser tab keeps the old behaviour until reloaded |
 
 ## Rollback

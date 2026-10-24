@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { GlossDocument } from "@/lib/content/types";
-import { getLibrary, rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
+import { ensureReader, getLibrary, rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
 import { findDuplicate } from "@/lib/store/duplicates";
 import { toast } from "@/lib/store/toast";
 
@@ -13,16 +13,25 @@ export interface ImportResult {
   /** The page could not be read, so only the link was saved; `reason` says why. */
   linkOnly?: boolean;
   reason?: string;
+  /** The server already had this text in the reader's library: `document` is the saved one and nothing new was created. */
+  duplicate?: boolean;
 }
 
 /** File types the import endpoints accept. */
-export const ACCEPT = ".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown";
+export const ACCEPT =
+  ".pdf,.txt,.md,.markdown,.docx,.epub,.html,.htm,.xhtml,application/pdf,text/plain,text/markdown,text/html,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/** The formats the file import reads, as the reader should be told. */
+export const FORMATS_LABEL = "PDF, text (.txt), markdown (.md), Word (.docx), EPUB and HTML";
 
 /** Where to go once a document has been imported. */
 export type After = "read" | "library" | "stay";
 
-async function post(path: string, body: BodyInit, json = true): Promise<ImportResult> {
-  const res = await fetch(path, { method: "POST", body, headers: json ? { "content-type": "application/json" } : undefined });
+async function post(path: string, body: BodyInit, json = true, signal?: AbortSignal): Promise<ImportResult> {
+  // A new visitor has no reader cookie yet. Two imports sent together (a batch) would each be given a different reader by the server, and
+  // the one the browser does not keep would vanish from the library. One shared request settles the cookie first.
+  await ensureReader();
+  const res = await fetch(path, { method: "POST", body, signal, headers: json ? { "content-type": "application/json" } : undefined });
   const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
   if (!res.ok || !data.document) throw new Error(data.error || `Import failed (${res.status}).`);
   return data as ImportResult;
@@ -37,6 +46,13 @@ export function useImport(defaultAfter: After = "read") {
   const finish = useCallback(
     (r: ImportResult, after: After) => {
       rememberDocument(r.document, r.persisted);
+      if (r.duplicate) {
+        // The server recognised the text: it is the one already on the shelf, so say so and open that one.
+        toast(`“${r.document.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (after === "read") router.push(`/read/${r.document.slug}`);
+        else if (after === "library") router.push("/library");
+        return;
+      }
       if (r.linkOnly) {
         // Saved, but not readable here: say so and why, and go where the link's own page explains what can be done.
         toast(`Saved the link. ${r.reason ?? "The page could not be read here."}`, { ttl: 9000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
@@ -102,15 +118,7 @@ export function useImport(defaultAfter: After = "read") {
   );
   const importFile = useCallback(
     (file: File, after: After = defaultAfter) =>
-      run(
-        "file",
-        () => {
-          const fd = new FormData();
-          fd.append("file", file);
-          return post("/api/import/file", fd, false);
-        },
-        after,
-      ),
+      run("file", () => sendFile(file), after),
     [run, defaultAfter],
   );
   /** HTML captured in the reader's own browser (bookmarklet). */
@@ -134,9 +142,24 @@ export function normaliseUrl(s: string) {
   return /^https?:\/\//i.test(t) ? t : `https://${t}`;
 }
 
-/** True when a file can be imported (PDF, plain text or markdown). */
+/** True when a file can be imported (PDF, plain text, markdown, Word, EPUB or a saved web page). */
 export function isImportableFile(f: File) {
-  return /pdf|text\/plain|markdown/.test(f.type) || /\.(pdf|txt|md|markdown)$/i.test(f.name);
+  return /pdf|text\/(plain|markdown|html)|epub|wordprocessingml|xhtml/.test(f.type) || /\.(pdf|txt|md|markdown|docx|epub|html?|xhtml)$/i.test(f.name);
+}
+
+/**
+ * Sends one file to the server and answers what it answered. When the server kept the document (`persisted`) it is the only authority on
+ * duplicates: a second opinion here could call a text a duplicate after the server had already stored it, leaving a copy nobody sees. Only
+ * when the server has no database does the browser compare with its own shelf, so both modes behave alike.
+ */
+export async function sendFile(file: File, signal?: AbortSignal): Promise<ImportResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const r = await post("/api/import/file", fd, false, signal);
+  if (r.duplicate || r.linkOnly || r.persisted) return r;
+  const text = r.document.blocks.map((b) => b.text).join("\n\n");
+  const existing = findDuplicate(Object.values(getLibrary().docs), { text });
+  return existing ? { document: existing, persisted: true, duplicate: true } : r;
 }
 
 export { bookmarklet } from "./bookmarklet";

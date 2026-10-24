@@ -18,7 +18,7 @@ const BlockZ = z.object({
 
 const Body = z.object({
   op: z.enum(["summarize", "concepts", "questions", "translate"]),
-  variant: z.enum(["quick", "executive", "detailed", "ideas", "passage"]).optional(),
+  variant: z.enum(["quick", "executive", "detailed", "ideas", "study", "passage"]).optional(),
   title: z.string().max(400),
   author: z.string().max(200).nullable().optional(),
   blocks: z

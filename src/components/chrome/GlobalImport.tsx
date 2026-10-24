@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FileDown } from "lucide-react";
-import { isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { FORMATS_LABEL, isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
 
 /**
@@ -49,13 +50,19 @@ export function GlobalImport() {
       if (!accepts(e.dataTransfer)) return;
       e.preventDefault();
       const dt = e.dataTransfer!;
-      const file = Array.from(dt.files ?? []).find(isImportableFile);
+      const files = Array.from(dt.files ?? []);
+      // Several files go through the queue, which reports each one (an unreadable one is listed as failed, with the reason).
+      if (files.length > 1) {
+        handleFiles(files, () => {});
+        return;
+      }
+      const file = files.find(isImportableFile);
       if (file) {
         void importFile(file);
         return;
       }
-      if (dt.files?.length) {
-        toast("Only PDF, text and markdown files can be read.");
+      if (files.length) {
+        toast(`Only ${FORMATS_LABEL} files can be read.`);
         return;
       }
       const uri = (dt.getData("text/uri-list") || dt.getData("text/plain")).split(/\r?\n/).find((l) => l && !l.startsWith("#"));

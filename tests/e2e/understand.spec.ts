@@ -11,8 +11,11 @@ import { openReader, selectInBlock } from "./helpers";
 
 /** Press one of the "make something" buttons. Once a result exists they tuck away behind "Make something new", so open that first when needed. */
 async function press(panel: ReturnType<Page["getByRole"]>, name: string) {
-  const b = panel.getByRole("button", { name: new RegExp(`^${name}`) });
-  if (!(await b.isVisible())) await panel.getByRole("button", { name: "Make something new" }).click();
+  // Scoped to the region that holds what can be made (in both its open and tucked-away states): a result card's own header
+  // ("Quick summary just now…") has a name that starts the same way and sits outside it.
+  const region = panel.getByRole("region", { name: "Make something" });
+  const b = region.getByRole("button", { name: new RegExp(`^${name}`) });
+  if (!(await b.isVisible())) await region.getByRole("button", { name: "Make something new" }).click();
   await b.click();
 }
 
@@ -117,8 +120,9 @@ test.describe("Understand panel (model answered by a stand-in)", () => {
     await page.keyboard.press("i");
     const panel = page.getByRole("complementary", { name: "Understand" });
     const list = panel.getByRole("list", { name: "What you can make" });
-    await expect(list.getByRole("listitem")).toHaveCount(7);
+    await expect(list.getByRole("listitem")).toHaveCount(8); // quick, executive, detailed, key ideas, study notes, concepts, test me, translate
     await expect(list).toContainText("A few paragraphs: is this worth reading?");
+    await expect(list).toContainText("Outline, definitions, claims, takeaways and questions to recall");
     await expect(list).toContainText("Questions that check your understanding; answers stay hidden");
     await expect(list).toContainText("A page at a time, with the original beside it");
     await expect(panel.getByRole("button", { name: "Make something new" })).toHaveCount(0);
@@ -376,5 +380,108 @@ test.describe("margin answers: citations and coverage (the model answered by a s
     await expect(note).toBeVisible();
     await expect(note).toContainText(/Based on \d+ of 63 paragraphs/);
     await expect(note).toContainText("The rest was not read");
+  });
+});
+
+test.describe("Study notes, versions of the text, reuse and regenerate (model answered by a stand-in)", () => {
+  const DOC_ID = "sample:on-a-piece-of-chalk";
+  const FAKE_HASH = "f".repeat(64);
+
+  /** Make the browser's own copy of the results the only one, so a change made to it in a test is not replaced by the server's copy on reload. */
+  async function localOnly(page: Page) {
+    await page.route("**/api/documents/*/data", (route) => route.fulfill({ json: { persisted: false } }));
+  }
+  /**
+   * Reload with the stored results rewritten to say they were written for another text (a hash) or for none recorded (null). The rewrite runs
+   * before the page's own scripts start: a live page writes its in-memory state back to storage as it unloads, which would undo a change made to
+   * the storage of the page being left.
+   */
+  async function reloadWithHash(page: Page, hash: string | null) {
+    await page.addInitScript(
+      ({ id, hash }) => {
+        try {
+          const raw = localStorage.getItem("gloss:v1");
+          if (!raw) return;
+          const s = JSON.parse(raw);
+          for (const g of s.glosses?.[id] ?? []) {
+            if (!g.result || g.result.kind === "stream") continue;
+            if (hash === null) delete g.result.docHash;
+            else g.result.docHash = hash;
+          }
+          localStorage.setItem("gloss:v1", JSON.stringify(s));
+        } catch {
+          /* storage unavailable: the test then fails visibly on its own assertion */
+        }
+      },
+      { id: DOC_ID, hash },
+    );
+    await page.reload();
+  }
+
+  test("Study notes is asked for as its own kind of summary and kept with a record of the text it was written for", async ({ page }) => {
+    const requests = await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await press(panel, "Study notes");
+    const card = panel.locator("[data-insight]").first();
+    await expect(card.getByRole("heading", { name: "Study notes" })).toBeVisible();
+    expect(requests.map((r) => [r.op, r.variant])).toEqual([["summarize", "study"]]);
+    await expect.poll(() => page.evaluate((id) => (JSON.parse(localStorage.getItem("gloss:v1")!).glosses[id] ?? []).map((g: { result?: { docHash?: string; outLang?: string } }) => g.result?.docHash), DOC_ID)).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)]);
+  });
+
+  test("asking again for what already exists for this text shows it, and does not ask the model again; Regenerate does", async ({ page }) => {
+    const requests = await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await expect(panel.getByText("Reading the text…")).toHaveCount(0);
+
+    await press(panel, "Quick summary");
+    await expect(page.getByText("You already have this for this version of the text")).toBeVisible();
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    expect(requests).toHaveLength(1); // no second request
+
+    await panel.getByRole("button", { name: "Regenerate" }).click();
+    await expect(panel.locator("[data-insight]")).toHaveCount(2);
+    expect(requests).toHaveLength(2);
+  });
+
+  test("a result written for another version of the text says so and offers to be made again; one with no record says that instead, never 'earlier'", async ({ page }) => {
+    await localOnly(page);
+    await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await expect(panel.locator("[data-version]")).toHaveCount(0); // written for exactly this text: nothing to warn about
+
+    await reloadWithHash(page, FAKE_HASH);
+    await page.keyboard.press("i");
+    await expect(panel.locator("[data-version='earlier']")).toContainText("Written for an earlier version of this text");
+    await expect(panel.locator("[data-version='earlier']").getByRole("button", { name: "Regenerate" })).toBeVisible();
+
+    await reloadWithHash(page, null); // as results made before versions were recorded
+    await page.keyboard.press("i");
+    await expect(panel.locator("[data-version='earlier']")).toHaveCount(0);
+    await expect(panel.locator("[data-version='unknown']")).toContainText("was not recorded");
+  });
+
+  test("an old result is not reused for a request: the model is asked again", async ({ page }) => {
+    await localOnly(page);
+    const requests = await mockAi(page);
+    await openReader(page);
+    await page.keyboard.press("i");
+    const panel = page.getByRole("complementary", { name: "Understand" });
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(1);
+    await reloadWithHash(page, FAKE_HASH);
+    await page.keyboard.press("i");
+    await press(panel, "Quick summary");
+    await expect(panel.locator("[data-insight]")).toHaveCount(2);
+    expect(requests).toHaveLength(2);
   });
 });

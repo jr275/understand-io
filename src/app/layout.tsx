@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeBoot } from "@/components/chrome/ThemeBoot";
 import { TipLayer } from "@/components/ui/Tip";
 import { GlobalImport } from "@/components/chrome/GlobalImport";
+import { ImportQueuePanel } from "@/components/chrome/ImportQueuePanel";
 
 const newsreader = Newsreader({
   subsets: ["latin", "latin-ext"],
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <TipLayer />
         <GlobalImport />
+        <ImportQueuePanel />
       </body>
     </html>
   );

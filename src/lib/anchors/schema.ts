@@ -78,9 +78,11 @@ const AiItemZ = z.object({
   answer: text(6000).optional(),
 });
 const CoverageZ = z.object({ used: z.number().int().min(0).max(1_000_000), total: z.number().int().min(0).max(1_000_000), from: z.number().int().min(0).max(1_000_000), to: z.number().int().min(0).max(1_000_000), complete: z.boolean(), note: text(500).optional() });
-const itemsResult = { items: z.array(AiItemZ).max(60), caveats: z.array(text(600)).max(12), coverage: CoverageZ };
+/** Which text and language a result was written for (see `ResultBasis`): a SHA-256 hex digest and a language code, both optional. */
+const resultBasis = { docHash: z.string().regex(/^[0-9a-f]{64}$/).optional(), outLang: z.string().max(8).optional() };
+const itemsResult = { items: z.array(AiItemZ).max(60), caveats: z.array(text(600)).max(12), coverage: CoverageZ, ...resultBasis };
 export const GlossResultZ = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("summary"), variant: z.enum(["quick", "executive", "detailed", "ideas", "passage"]), ...itemsResult }),
+  z.object({ kind: z.literal("summary"), variant: z.enum(["quick", "executive", "detailed", "ideas", "study", "passage"]), ...itemsResult }),
   z.object({ kind: z.literal("concepts"), ...itemsResult }),
   z.object({ kind: z.literal("questions"), ...itemsResult }),
   z.object({
@@ -93,6 +95,7 @@ export const GlossResultZ = z.discriminatedUnion("kind", [
     notes: z.array(text(600)).max(12),
     contextUsed: z.boolean(),
     range: z.object({ from: z.number().int().min(0).max(1_000_000), to: z.number().int().min(0).max(1_000_000) }).optional(),
+    ...resultBasis,
   }),
   z.object({ kind: z.literal("stream"), context: z.array(z.string().max(LIMITS.blockId)).max(400), coverage: CoverageZ }),
 ]);

@@ -159,3 +159,39 @@ describe("runAiOp: questions, concepts, translation", () => {
     await expect(runAiOp(input({ blocks: [] }), generate)).rejects.toMatchObject({ code: "no-content" });
   });
 });
+
+describe("runAiOp: study notes", () => {
+  const withHeadings = (): OpBlock[] => [{ id: "h1", type: "h2", text: "Why tides move" }, ...blocks(4)];
+
+  it("asks for the study sections, gives the model the outline and room to answer, and returns a summary of variant study", async () => {
+    let seen: { system: string; prompt: string; maxOutputTokens: number } | undefined;
+    const generate: Generate = async (a) => {
+      seen = a;
+      return reply({
+        items: [
+          { label: "Outline", text: "Tides rise and fall with the moon.", basis: "interpretation", evidence: [] },
+          { label: "Concepts and definitions", text: "Tide: the rise of water when the moon passes overhead.", basis: "text", evidence: [{ id: "p2", quote: "tide 2 rises when the moon passes overhead" }] },
+          { label: "Recall question", text: "What happens to the tide after the moon has passed?", basis: "interpretation", evidence: [] },
+        ],
+        caveats: [],
+      });
+    };
+    const { result } = await runAiOp(input({ variant: "study", blocks: withHeadings(), totalParagraphs: 4 }), generate);
+    expect(result.kind).toBe("summary");
+    if (result.kind !== "summary") return;
+    expect(result.variant).toBe("study");
+    expect(result.items.map((i) => i.label)).toEqual(["Outline", "Concepts and definitions", "Recall question"]);
+    for (const label of ["Outline", "Concepts and definitions", "Claims and evidence", "Relationships", "Key takeaways", "Recall question", "Glossary"]) expect(seen!.prompt + seen!.system).toContain(`"${label}"`);
+    expect(seen!.prompt).toContain("Outline of the text you were given");
+    expect(seen!.prompt).toContain("- Why tides move");
+    expect(seen!.maxOutputTokens).toBe(3000);
+  });
+
+  it("holds study notes to the same rule as every summary: a claim with no real quote is shown as interpretation", async () => {
+    const generate: Generate = async () =>
+      reply({ items: [{ label: "Claims and evidence", text: "The author proves tides are caused by wind.", basis: "text", evidence: [{ id: "p1", quote: "tides are caused entirely by the wind, as proven here" }] }], caveats: [] });
+    const { result } = await runAiOp(input({ variant: "study" }), generate);
+    if (result.kind !== "summary") throw new Error("expected a summary");
+    expect(result.items[0]).toMatchObject({ basis: "interpretation", unverified: true, evidence: [] });
+  });
+});

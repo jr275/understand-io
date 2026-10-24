@@ -17,6 +17,7 @@ import { OpenBook } from "./OpenBook";
 import { AddPanel } from "./AddPanel";
 import { LibrarySearch } from "./LibrarySearch";
 import { BackupPanel } from "./BackupPanel";
+import { MarksReview } from "./MarksReview";
 import { EMPTY_SEARCH, searchLibrary } from "@/lib/search/library";
 import { layoutShelf, shortAuthor, spineFor, type Sort } from "./shelf";
 
@@ -89,6 +90,11 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
     for (const s of SAMPLES) if (!hidden.has(s.slug) && !seen.has(s.slug)) out.push(s);
     return out;
   }, [lib.docs, hidden]);
+  // The texts a mark can belong to: those on the shelf, with their blocks when this browser holds them (so a lost passage can be told).
+  const reviewDocs = useMemo(() => {
+    const held = new Map(searchable.map((d) => [d.slug, d.blocks]));
+    return docs.map((d) => ({ id: d.id, slug: d.slug, title: d.title, blocks: held.get(d.slug) }));
+  }, [docs, searchable]);
   const deferredQuery = useDeferredValue(query);
   const found = useMemo(() => {
     if (!deferredQuery.trim()) return EMPTY_SEARCH;
@@ -420,12 +426,13 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                 <span className="starter-icon is-agent">
                   <TopicGlyph topic="learning" size={34} />
                 </span>
-                <span className="starter-title">Open a PDF or paste text</span>
+                <span className="starter-title">Open a file or paste text</span>
                 <span className="starter-body">From the front page: a chapter, a paper, your own notes. Highlights and read-aloud work the same way.</span>
               </Link>
             </section>
           ) : null}
         </div>
+              <MarksReview docs={reviewDocs} annotations={lib.annotations} />
               <BackupPanel />
       </main>
 

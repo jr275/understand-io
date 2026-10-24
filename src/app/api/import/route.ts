@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       clean.password = "";
       const doc = linkDocument({ url: clean.toString(), reason, meta: seen.html ? pageMeta(seen.html) : undefined });
       const saved = await saveDocument(readerId, doc);
-      return Response.json({ document: saved, persisted: saved.persisted, linkOnly: true, reason });
+      return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate, linkOnly: true, reason });
     } catch (err) {
       return importErrorResponse(err, "Could not save that link.");
     }
@@ -74,7 +74,7 @@ async function readLink(url: string, readerId: string, seen: { html?: string }):
     const doc = await documentFromPdf(body, decodeURIComponent(pathname.split("/").pop() || "") || "document.pdf");
     doc.sourceUrl = finalUrl;
     const saved = await saveDocument(readerId, doc);
-    return Response.json({ document: saved, persisted: saved.persisted });
+    return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
   }
   const decoded = new TextDecoder("utf-8", { fatal: false }).decode(body);
   if (kind === "text") {
@@ -83,11 +83,11 @@ async function readLink(url: string, readerId: string, seen: { html?: string }):
     doc.sourceLabel = new URL(finalUrl).hostname;
     if (!doc.blocks.length) return Response.json({ error: "Nothing readable at that link." }, { status: 422 });
     const saved = await saveDocument(readerId, doc);
-    return Response.json({ document: saved, persisted: saved.persisted });
+    return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
   }
   seen.html = decoded;
   const extracted = extractArticle(decoded, finalUrl);
   const doc = documentFromExtracted(extracted, finalUrl);
   const saved = await saveDocument(readerId, doc);
-  return Response.json({ document: saved, persisted: saved.persisted });
+  return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
 }

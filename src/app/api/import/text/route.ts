@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (!doc.blocks.length) return Response.json({ error: "Nothing to read." }, { status: 422 });
   try {
     const saved = await saveDocument(readerId, doc);
-    return Response.json({ document: saved, persisted: saved.persisted });
+    return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
   } catch (err) {
     return importErrorResponse(err, "Could not save that text.");
   }

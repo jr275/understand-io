@@ -35,10 +35,12 @@ export const documents = pgTable(
     minutes: integer("minutes").notNull().default(1),
     blocks: jsonb("blocks").$type<Block[]>().notNull(),
     favourite: integer("favourite").notNull().default(0),
+    /** SHA-256 of the normalised text (`lib/content/hash.ts`); null for documents saved before it existed, which are simply not deduplicated. */
+    contentHash: text("content_hash"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("documents_slug_idx").on(t.slug), index("documents_reader_idx").on(t.readerId)],
+  (t) => [uniqueIndex("documents_slug_idx").on(t.slug), index("documents_reader_idx").on(t.readerId), index("documents_reader_hash_idx").on(t.readerId, t.contentHash)],
 );
 
 export const readingProgress = pgTable(

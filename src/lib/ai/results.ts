@@ -6,7 +6,47 @@ export const STRUCTURED_ACTIONS = ["summarize", "translate", "concepts", "questi
 /** A gloss that is a structured result (summary, translation, ...) rather than a streamed answer in the margin. */
 export const isInsight = (g: Pick<Gloss, "action">) => (STRUCTURED_ACTIONS as readonly string[]).includes(g.action);
 
-export const VARIANT_LABEL: Record<SummaryVariant, string> = { quick: "Quick summary", executive: "Executive summary", detailed: "Detailed summary", ideas: "Key ideas", passage: "Summary of a passage" };
+export const VARIANT_LABEL: Record<SummaryVariant, string> = { quick: "Quick summary", executive: "Executive summary", detailed: "Detailed summary", ideas: "Key ideas", study: "Study notes", passage: "Summary of a passage" };
+
+/** How a stored result relates to the text now on screen. */
+export type VersionState = "current" | "earlier" | "unknown";
+
+/**
+ * `earlier` only when the result recorded which text it was written for and that text has changed since. A result without that record
+ * (everything made before it existed) is `unknown`: it is shown as such, never claimed to be out of date.
+ */
+export function versionOf(g: Pick<Gloss, "result">, currentHash: string): VersionState {
+  const r = g.result;
+  if (!r || r.kind === "stream" || !r.docHash || !currentHash) return "unknown";
+  return r.docHash === currentHash ? "current" : "earlier";
+}
+
+/** What a document-level result was made by, if it can be made again with the same button; null for passages, translations and streamed answers. */
+export function regenerable(g: Pick<Gloss, "result">): { op: "summarize" | "concepts" | "questions"; variant?: SummaryVariant } | null {
+  const r = g.result;
+  if (!r || r.kind === "stream" || r.kind === "translation") return null;
+  if (r.kind === "summary") return r.variant === "passage" ? null : { op: "summarize", variant: r.variant };
+  return { op: r.kind };
+}
+
+/**
+ * A finished result that already answers a request for a whole-text operation, so the model need not be called again: the same operation and
+ * variant, written for exactly the text on screen and in the same output language, from the start of the text. Newest first in `insights`.
+ */
+export function findReusable(insights: Gloss[], want: { op: "summarize" | "concepts" | "questions"; variant?: SummaryVariant; outLang: string }, currentHash: string): Gloss | null {
+  if (!currentHash) return null;
+  for (const g of insights) {
+    if (g.status !== "done") continue;
+    const how = regenerable(g);
+    const r = g.result;
+    if (!how || !r || r.kind === "stream" || r.kind === "translation") continue;
+    if (how.op !== want.op || how.variant !== want.variant) continue;
+    if (r.docHash !== currentHash || (r.outLang ?? "") !== want.outLang) continue;
+    if (r.coverage.from > 1) continue; // a continuation that began part-way is not the same operation
+    return g;
+  }
+  return null;
+}
 
 export function insightTitle(r: AiResult): string {
   if (r.kind === "summary") return VARIANT_LABEL[r.variant];

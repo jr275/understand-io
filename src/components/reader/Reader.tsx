@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ArrowUp, ArrowUpRight, BookOpenCheck, Headphones, Keyboard, NotebookPen, Search } from "lucide-react";
 import type { Anchor, Annotation, Evidence, Gloss, GlossAction, GlossDocument, HighlightColor, SummaryVariant } from "@/lib/content/types";
-import { isInsight } from "@/lib/ai/results";
+import { findReusable, isInsight, regenerable } from "@/lib/ai/results";
+import { contentHash } from "@/lib/content/hash";
 import { decideAnnotate, marksOnRange } from "@/lib/anchors/annotate";
 import { anchorBlockIds, anchorFromSelection, blockIndex, clampNote, makeAnchor, rangeForAnchor, resolveAll, resolveCached, segmentBlock } from "@/lib/anchors";
 import { Bm25Index, buildPassages, type Hit } from "@/lib/search/bm25";
@@ -464,6 +465,18 @@ export function Reader({ doc }: { doc: GlossDocument }) {
 
   /* ---------- structured results: summaries, concepts, questions, translation ---------- */
   const targetLang = settings.targetLang || (docLang === "pt" ? "en" : "pt");
+  const blocksRef = useRef(blocks);
+  /** Hash of the text on screen, to tell which saved results were written for it. Empty until the first one is computed. */
+  const [docHash, setDocHash] = useState("");
+  useEffect(() => {
+    blocksRef.current = blocks;
+    let live = true;
+    void contentHash(blocks).then((h) => live && setDocHash(h));
+    return () => {
+      live = false;
+    };
+  }, [blocks]);
+  const [focusInsight, setFocusInsight] = useState<{ id: string; n: number } | null>(null);
   const insightJobs = useRef<Map<string, AiOpRequest>>(new Map());
   const insightRanges = useRef<Map<string, { from: number; to: number }>>(new Map());
   const runInsight = useCallback(
@@ -474,6 +487,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       abortRef.current.get(g.id)?.abort();
       abortRef.current.set(g.id, ctrl);
       upsertGloss({ ...g, status: "streaming", error: undefined });
+      // The text this result is written for, fixed before the model reads it: the result records it so a later change is noticed.
+      const hash = await contentHash(blocksRef.current);
       const out = await callAiOp(req, ctrl.signal);
       if (abortRef.current.get(g.id) === ctrl) abortRef.current.delete(g.id);
       if (ctrl.signal.aborted) return; // cancelled or deleted: leave the store alone
@@ -483,7 +498,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         return;
       }
       const range = insightRanges.current.get(g.id);
-      const result = out.result.kind === "translation" && range ? { ...out.result, range } : out.result;
+      const stamped = { ...out.result, docHash: hash, outLang: req.outputLang ?? "" };
+      const result = stamped.kind === "translation" && range ? { ...stamped, range } : stamped;
       const done: Gloss = { ...g, status: "done", error: undefined, result, model: out.model, usage: out.usage ?? null };
       upsertGloss(done);
       persistGloss(done);
@@ -503,12 +519,24 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     [documentId, runInsight],
   );
   const runDocumentOp = useCallback(
-    (op: "summarize" | "concepts" | "questions", variant?: SummaryVariant, startIndex = 0) => {
+    (op: "summarize" | "concepts" | "questions", variant?: SummaryVariant, startIndex = 0, force = false) => {
+      // The same operation, written for exactly this text and language, already exists: show it instead of asking the model again.
+      if (!force && startIndex === 0) {
+        const hit = findReusable(insights, { op, variant, outLang: settings.outLang || "" }, docHash);
+        if (hit) {
+          setInsightsOpen(true);
+          setNbOpen(false);
+          setFindOpen(false);
+          setFocusInsight((f) => ({ id: hit.id, n: (f?.n ?? 0) + 1 }));
+          toast("You already have this for this version of the text. Use Regenerate to make a new one.", { ttl: 5200 });
+          return;
+        }
+      }
       const { blocks: bs, totalParagraphs } = documentBlocks(doc, startIndex);
       if (!bs.length) return void toast("There is no text to read.", { ttl: 3000 });
       startInsight(op, { op, variant, title: doc.title, author: doc.author, blocks: bs, totalParagraphs, outputLang: settings.outLang || undefined }, null);
     },
-    [doc, startInsight, settings.outLang],
+    [doc, startInsight, settings.outLang, insights, docHash],
   );
   const runPassageOp = useCallback(
     (kind: "translate" | "summarize", anchor: Anchor) => {
@@ -1253,6 +1281,12 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         targetLang={targetLang}
         onTargetLang={(c) => setSettings({ targetLang: c })}
         onRun={(op, v) => runDocumentOp(op, v)}
+        docHash={docHash}
+        focusId={focusInsight}
+        onRegenerate={(g) => {
+          const how = regenerable(g);
+          if (how) runDocumentOp(how.op, how.variant, 0, true);
+        }}
         onTranslatePart={translatePart}
         onContinue={continueSummary}
         onJumpEvidence={jumpToEvidence}

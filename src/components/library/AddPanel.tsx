@@ -5,6 +5,7 @@ import { BookOpen, BookmarkPlus, Check, Copy, FileUp, Link2, TextCursorInput, X 
 import { TopicGlyph } from "./TopicGlyph";
 import { rememberDocument } from "@/lib/store/library";
 import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
+import { handleFiles } from "@/lib/client/importQueue";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 
@@ -131,7 +132,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
             ) : null}
             <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13.5px] text-ink-3">
               <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => docRef.current?.click()}>
-                <FileUp size={15} aria-hidden="true" /> Open a PDF or text file
+                <FileUp size={15} aria-hidden="true" /> Open files
               </button>
               <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => setPasteOpen(true)}>
                 <TextCursorInput size={15} aria-hidden="true" /> Paste text
@@ -141,11 +142,11 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
               ref={docRef}
               type="file"
               accept={ACCEPT}
+              multiple
               className="hidden"
-              aria-label="Open a PDF or text file"
+              aria-label="Open PDF, text, Word, EPUB or HTML files"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void imp.importFile(f);
+                if (e.target.files) handleFiles(e.target.files, (f) => void imp.importFile(f));
                 e.target.value = "";
               }}
             />

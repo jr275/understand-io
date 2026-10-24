@@ -18,7 +18,19 @@ describe("classifyUpload", () => {
     expect(classifyUpload("x.gif", "image/gif", bytes("GIF89a"))).toBe("unsupported"); // used to be imported as a document of one line
     expect(classifyUpload("x.png", "image/png", bytes([0x89, 0x50, 0x4e, 0x47, 0, 0]))).toBe("unsupported");
     expect(classifyUpload("data.zip", "application/zip", bytes("PK"))).toBe("unsupported");
-    expect(classifyUpload("page.html", "text/html", bytes("<p>x</p>"))).toBe("unsupported");
+    expect(classifyUpload("notes.doc", "application/msword", bytes([0xd0, 0xcf, 0x11, 0xe0]))).toBe("unsupported"); // the old binary Word format is not read
+  });
+  it("reads Word and EPUB files by extension or declared type", () => {
+    expect(classifyUpload("report.DOCX", "", bytes("PK"))).toBe("docx");
+    expect(classifyUpload("download", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes("PK"))).toBe("docx");
+    expect(classifyUpload("book.epub", "", bytes("PK"))).toBe("epub");
+    expect(classifyUpload("download", "application/epub+zip", bytes("PK"))).toBe("epub");
+  });
+  it("reads a saved web page as content (it used to be refused), and refuses one that is really binary", () => {
+    expect(classifyUpload("page.html", "text/html", bytes("<p>x</p>"))).toBe("html");
+    expect(classifyUpload("page.htm", "", bytes("<p>x</p>"))).toBe("html");
+    expect(classifyUpload("page.xhtml", "application/xhtml+xml", bytes("<p>x</p>"))).toBe("html");
+    expect(classifyUpload("fake.html", "text/html", bytes([0x01, 0x00, 0x02]))).toBe("binary");
   });
   it("refuses binary data that is named or labelled as text", () => {
     expect(classifyUpload("blob.txt", "text/plain", bytes([0x01, 0x02, 0x00, 0x03]))).toBe("binary");

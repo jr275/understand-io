@@ -102,7 +102,7 @@ export type GlossAction =
   | "concepts"
   | "questions";
 
-export type SummaryVariant = "quick" | "executive" | "detailed" | "ideas" | "passage";
+export type SummaryVariant = "quick" | "executive" | "detailed" | "ideas" | "study" | "passage";
 
 /** What an AI statement rests on: the text itself (needs verified evidence), the model's interpretation, or knowledge from outside the text. */
 export type Basis = "text" | "interpretation" | "external";
@@ -141,11 +141,21 @@ export interface Coverage {
   note?: string;
 }
 
+/**
+ * Which text a result was written for and in which language, set by the Reader when the result is made. `docHash` is the SHA-256 of the
+ * normalised text of the whole document at that moment (`lib/content/hash.ts`); results made before it existed have none, and are shown as
+ * "version unknown", never as out of date.
+ */
+export interface ResultBasis {
+  docHash?: string;
+  outLang?: string;
+}
+
 export type AiResult =
-  | { kind: "summary"; variant: SummaryVariant; items: AiItem[]; caveats: string[]; coverage: Coverage }
-  | { kind: "concepts"; items: AiItem[]; caveats: string[]; coverage: Coverage }
-  | { kind: "questions"; items: AiItem[]; caveats: string[]; coverage: Coverage }
-  | { kind: "translation"; sourceLang: string; targetLang: string; original: string; natural: string; literal?: string; notes: string[]; contextUsed: boolean; /** Paragraph numbers of a translated part of the text (whole-text translation goes part by part). */ range?: { from: number; to: number } };
+  | ({ kind: "summary"; variant: SummaryVariant; items: AiItem[]; caveats: string[]; coverage: Coverage } & ResultBasis)
+  | ({ kind: "concepts"; items: AiItem[]; caveats: string[]; coverage: Coverage } & ResultBasis)
+  | ({ kind: "questions"; items: AiItem[]; caveats: string[]; coverage: Coverage } & ResultBasis)
+  | ({ kind: "translation"; sourceLang: string; targetLang: string; original: string; natural: string; literal?: string; notes: string[]; contextUsed: boolean; /** Paragraph numbers of a translated part of the text (whole-text translation goes part by part). */ range?: { from: number; to: number } } & ResultBasis);
 
 /** What is kept next to a gloss: a structured AI result, or for streamed answers the paragraphs the model was given (so ¶ citations can be checked later). */
 export type GlossResult = AiResult | { kind: "stream"; context: string[]; coverage: Coverage };

@@ -1,18 +1,24 @@
-export type UploadKind = "pdf" | "text" | "unsupported" | "binary";
+export type UploadKind = "pdf" | "text" | "html" | "docx" | "epub" | "unsupported" | "binary";
 
 const TEXT_EXT = /\.(txt|md|markdown)$/i;
 
+const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 /**
- * What an uploaded file is, from its name, its declared type and its first bytes. Only PDFs and plain text or markdown are read:
- * an image, an archive or any other binary renamed or mislabelled as text must not be turned into a "document" of garbage.
+ * What an uploaded file is, from its name, its declared type and its first bytes. Only PDFs, Word and EPUB files, saved web pages and
+ * plain text or markdown are read: an image, an archive or any other binary renamed or mislabelled as one of them must not be turned
+ * into a "document" of garbage. A saved web page is read as content (its article), never opened or run.
  */
 export function classifyUpload(name: string, type: string, head: Uint8Array): UploadKind {
   if (/\.pdf$/i.test(name) || /pdf/i.test(type)) return "pdf";
+  if (/\.docx$/i.test(name) || type === DOCX_TYPE) return "docx";
+  if (/\.epub$/i.test(name) || /^application\/epub\+zip$/i.test(type)) return "epub";
+  const web = /\.(html?|xhtml)$/i.test(name) || /^(text\/html|application\/xhtml\+xml)$/i.test(type);
   const textual = TEXT_EXT.test(name) || /^text\/(plain|markdown)$/i.test(type);
-  if (!textual) return "unsupported";
+  if (!web && !textual) return "unsupported";
   // Text has no NUL bytes; binary formats almost always have one early on.
   for (let i = 0; i < Math.min(head.length, 8192); i++) if (head[i] === 0) return "binary";
-  return "text";
+  return web ? "html" : "text";
 }
 
 export type FetchedKind = "pdf" | "html" | "text" | "unsupported";

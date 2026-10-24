@@ -31,6 +31,17 @@ _Every variable the code reads, taken from `process.env` in `src/`, `next.config
 
 The browser suite started by `pnpm test:e2e` runs `pnpm dev`, which reads `.env.local`; if that names a real database the suite writes to it (`docs/quality/phase-b-data-and-security.md` section 3b).
 
+## How the schema reaches production
+
+`vercel.json` runs `node scripts/vercel-build.mjs` as the build command. On a **Production** build that has a `DATABASE_URL`, it first applies pending migrations (`drizzle-kit migrate`), then runs `next build`. Preview builds and builds without a database skip the migration and only build. The migration's output is printed with the database URL and its password replaced.
+
+- **Order is the safe one.** The schema changes before the new code serves, and every migration so far is additive (a new nullable column and an index), so the deployment still serving traffic keeps working against the new schema.
+- **A failed migration stops the build.** Nothing is deployed and the current deployment stays live. Read the build log; the output says it was the migration.
+- **Do not start two production builds at once.** Each applies the pending migrations inside one transaction, but two at the same moment can collide on the same statement and one will fail (safely, with nothing deployed). Push once, wait for it to finish, then push again.
+- **Migrations must stay additive** (or be rehearsed on a copy first). Dropping or rewriting a column would break the deployment still serving; that needs a separate, reviewed plan.
+- The migration uses the same `DATABASE_URL` as the app, which is the pooled connection. That worked for the existing migrations; if a future one needs a direct connection, say so in its review.
+- Manual alternative: `bash scripts/set-production-database.sh` applies the migrations from a trusted machine.
+
 ## Order to bring up persistence in production
 
 1. Provision a PostgreSQL (Vercel Marketplace Postgres or any managed instance). Needs your decision and possibly a cost.

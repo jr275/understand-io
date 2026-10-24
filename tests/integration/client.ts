@@ -40,8 +40,9 @@ export class Reader {
     const cookie = init.cookie === undefined ? this.cookie : init.cookie;
     const res = await fetch(`${BASE}${path}`, {
       method,
-      headers: { "x-forwarded-for": this.ip, ...(body === undefined ? {} : { "content-type": "application/json" }), ...(cookie ? { cookie } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      // A FormData body sets its own multipart content type; everything else is JSON.
+      headers: { "x-forwarded-for": this.ip, ...(body === undefined || body instanceof FormData ? {} : { "content-type": "application/json" }), ...(cookie ? { cookie } : {}) },
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
       redirect: "manual",
     });
     for (const c of res.headers.getSetCookie()) {
@@ -61,6 +62,12 @@ export class Reader {
   get = (path: string) => this.call("GET", path);
   post = (path: string, body: unknown) => this.call("POST", path, body);
   put = (path: string, body: unknown) => this.call("PUT", path, body);
+  /** Uploads one file the way the browser does (multipart form, field "file"). */
+  upload = (path: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return this.call("POST", path, fd);
+  };
   patch = (path: string, body: unknown) => this.call("PATCH", path, body);
   del = (path: string) => this.call("DELETE", path);
 

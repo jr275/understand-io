@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { AlignLeft, BookOpenCheck, ChevronDown, Copy, Languages, ListChecks, Loader2, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlignLeft, BookOpenCheck, ChevronDown, Copy, GraduationCap, Languages, ListChecks, Loader2, RefreshCw, Trash2, X } from "lucide-react";
 import type { AiItem, Evidence, Gloss, GlossDocument, SummaryVariant } from "@/lib/content/types";
 import { LANGUAGES } from "@/lib/ai/languages";
-import { coverageLine, insightMarkdown, insightTitle } from "@/lib/ai/results";
+import { coverageLine, insightMarkdown, insightTitle, regenerable, versionOf, type VersionState } from "@/lib/ai/results";
 import { ago } from "./Notebook";
 
 export interface InsightsProps {
@@ -20,6 +20,12 @@ export interface InsightsProps {
   targetLang: string;
   onTargetLang: (code: string) => void;
   onRun: (op: "summarize" | "concepts" | "questions", variant?: SummaryVariant) => void;
+  /** Hash of the text now on screen (`lib/content/hash.ts`), to tell which results were written for it; "" until computed. */
+  docHash: string;
+  /** A result to bring into view and open (the Reader found it already answers what was asked); `n` makes asking twice work. */
+  focusId: { id: string; n: number } | null;
+  /** Make this result again from the whole text, even if one for this version of the text already exists. */
+  onRegenerate: (g: Gloss) => void;
   /** Translate a part of the text that starts at the paragraph on screen, or after the part a translation already covers. */
   onTranslatePart: (afterParagraph?: number) => void;
   /** Summarize the part of the text after what this result read. */
@@ -47,6 +53,7 @@ const ACTIONS: Action[] = [
   { id: "executive", label: "Executive summary", hint: "Thesis, arguments, evidence, conclusions, implications", icon: AlignLeft, run: (p) => p.onRun("summarize", "executive") },
   { id: "detailed", label: "Detailed summary", hint: "Section by section, with concepts and reservations", icon: AlignLeft, run: (p) => p.onRun("summarize", "detailed") },
   { id: "ideas", label: "Key ideas", hint: "The most important ideas, each with its source", icon: AlignLeft, run: (p) => p.onRun("summarize", "ideas") },
+  { id: "study", label: "Study notes", hint: "Outline, definitions, claims, takeaways and questions to recall", icon: GraduationCap, run: (p) => p.onRun("summarize", "study") },
   { id: "concepts", label: "Key concepts", hint: "Terms you need, explained as this text uses them", icon: BookOpenCheck, run: (p) => p.onRun("concepts") },
   { id: "questions", label: "Test me", hint: "Questions that check your understanding; answers stay hidden", icon: ListChecks, run: (p) => p.onRun("questions") },
   { id: "translate", label: "Translate from the paragraph on screen", hint: "A page at a time, with the original beside it", icon: Languages, run: (p) => p.onTranslatePart() },
@@ -56,6 +63,19 @@ export function InsightsPanel(p: InsightsProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [tools, setTools] = useState(false);
+  const focus = p.focusId;
+  // A result the Reader points at opens when the pointer changes (set while rendering: the supported way to react to a changed prop).
+  const [seenFocus, setSeenFocus] = useState(0);
+  if (focus && focus.n !== seenFocus) {
+    setSeenFocus(focus.n);
+    setOpen((o) => ({ ...o, [focus.id]: true }));
+  }
+  useEffect(() => {
+    if (!focus) return;
+    // Once the card has opened, bring it into view.
+    const t = window.setTimeout(() => document.querySelector(`[data-insight="${focus.id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }), 60);
+    return () => window.clearTimeout(t);
+  }, [focus]);
   if (!p.open) return null;
   const working = p.insights.some((g) => g.status === "streaming");
   const empty = p.insights.length === 0;
@@ -169,7 +189,7 @@ export function InsightsPanel(p: InsightsProps) {
             <ol className="mt-3 space-y-2.5" aria-label="Results">
               {shown.map((g) => (
                 <li key={g.id}>
-                  <InsightCard g={g} doc={p.doc} open={isOpen(g)} onToggle={() => setOpen((o) => ({ ...o, [g.id]: !isOpen(g) }))} onJump={p.onJumpEvidence} onDelete={() => p.onDelete(g.id)} onRetry={() => p.onRetry(g.id)} onCancel={() => p.onCancel(g.id)} onContinue={() => p.onContinue(g)} onTranslateNext={(n) => p.onTranslatePart(n)} />
+                  <InsightCard g={g} doc={p.doc} version={versionOf(g, p.docHash)} onRegenerate={() => p.onRegenerate(g)} open={isOpen(g)} onToggle={() => setOpen((o) => ({ ...o, [g.id]: !isOpen(g) }))} onJump={p.onJumpEvidence} onDelete={() => p.onDelete(g.id)} onRetry={() => p.onRetry(g.id)} onCancel={() => p.onCancel(g.id)} onContinue={() => p.onContinue(g)} onTranslateNext={(n) => p.onTranslatePart(n)} />
                 </li>
               ))}
             </ol>
@@ -202,7 +222,7 @@ function Chip({ e, onJump }: { e: Evidence; onJump: (e: Evidence) => void }) {
   );
 }
 
-function InsightCard({ g, doc, open, onToggle, onJump, onDelete, onRetry, onCancel, onContinue, onTranslateNext }: { g: Gloss; doc: GlossDocument; open: boolean; onToggle: () => void; onJump: (e: Evidence) => void; onDelete: () => void; onRetry: () => void; onCancel: () => void; onContinue: () => void; onTranslateNext: (after: number) => void }) {
+function InsightCard({ g, doc, version, onRegenerate, open, onToggle, onJump, onDelete, onRetry, onCancel, onContinue, onTranslateNext }: { g: Gloss; doc: GlossDocument; version: VersionState; onRegenerate: () => void; open: boolean; onToggle: () => void; onJump: (e: Evidence) => void; onDelete: () => void; onRetry: () => void; onCancel: () => void; onContinue: () => void; onTranslateNext: (after: number) => void }) {
   const r = g.result && g.result.kind !== "stream" ? g.result : null;
   const title = r ? insightTitle(r) : g.action === "translate" ? "Translation" : g.action === "summarize" ? "Summary" : g.action === "concepts" ? "Key concepts" : "Questions";
   const [shown, setShown] = useState<Record<number, boolean>>({});
@@ -224,10 +244,31 @@ function InsightCard({ g, doc, open, onToggle, onJump, onDelete, onRetry, onCanc
             <Copy size={13} aria-hidden="true" />
           </button>
         ) : null}
+        {r && g.status === "done" && regenerable(g) ? (
+          <button type="button" aria-label="Regenerate" data-tip="Make this again from the text as it is now" className="grid size-7 place-items-center rounded-full text-ink-4 hover:bg-sunk hover:text-ink" onClick={onRegenerate}>
+            <RefreshCw size={13} aria-hidden="true" />
+          </button>
+        ) : null}
         <button type="button" aria-label="Delete this result" data-tip="Delete" className="grid size-7 place-items-center rounded-full text-ink-4 hover:bg-sunk hover:text-ink" onClick={onDelete}>
           <Trash2 size={13} aria-hidden="true" />
         </button>
       </div>
+
+      {r && g.status === "done" && version === "earlier" ? (
+        <p role="note" className="mt-3 rounded-[10px] bg-sunk px-3 py-2 text-[12.5px] leading-snug text-ink-2" data-version="earlier">
+          Written for an earlier version of this text, so it may not match what you are reading now.
+          {regenerable(g) ? (
+            <button type="button" className="ml-2 font-medium underline underline-offset-2" onClick={onRegenerate}>
+              Regenerate
+            </button>
+          ) : null}
+        </p>
+      ) : null}
+      {r && g.status === "done" && version === "unknown" && open && r.kind !== "translation" ? (
+        <p className="mt-2 text-[12px] leading-snug text-ink-4" data-version="unknown">
+          Which version of the text this was written for was not recorded.
+        </p>
+      ) : null}
 
       {g.status === "streaming" ? (
         <div role="status" className="mt-3 flex items-center gap-2 text-[13px] text-ink-3">

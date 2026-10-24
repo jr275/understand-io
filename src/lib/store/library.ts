@@ -106,7 +106,7 @@ export function useLibrary() {
  * One bootstrap request, shared by every caller, settles the cookie first. A failure is forgotten so the next save tries again.
  */
 let readerReady: Promise<void> | null = null;
-function ensureReader(): Promise<void> {
+export function ensureReader(): Promise<void> {
   readerReady ??= fetch("/api/reader", { method: "POST" }).then(
     () => undefined,
     () => {

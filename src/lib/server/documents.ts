@@ -1,9 +1,11 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { getDb, type Db } from "@/lib/db/client";
 import { documents, readers } from "@/lib/db/schema";
 import type { GlossDocument } from "@/lib/content/types";
 import { ReadError } from "@/lib/content/errors";
 import { getSample } from "@/lib/content/samples";
+import { contentHash, longEnoughToCompare } from "@/lib/content/hash";
+import { normalizeSourceUrl } from "@/lib/store/duplicates";
 import { newId, slugFor } from "@/lib/content/slug";
 import { describeDbError, isConnectionError } from "./dbErrors";
 
@@ -97,17 +99,51 @@ export async function listDocuments(readerId: string | null): Promise<DocumentLi
   }
 }
 
-export async function saveDocument(readerId: string, doc: GlossDocument): Promise<GlossDocument & { persisted: boolean }> {
+/** What `saveDocument` answers: the document, whether the server kept it, and `duplicate` when it was already in this reader's library. */
+export type SavedDocument = GlossDocument & { persisted: boolean; duplicate?: true };
+
+/** Most saved addresses compared per import (light columns only): a reader past this simply gets no address-based match. */
+const URL_SCAN_LIMIT = 2000;
+
+/**
+ * The reader's own document this one would duplicate, or null. Two documents are the same when their normalised text is identical, or when
+ * they were imported from the same normalised address. A matching title alone never counts, a text shorter than `MIN_DEDUP_CHARS` is never
+ * matched by its words, and a saved link card (an address whose page
+ * could not be read) is never a duplicate, so the reader can try the address again.
+ */
+async function findExisting(db: Db, readerId: string, doc: GlossDocument, hash: string): Promise<GlossDocument | null> {
+  if (doc.kind === "link") return null;
+  if (longEnoughToCompare(doc.blocks)) {
+    const [byHash] = await db.select().from(documents).where(and(eq(documents.readerId, readerId), eq(documents.contentHash, hash))).limit(1);
+    if (byHash) return rowToDoc(byHash);
+  }
+  const wanted = doc.sourceUrl ? normalizeSourceUrl(doc.sourceUrl) : null;
+  if (!wanted) return null;
+  const saved = await db
+    .select({ id: documents.id, sourceUrl: documents.sourceUrl })
+    .from(documents)
+    .where(and(eq(documents.readerId, readerId), ne(documents.kind, "link"), isNotNull(documents.sourceUrl)))
+    .limit(URL_SCAN_LIMIT);
+  const hit = saved.find((r) => r.sourceUrl && normalizeSourceUrl(r.sourceUrl) === wanted);
+  if (!hit) return null;
+  const [row] = await db.select().from(documents).where(eq(documents.id, hit.id)).limit(1);
+  return row ? rowToDoc(row) : null;
+}
+
+export async function saveDocument(readerId: string, doc: GlossDocument): Promise<SavedDocument> {
   const local = { ...doc, id: doc.id ?? `local:${doc.slug}`, persisted: false };
   const db = getDb();
   if (!db) return local;
   try {
     await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
+    const hash = await contentHash(doc.blocks);
+    const existing = await findExisting(db, readerId, doc, hash);
+    if (existing) return { ...existing, persisted: true, duplicate: true };
     const id = doc.id ?? newId();
     let slug = doc.slug;
     for (let attempt = 0; ; attempt++) {
       try {
-        return await insertDocument(db, { ...doc, slug }, id, readerId);
+        return await insertDocument(db, { ...doc, slug }, id, readerId, hash);
       } catch (err) {
         const code = (err as { code?: string; cause?: { code?: string } }).code ?? (err as { cause?: { code?: string } }).cause?.code;
         if (code === "23505" && attempt < 3) {
@@ -129,12 +165,13 @@ export async function saveDocument(readerId: string, doc: GlossDocument): Promis
   }
 }
 
-async function insertDocument(db: Db, doc: GlossDocument, id: string, readerId: string): Promise<GlossDocument & { persisted: boolean }> {
+async function insertDocument(db: Db, doc: GlossDocument, id: string, readerId: string, hash: string): Promise<SavedDocument> {
   const [row] = await db
     .insert(documents)
     .values({
       id,
       readerId,
+      contentHash: hash,
       slug: doc.slug,
       kind: doc.kind,
       title: doc.title,

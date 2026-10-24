@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     if (title && (!extracted.title || extracted.title === new URL(url).hostname)) extracted.title = title.trim();
     const doc = documentFromExtracted(extracted, url);
     const saved = await saveDocument(readerId, doc);
-    return Response.json({ document: saved, persisted: saved.persisted });
+    return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
   } catch (err) {
     return importErrorResponse(err, "Could not read that page.");
   }

@@ -70,10 +70,12 @@ const VARIANT_TASK: Record<SummaryVariant, string> = {
     'Write an executive summary with one item per label, using exactly these labels where the text supports them: "Thesis", "Main arguments", "Evidence", "Conclusions", "Practical implications". Leave a label out when the text gives nothing for it (say so in caveats).',
   detailed: "Write a detailed summary organised by section: one item per section in the order of the text, labelled with the section title from the outline. Cover its arguments and explanations, its key concepts, the examples the text itself uses, and its conclusions and reservations.",
   ideas: "List the five to ten most important ideas of the text, one sentence each, most important first.",
+  study:
+    'Write study notes: one item per entry, using exactly these labels in this order where the text supports them: "Outline" (the structure of the argument, as short ordered points), "Concepts and definitions" (one item per essential term, defined as this text uses it), "Claims and evidence" (one item per important claim, with the evidence the author gives), "Relationships" (how concepts, causes and claims connect or conflict), "Key takeaways" (what a reader should remember), "Recall question" (one item per question that tests understanding of the text; write only the question), "Glossary" (one item per specialist term not defined above). Skip a label the text gives nothing for; never fill one from outside knowledge.',
   passage: "Summarise ONLY the selected passage, in one to three items. Do not bring in the rest of the text.",
 };
 
-const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 2400, ideas: 1000, passage: 600 };
+const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 2400, ideas: 1000, study: 3000, passage: 600 };
 
 function outline(blocks: OpBlock[]) {
   const heads = blocks.filter((b) => b.type === "h2" || b.type === "h3");
@@ -225,7 +227,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
     ? `${head(input)}\n\nThe text is long, so it was read section by section. Combine these notes into your answer; quote ids and quotes only from the notes' evidence.\n\n${outline(read)}${digest}`
     : isPassage
       ? `${head(input)}\n\nSelected passage: “${input.selection}”\n\nThe passage sits in these paragraphs:\n\n${formatBlocks(input.blocks)}`
-      : `${head(input)}\n\n${variant === "detailed" ? outline(read) : ""}${formatBlocks(read)}`;
+      : `${head(input)}\n\n${variant === "detailed" || variant === "study" ? outline(read) : ""}${formatBlocks(read)}`;
 
   const out = await ask(generate, ItemsOutZ, { system, prompt: body, maxOutputTokens, signal }, usage);
   const allowed = new Set(read.map((b) => b.id));

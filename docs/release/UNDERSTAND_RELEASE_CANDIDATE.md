@@ -50,7 +50,7 @@ below are only those that were reproduced or shown by a test that fails without 
 
 ### Browsers
 
-Run on `71e2a2f` (the later commit `0261685` changes only server-side decoding, prompts' neighbours and tests, no UI):
+Run on `71e2a2f` (the later commit `0261685` changes only server-side decoding of fetched and uploaded bytes, one status message, tests and docs; no UI file):
 
 | Engine | Specs | Result |
 | --- | --- | --- |

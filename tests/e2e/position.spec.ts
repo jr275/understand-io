@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { openReader } from "./helpers";
+import { openReader, wheelScroll } from "./helpers";
 
 test.describe("reading position", () => {
   test("a text opens where the reader left off", async ({ page }) => {
     await openReader(page);
     // Scroll by hand to a paragraph far down, as a reader would (progress only counts the reader's own scrolling).
     await page.mouse.move(700, 400);
-    await page.mouse.wheel(0, 9000);
+    await wheelScroll(page, 9000);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(6000);
     const saved = await page.waitForFunction(() => {
       const raw = localStorage.getItem("gloss:v1");
@@ -32,7 +32,7 @@ test.describe("reading position", () => {
   test("after jumping to a citation or a search match, a button takes the reader back to where they were", async ({ page }) => {
     await openReader(page);
     await page.mouse.move(700, 400);
-    await page.mouse.wheel(0, 1500);
+    await wheelScroll(page, 1500);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1200);
     const from = await page.evaluate(() => window.scrollY);
     await expect(page.getByRole("button", { name: "Back to where you were" })).toHaveCount(0);

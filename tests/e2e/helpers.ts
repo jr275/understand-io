@@ -141,3 +141,15 @@ export async function installFakeSpeech(page: Page, options: FakeSpeechOptions =
 
 export const spokenText = (page: Page) => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.slice());
 export const speakCalls = (page: Page) => page.evaluate(() => (window as unknown as { __speakCalls: SpeakCall[] }).__speakCalls.slice());
+
+/**
+ * Scrolls with the mouse wheel the way a hand does: many small turns. One huge wheel event is clamped by Firefox (it moves a few hundred
+ * pixels), so a single `mouse.wheel(0, 9000)` tests the engine's limit and not the page.
+ */
+export async function wheelScroll(page: Page, deltaY: number, step = 300) {
+  const turns = Math.ceil(Math.abs(deltaY) / step);
+  for (let i = 0; i < turns; i++) {
+    await page.mouse.wheel(0, Math.sign(deltaY) * Math.min(step, Math.abs(deltaY) - i * step));
+    await page.waitForTimeout(15);
+  }
+}

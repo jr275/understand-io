@@ -183,3 +183,15 @@ Open items by priority: AI-4 (the live model has never answered, needs a key), A
 | --- | --- | --- | --- | --- |
 | LNK-1 | P2 | a link whose page could not be read (an app or landing page with no article, a site that blocks servers, a missing page) showed a toast and saved nothing, so the reader lost the link (reported with https://finalosint.lat/) | Fixed | the import keeps the link as a link card with the page's own title and description and the reason; `linkDoc.test`, `links.spec`, live. A card has no text to read until it is brought in; the card says how (bookmarklet, paste, file) |
 
+
+## Mission 02: AI reliability, shared limits, honest PDF refusals (branch `release/mission-02`)
+
+| ID | Sev | Finding | Status | Guard / remaining |
+| --- | --- | --- | --- | --- |
+| M2-1 | P1 | Rate limits (SEC-1, SEC-2) counted in one process's memory, so on serverless hosting the cap was the limit times the warm instances | Fixed with a residual | `rate_hits` table (migration 0005), atomic upsert per hashed client and window; `rateLimitShared.test.ts` (two simulated instances share one counter, real PostgreSQL concurrency, no raw addresses stored, fallback when the store fails or hangs). Residual: fixed window (up to twice the limit across a boundary); no global spending ceiling |
+| M2-2 | P2 | A provider that never answered held the request for the whole function time; transient failures and bursts had no explicit bound | Fixed | per-request deadline (50 s streamed, 100 s structured), at most two retries, a per-instance cap on concurrent server-key calls (503 busy), a plain 504 / trailer message; `ai-reliability.test.ts` against the real AI SDK with a stubbed network (each safeguard mutation-checked) |
+| M2-3 | P2 | Nothing told the model that the imported text is untrusted | Fixed | one shared rule and a fence the text cannot close in every prompt (summaries, concepts, questions, translation, margin answers); the model's output is still only shown as supported when a quote is verified against the document (`ai-evidence.test.ts`, `ai-reliability.test.ts`). Residual: a model can still be persuaded by text; the defence is that nothing it says can claim support from the text without a verified quote |
+| M2-4 | P2 | AI spend was not visible on the server | Fixed | one `[usage]` log line per answer (operation, key owner, tokens, cost estimate; no text, no key) |
+| M2-5 | P3 | A scanned PDF was refused with "may be scanned images", which does not say that the app has no OCR | Fixed | `pdf-unsupported.test.ts` (real image-only PDF fixture; malformed, empty and truncated PDFs are refused as unreadable) |
+| M2-6 | P3 | Only Chromium was ever run | Fixed | Firefox, desktop WebKit and iPhone WebKit projects for the critical journeys; two Firefox failures were the test harness (one huge wheel event is clamped by Firefox), fixed in `wheelScroll`, not in the app |
+| M2-7 | P2 | The server key put in production was rejected by the provider (401) | Open, needs the key owner | the key is stored; Study notes and every AI answer on production fail until a valid key is set (`scripts/ai-smoke.mjs` verifies it end to end) |

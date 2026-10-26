@@ -48,7 +48,8 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 | The lens toolbar is one tab stop, not arrow-key navigable | A11Y-5 |
 | Sites that refuse server fetches need the bookmarklet | IMP-4 |
 | A saved link has nothing to annotate or search until its text is brought in | `docs/evolution-report.md` section 12 |
-| The rate limiter is per process; no server backups; no deployment | operational readiness items 9 and 10 |
+| Rate limits count in the database when there is one (so they hold across instances) and per process when there is not or it is slow; a fixed window allows up to twice the limit across a boundary; there is no global spending cap, only the per-client limits, the concurrency cap per instance and the `[usage]` log lines | `docs/ops/configuration.md` |
+| No server backups | operational readiness item 9 |
 | Not built: connect an agent (MCP), painted covers, web search inside answers, server TTS and transcription | REF-7, REF-24, REF-25, TTS-R12, VS-R3 |
 
 ## Server and sessions (Phase B)

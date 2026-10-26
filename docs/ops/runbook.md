@@ -44,6 +44,10 @@ Library search, backup and restore are client-side: open `/library`, add a paste
 | `persisted:false` where it should be true | `DATABASE_URL` unset, or the database is unreachable (the app reports an outage as `persisted:false` so the browser keeps its local copy) | check the variable; check the database service; look for `gloss: … database unavailable` in the logs |
 | Saves answer 503 `database-unavailable` | connection-level database failure | readers keep their data in the browser and retry; fix the database |
 | 500 `server-error` on a save | any other database error (the log line carries the error code, never the SQL or the reader's text) | find `gloss: … database error (code <code>)` in the logs; `42P01` means a migration has not been applied |
+| 503 "busy" on AI requests | more than `GLOSS_AI_MAX_CONCURRENT` server-key calls were running on that instance | wait five seconds (`retry-after`), or raise the setting |
+| 504 "took too long" on AI requests | the provider did not answer within `GLOSS_AI_TIMEOUT_MS` / `GLOSS_AI_STREAM_TIMEOUT_MS` (it was retried up to twice first) | try a shorter passage; check the provider's status; the log shows `[ai] provider call failed: <status>` |
+| `[rate] shared counter unavailable` in the log | the `rate_hits` table is missing (migration `0005` not applied) or the database is slow | limits fall back to per instance; apply migrations / check the database |
+| `[usage] route=… in=… out=… cost_usd=…` lines | one per answered AI request: operation, whose key paid, tokens, cost estimate (no text, no key) | sum them from the platform logs for a spend estimate |
 | 429 on imports | the reader or address passed `GLOSS_RATE_IMPORT` imports in ten minutes | wait for `retry-after`, or raise or switch off the setting |
 | 429 on AI calls | the server-key limits | wait, raise the limit, or the reader adds their own key |
 | "needs a key" everywhere | `TOGETHER_API_KEY` unset | expected until you set it |

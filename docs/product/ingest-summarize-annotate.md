@@ -6,7 +6,7 @@ _Branch `feature/ingest-summarize-annotate`, started 2026-10-23 from `main` at `
 
 | Capability | Status | Evidence |
 | --- | --- | --- |
-| Upload PDF, TXT, Markdown | `EXISTS_AND_WORKS` | `api/import/file`, `lib/content/uploadKind.ts`, `pdf.ts` (page, char and time limits; a scanned PDF answers "No text could be read… may be scanned images", no OCR) |
+| Upload PDF, TXT, Markdown | `EXISTS_AND_WORKS` | `api/import/file`, `lib/content/uploadKind.ts`, `pdf.ts` (page, char and time limits; a scanned PDF answers "That PDF has no selectable text… this app does not read text in images (there is no OCR)") |
 | Import from URL (SSRF-safe, readable extraction, link-card fallback) | `EXISTS_AND_WORKS` | `api/import`, `lib/server/safeFetch.ts`, `extract.ts` |
 | Paste text; captured page (bookmarklet) | `EXISTS_AND_WORKS` | `api/import/text`, `api/import/page` |
 | **DOCX, EPUB, local HTML file upload** | `MISSING` | `classifyUpload` returns `unsupported`; no zip or docx library in `package.json` |

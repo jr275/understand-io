@@ -53,7 +53,7 @@ At baseline, 169.254.169.254, decimal 2130706433, `[::1]` and `0x7f000001` were 
 ## What could not be tested here
 
 - A real public deployment: HSTS, CDN header behaviour, `x-forwarded-for` trust, the Next proxy under production, TLS termination. The brief forbids deploying.
-- Multi-instance rate limiting.
+- Multi-instance rate limiting on a real deployment: the shared counter (`rate_hits`) is tested against PostgreSQL and with two simulated instances sharing one counter, not across real serverless instances.
 - Google OAuth state and PKCE against Google (the pure parts are unit-tested).
 - Behaviour against a hostile DNS server that really rebinds (the pinning is tested with a stubbed resolver and a local listener).
 - Load and denial-of-service testing: not authorised and not done.

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AiItem, AiResult, Block, Coverage, SummaryVariant } from "@/lib/content/types";
 import { checkItems, type ProposedItem } from "./evidence";
 import { languageName } from "./languages";
+import { UNTRUSTED_RULE, fenceDocument } from "./prompts";
 
 /**
  * Structured AI operations. Each operation has its own prompt and its own output schema; the model answers with one JSON object, the
@@ -51,6 +52,7 @@ export const OP_LIMITS = { directChars: 28_000, chunkChars: 9_000, maxChunks: 8,
 /* ------------------------------------------------------------------ prompts */
 
 const RULES = [
+  UNTRUSTED_RULE,
   "You work only from the numbered passages you are given. Reply with ONE JSON object and nothing else: no markdown fences, no commentary.",
   "Never invent quotes, page numbers, authors, dates, figures or facts. Do not describe parts of the text you were not given.",
   'Give every item a "basis": "text" when the passages themselves say it, "interpretation" when it is your own reading or synthesis, "external" only when it needs knowledge from outside the text (say so in the item; avoid it unless asked).',
@@ -203,7 +205,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
           ItemsOutZ,
           {
             system: [...RULES, `This is one section (${where}) of a longer text. Write five to twelve short notes on what it says: its claims, arguments, evidence, conclusions and reservations. Shape: ${SHAPE}`, "Write in the language of the text."].join(" "),
-            prompt: `${head(input)}\n\n${formatBlocks(chunk)}`,
+            prompt: `${head(input)}\n\n${fenceDocument(formatBlocks(chunk))}`,
             maxOutputTokens: 900,
             signal,
           },
@@ -224,10 +226,10 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
   const maxOutputTokens = input.op === "summarize" ? VARIANT_TOKENS[variant] : 1300;
   const system = [...RULES, task, `Shape: ${SHAPE}`, langLine(input.outputLang), isPassage ? "" : coverageLine(coverage)].filter(Boolean).join(" ");
   const body = digest
-    ? `${head(input)}\n\nThe text is long, so it was read section by section. Combine these notes into your answer; quote ids and quotes only from the notes' evidence.\n\n${outline(read)}${digest}`
+    ? `${head(input)}\n\nThe text is long, so it was read section by section. Combine these notes into your answer; quote ids and quotes only from the notes' evidence.\n\n${fenceDocument(`${outline(read)}${digest}`)}`
     : isPassage
-      ? `${head(input)}\n\nSelected passage: “${input.selection}”\n\nThe passage sits in these paragraphs:\n\n${formatBlocks(input.blocks)}`
-      : `${head(input)}\n\n${variant === "detailed" || variant === "study" ? outline(read) : ""}${formatBlocks(read)}`;
+      ? `${head(input)}\n\nSelected passage: “${input.selection}”\n\nThe passage sits in these paragraphs:\n\n${fenceDocument(formatBlocks(input.blocks))}`
+      : `${head(input)}\n\n${fenceDocument(`${variant === "detailed" || variant === "study" ? outline(read) : ""}${formatBlocks(read)}`)}`;
 
   const out = await ask(generate, ItemsOutZ, { system, prompt: body, maxOutputTokens, signal }, usage);
   const allowed = new Set(read.map((b) => b.id));
@@ -243,13 +245,14 @@ async function translate(input: AiOpInput, generate: Generate, usage: { input: n
   const sel = input.selection?.trim();
   if (!sel) throw new AiOpError("Select the text to translate.", "bad-input");
   if (!input.targetLang) throw new AiOpError("Choose a target language.", "bad-input");
-  const context = input.blocks.length ? `\n\nThe selection comes from this surrounding text (use it only to settle meaning; do not translate it):\n${formatBlocks(input.blocks)}` : "";
+  const context = input.blocks.length ? `\n\nThe selection comes from this surrounding text (use it only to settle meaning; do not translate it):\n${fenceDocument(formatBlocks(input.blocks))}` : "";
   const out = await ask(
     generate,
     TranslationOutZ,
     {
       system: [
         `You are a careful translator. Translate only the SELECTED TEXT into ${languageName(input.targetLang)}. Reply with ONE JSON object and nothing else.`,
+        UNTRUSTED_RULE,
         'Shape: {"sourceLang":"ISO 639-1 code of the original","natural":"a fluent, natural translation","literal":"a word-for-word rendering, only when it differs materially from the natural one (idioms, fixed expressions)","notes":["short notes on idioms, technical terms, ambiguities or untranslatable words"]}.',
         "Keep names, numbers and formatting, and keep the paragraph breaks (blank lines) of the selection. Add nothing that is not in the selection. If the selection is already in the target language, translate nothing: set natural to the selection and say so in notes.",
       ].join(" "),

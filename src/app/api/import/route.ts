@@ -6,6 +6,7 @@ import { saveDocument } from "@/lib/server/documents";
 import { fetchPublic } from "@/lib/server/safeFetch";
 import { describeFetchStatus } from "@/lib/server/importStatus";
 import { classifyFetched } from "@/lib/content/uploadKind";
+import { decodeBytes } from "@/lib/content/charset";
 import { documentFromText } from "@/lib/content/text";
 import { linkDocument, pageMeta } from "@/lib/content/linkDoc";
 import { importErrorResponse } from "@/lib/server/importErrors";
@@ -76,7 +77,7 @@ async function readLink(url: string, readerId: string, seen: { html?: string }):
     const saved = await saveDocument(readerId, doc);
     return Response.json({ document: saved, persisted: saved.persisted, duplicate: saved.duplicate });
   }
-  const decoded = new TextDecoder("utf-8", { fatal: false }).decode(body);
+  const decoded = decodeBytes(body, { contentType: type, html: kind !== "text" });
   if (kind === "text") {
     const doc = documentFromText(decoded, decodeURIComponent(pathname.split("/").pop() || "").replace(/\.(txt|md|markdown)$/i, "") || new URL(finalUrl).hostname);
     doc.sourceUrl = finalUrl;

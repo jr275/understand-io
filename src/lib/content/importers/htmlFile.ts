@@ -1,3 +1,4 @@
+import { decodeBytes } from "../charset";
 import { extractArticle } from "../extract";
 import { ReadError } from "../errors";
 import type { GlossDocument } from "../types";
@@ -11,7 +12,7 @@ const LOCAL_BASE = "https://local-file.invalid/";
  * through the same extraction as an imported link. Links that were relative to the original site are dropped.
  */
 export function documentFromHtmlFile(bytes: Uint8Array, fileName: string): GlossDocument {
-  const html = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  const html = decodeBytes(bytes, { html: true });
   const x = extractArticle(html, LOCAL_BASE);
   const blocks = x.blocks
     .filter((b) => b.type !== "figure" || !(b.src ?? "").startsWith(LOCAL_BASE))

@@ -1,3 +1,4 @@
+import { decodeBytes } from "../charset";
 import { classifyUpload, type UploadKind } from "../uploadKind";
 import { documentFromText } from "../text";
 import type { GlossDocument } from "../types";
@@ -25,7 +26,7 @@ export const IMPORTERS: Record<ReadableKind, Importer> = {
   },
   text: {
     async read(bytes, fileName) {
-      const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      const text = decodeBytes(bytes);
       // A leading heading in the file names the text; otherwise the file name does.
       const doc = /^\s*#\s+\S/.test(text) ? documentFromText(text) : documentFromText(text, fileName.replace(/\.(txt|md|markdown)$/i, ""));
       doc.sourceLabel = fileName;

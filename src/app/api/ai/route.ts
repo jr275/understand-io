@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CHAT_MODEL, estimateCost, noKeyResponse, provider, resolveKey } from "@/lib/ai/provider";
 import { LIMITS, SERVER_KEY_ERROR } from "@/lib/ai/requestLimits";
+import { DEADLINE_MS, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, timedOut, tryAcquire } from "@/lib/ai/guard";
 import { LANGUAGE_CODES } from "@/lib/ai/languages";
 import { AiOpError, OP_LIMITS, runAiOp, type Generate } from "@/lib/ai/ops";
 import { readJsonLimited } from "@/lib/server/body";
@@ -36,27 +37,36 @@ export async function POST(req: Request) {
   const { key, source } = resolveKey(req);
   if (!key) return noKeyResponse();
   if (source === "server") {
-    const limited = limitServerKey(req, "gloss");
+    const limited = await limitServerKey(req, "gloss");
     if (limited) return limited;
   }
   const json = await readJsonLimited(req, LIMITS.jsonBytes);
   if (json === "too-large") return Response.json({ error: "too-large", message: "That request is too large." }, { status: 413 });
   const parsed = Body.safeParse(json);
   if (!parsed.success) return Response.json({ error: "bad-request", message: "Malformed request." }, { status: 400 });
+  // Server-key work runs at most a few at a time per instance; the reader's own key is theirs to spend.
+  const release = source === "server" ? tryAcquire() : () => {};
+  if (!release) return busyResponse();
+  const signal = deadlineSignal(req.signal, DEADLINE_MS.structured);
   const model = provider(key).chatModel(CHAT_MODEL);
   const generate: Generate = async ({ system, prompt, maxOutputTokens, signal }) => {
-    const r = await generateText({ model, system, prompt, temperature: 0.2, maxOutputTokens, abortSignal: signal });
+    const r = await generateText({ model, system, prompt, temperature: 0.2, maxOutputTokens, abortSignal: signal, maxRetries: PROVIDER_RETRIES });
     return { text: r.text, inputTokens: r.usage?.inputTokens ?? 0, outputTokens: r.usage?.outputTokens ?? 0 };
   };
   try {
-    const { result, usage } = await runAiOp(parsed.data, generate, req.signal);
-    return Response.json({ result, model: CHAT_MODEL, usage: { ...usage, cost: estimateCost(CHAT_MODEL, usage.input, usage.output) } });
+    const { result, usage } = await runAiOp(parsed.data, generate, signal);
+    const cost = estimateCost(CHAT_MODEL, usage.input, usage.output);
+    logUsage("ai", `${parsed.data.op}${parsed.data.variant ? `:${parsed.data.variant}` : ""}`, source, CHAT_MODEL, { ...usage, cost });
+    return Response.json({ result, model: CHAT_MODEL, usage: { ...usage, cost } });
   } catch (err) {
     if (err instanceof AiOpError) return Response.json({ error: err.code, message: err.message }, { status: err.code === "bad-output" ? 502 : 400 });
     if (req.signal.aborted) return new Response(null, { status: 499 });
+    if (timedOut(signal, req.signal)) return Response.json({ error: "timeout", message: TIMEOUT_MESSAGE }, { status: 504 });
     // Only the status reaches the log: provider errors can carry request text.
     console.warn("[ai] provider call failed:", (err as { statusCode?: number } | null)?.statusCode ?? (err instanceof Error ? err.name : "unknown"));
     return Response.json({ error: "provider", message: describe(err, source) }, { status: 502 });
+  } finally {
+    release();
   }
 }
 

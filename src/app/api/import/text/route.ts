@@ -10,7 +10,7 @@ const MAX_CHARS = 2_000_000;
 const Body = z.object({ text: z.string(), title: z.string().max(200).optional() });
 
 export async function POST(req: Request) {
-  const limited = limitImports(req);
+  const limited = await limitImports(req);
   if (limited) return limited;
   // 4 bytes per character at most, plus the envelope.
   const json = await readJsonLimited(req, 2_000_000 * 4 + 8192);

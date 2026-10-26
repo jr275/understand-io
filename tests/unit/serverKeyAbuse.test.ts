@@ -2,7 +2,7 @@
 // Request objects; the only thing replaced is global fetch (the provider), so nothing ever leaves the machine.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIMITS, SERVER_KEY_ERROR, limitHistory } from "@/lib/ai/requestLimits";
-import { SlidingWindowLimiter, limitFor, resetRateLimits } from "@/lib/server/rateLimit";
+import { SlidingWindowLimiter, limitFor, resetRateLimits, setSharedCounter } from "@/lib/server/rateLimit";
 import { READER_COOKIE, readerCookieValue } from "@/lib/server/reader";
 
 const realFetch = globalThis.fetch;
@@ -16,11 +16,13 @@ beforeEach(() => {
   delete process.env.GLOSS_RATE_SEARCH;
   delete process.env.GLOSS_RATE_TRANSCRIBE;
   delete process.env.GLOSS_RATE_WINDOW_SEC;
+  setSharedCounter(null); // the per-process layer is under test here; the shared layer has its own tests
   resetRateLimits();
   upstream = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Your credit balance is too low (acct 12345)" } }), { status: 402, headers: { "content-type": "application/json" } }));
   vi.stubGlobal("fetch", upstream);
 });
 afterEach(() => {
+  setSharedCounter(undefined);
   vi.unstubAllGlobals();
   globalThis.fetch = realFetch;
   delete process.env.TOGETHER_API_KEY;

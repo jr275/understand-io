@@ -1,4 +1,5 @@
 import {
+  bigint,
   index,
   integer,
   jsonb,
@@ -121,4 +122,20 @@ export const accounts = pgTable(
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("accounts_provider_subject_idx").on(t.provider, t.subject), uniqueIndex("accounts_reader_idx").on(t.readerId)],
+);
+
+/**
+ * Counters behind the rate limits of calls that spend the operator's provider key or load the server (`lib/server/rateStore.ts`).
+ * One row per hashed client key and fixed time window, so every instance of the app counts into the same place. Rows are throw-away:
+ * they are deleted once `expires_at` has passed.
+ */
+export const rateHits = pgTable(
+  "rate_hits",
+  {
+    key: text("key").notNull(),
+    windowStart: bigint("window_start", { mode: "number" }).notNull(),
+    count: integer("count").notNull().default(0),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.windowStart] }), index("rate_hits_expires_idx").on(t.expiresAt)],
 );

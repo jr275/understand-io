@@ -36,6 +36,13 @@
       "when": 1792809581926,
       "tag": "0004_content_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792987815872,
+      "tag": "0005_rate_hits",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const { key, source } = resolveKey(req);
   if (!key) return Response.json({ error: "needs-key", message: "Semantic search needs a Together AI key; lexical search still works." }, { status: 402 });
   if (source === "server") {
-    const limited = limitServerKey(req, "search");
+    const limited = await limitServerKey(req, "search");
     if (limited) return limited;
   }
   const json = await readJsonLimited(req, LIMITS.jsonBytes);

@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const { key, source } = resolveKey(req);
   if (!key) return Response.json({ error: "needs-key", message: "Server transcription needs a Together AI key." }, { status: 402 });
   if (source === "server") {
-    const limited = limitServerKey(req, "transcribe");
+    const limited = await limitServerKey(req, "transcribe");
     if (limited) return limited;
   }
   // The multipart envelope adds a little to the file itself.

@@ -67,7 +67,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3201/api/documents > /dev/null && exit 0; sleep 1; done
           cat server.log; exit 1
       - name: Unit tests that need a real database (skipped when DATABASE_URL is unset)
-        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts
+        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts
       - name: Integration tests
         run: INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration
       - name: Server log on failure

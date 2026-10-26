@@ -16,7 +16,7 @@ export const maxDuration = 45;
 const Body = z.object({ url: z.string().url().max(2048), keep: z.boolean().optional() });
 
 export async function POST(req: Request) {
-  const limited = limitImports(req);
+  const limited = await limitImports(req);
   if (limited) return limited;
   const json = await readJsonLimited(req, 16 * 1024);
   if (json === "too-large") return Response.json({ error: "That request is too large." }, { status: 413 });

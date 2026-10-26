@@ -108,7 +108,7 @@ async function readPdf(pdf: Pdf, filename: string): Promise<GlossDocument> {
       .join("\n\n"),
   );
   const blocks = blocksFromText(joined);
-  if (!blocks.length) throw new ReadError("No text could be read from that PDF (it may be scanned images).");
+  if (!blocks.length) throw new ReadError("That PDF has no selectable text: it looks like a scan or a set of images, and this app does not read text in images (there is no OCR). Open a PDF that has a text layer, or paste the text.");
   const meta = await pdf.getMetadata().catch(() => null);
   const info = (meta?.info ?? {}) as { Title?: string; Author?: string };
   const title = (info.Title && info.Title.trim()) || filename.replace(/\.pdf$/i, "") || "PDF";

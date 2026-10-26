@@ -70,14 +70,15 @@ const VARIANT_TASK: Record<SummaryVariant, string> = {
   quick: "Write a quick summary: two to four short items, each one paragraph, giving the overview a reader needs to decide whether to read the whole text.",
   executive:
     'Write an executive summary with one item per label, using exactly these labels where the text supports them: "Thesis", "Main arguments", "Evidence", "Conclusions", "Practical implications". Leave a label out when the text gives nothing for it (say so in caveats).',
-  detailed: "Write a detailed summary organised by section: one item per section in the order of the text, labelled with the section title from the outline. Cover its arguments and explanations, its key concepts, the examples the text itself uses, and its conclusions and reservations.",
+  detailed: "Write a detailed summary organised by section: one item per section in the order of the text, labelled with the section title from the outline. Cover its arguments and explanations, its key concepts, the examples the text itself uses, and its conclusions and reservations. Write at most 16 items in total and keep each one short.",
   ideas: "List the five to ten most important ideas of the text, one sentence each, most important first.",
   study:
-    'Write study notes: one item per entry, using exactly these labels in this order where the text supports them: "Outline" (the structure of the argument, as short ordered points), "Concepts and definitions" (one item per essential term, defined as this text uses it), "Claims and evidence" (one item per important claim, with the evidence the author gives), "Relationships" (how concepts, causes and claims connect or conflict), "Key takeaways" (what a reader should remember), "Recall question" (one item per question that tests understanding of the text; write only the question), "Glossary" (one item per specialist term not defined above). Skip a label the text gives nothing for; never fill one from outside knowledge.',
+    'Write study notes: one item per entry, using exactly these labels in this order where the text supports them: "Outline" (the structure of the argument, as short ordered points), "Concepts and definitions" (one item per essential term, defined as this text uses it), "Claims and evidence" (one item per important claim, with the evidence the author gives), "Relationships" (how concepts, causes and claims connect or conflict), "Key takeaways" (what a reader should remember), "Recall question" (one item per question that tests understanding of the text; write only the question), "Glossary" (one item per specialist term not defined above). Skip a label the text gives nothing for; never fill one from outside knowledge. Write at most 24 items in total: for a long text keep the most important terms, claims and takeaways, and keep every sentence short.',
   passage: "Summarise ONLY the selected passage, in one to three items. Do not bring in the rest of the text.",
 };
 
-const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 2400, ideas: 1000, study: 3000, passage: 600 };
+/** Output room per variant. Study notes and detailed summaries of a long text are long answers: a cap that cuts the JSON in the middle loses all of it. */
+const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 3200, ideas: 1000, study: 5000, passage: 600 };
 
 function outline(blocks: OpBlock[]) {
   const heads = blocks.filter((b) => b.type === "h2" || b.type === "h3");
@@ -169,7 +170,13 @@ export function coverageOf(read: OpBlock[], totalParagraphs: number, wholeInput:
     from,
     to,
     complete,
-    note: complete ? undefined : used === 0 ? "No numbered paragraphs were read." : `Read paragraphs ${from} to ${to} of ${totalParagraphs}; the rest of the text was not read.`,
+    note: complete
+      ? undefined
+      : used === 0
+        ? "No numbered paragraphs were read."
+        : used < to - from + 1
+          ? `Read ${used} of ${totalParagraphs} paragraphs (between ${from} and ${to}, with gaps); the rest of the text was not read.`
+          : `Read paragraphs ${from} to ${to} of ${totalParagraphs}; the rest of the text was not read.`,
   };
 }
 
@@ -191,15 +198,17 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
   // Read in one call when it fits; otherwise section by section (bounded), then combine. Whatever was not read is reported.
   let read = input.blocks;
   let digest: string | null = null;
+  let skippedSections = 0;
   const direct = isPassage || totalChars <= OP_LIMITS.directChars;
   if (!direct) {
     const chunks = planChunks(input.blocks, OP_LIMITS.chunkChars);
     const used = chunks.slice(0, OP_LIMITS.maxChunks);
     read = used.flat();
-    const notes = await Promise.all(
+    const results = await Promise.all(
       used.map(async (chunk) => {
         const nums = chunk.map((b) => b.n).filter(Boolean) as number[];
         const where = nums.length ? `paragraphs ${Math.min(...nums)} to ${Math.max(...nums)}` : "this section";
+        // One section the model cannot answer in usable form must not cost the reader the others: it is left out and the coverage says so.
         const out = await ask(
           generate,
           ItemsOutZ,
@@ -210,10 +219,17 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
             signal,
           },
           usage,
-        );
-        return { where, items: out.items };
+        ).catch((err: unknown) => {
+          if (err instanceof AiOpError && err.code === "bad-output") return null;
+          throw err; // a timeout, a caller leaving or a provider failure ends the request as before
+        });
+        return out ? { chunk, where, items: out.items } : null;
       }),
     );
+    const notes = results.filter((r): r is NonNullable<typeof r> => r !== null);
+    if (!notes.length) throw new AiOpError("The model did not return a usable answer. Try again.", "bad-output");
+    skippedSections = results.length - notes.length;
+    read = notes.flatMap((n) => n.chunk);
     digest = notes
       .map((n) => `Notes on ${n.where}:\n${n.items.map((it) => `- ${it.text}${it.evidence?.length ? ` (evidence: ${it.evidence.map((e) => `[${e.id}] “${e.quote}”`).join("; ")})` : ""}`).join("\n")}`)
       .join("\n\n");
@@ -235,6 +251,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
   const allowed = new Set(read.map((b) => b.id));
   const items: AiItem[] = checkItems(out.items as ProposedItem[], byId, allowed);
   const caveats = out.caveats ?? [];
+  if (skippedSections) caveats.push(`${skippedSections} section${skippedSections === 1 ? "" : "s"} of the text could not be summarised and ${skippedSections === 1 ? "is" : "are"} not covered here.`);
   if (items.some((i) => i.unverified)) caveats.push("Some statements could not be tied to a quote from the text and are shown as interpretation.");
   if (input.op === "summarize") return { result: { kind: "summary", variant, items, caveats, coverage }, usage };
   if (input.op === "concepts") return { result: { kind: "concepts", items, caveats, coverage }, usage };

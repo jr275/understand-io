@@ -184,7 +184,7 @@ describe("runAiOp: study notes", () => {
     for (const label of ["Outline", "Concepts and definitions", "Claims and evidence", "Relationships", "Key takeaways", "Recall question", "Glossary"]) expect(seen!.prompt + seen!.system).toContain(`"${label}"`);
     expect(seen!.prompt).toContain("Outline of the text you were given");
     expect(seen!.prompt).toContain("- Why tides move");
-    expect(seen!.maxOutputTokens).toBe(3000);
+    expect(seen!.maxOutputTokens).toBe(5000);
   });
 
   it("holds study notes to the same rule as every summary: a claim with no real quote is shown as interpretation", async () => {
@@ -193,5 +193,68 @@ describe("runAiOp: study notes", () => {
     const { result } = await runAiOp(input({ variant: "study" }), generate);
     if (result.kind !== "summary") throw new Error("expected a summary");
     expect(result.items[0]).toMatchObject({ basis: "interpretation", unverified: true, evidence: [] });
+  });
+});
+
+describe("long answers and long texts", () => {
+  const ok = (text = "A note.") => reply({ items: [{ text, basis: "interpretation" }] });
+
+  it("study notes and detailed summaries get room for a long answer, and are told to stay within an item count", async () => {
+    const seen: { system: string; maxOutputTokens: number }[] = [];
+    const generate: Generate = async (a) => {
+      seen.push({ system: a.system, maxOutputTokens: a.maxOutputTokens });
+      return ok();
+    };
+    await runAiOp(input({ variant: "study" }), generate);
+    await runAiOp(input({ variant: "detailed" }), generate);
+    expect(seen[0].maxOutputTokens).toBeGreaterThanOrEqual(5000);
+    expect(seen[0].system).toMatch(/at most 24 items in total/);
+    expect(seen[1].maxOutputTokens).toBeGreaterThanOrEqual(3200);
+    expect(seen[1].system).toMatch(/at most 16 items in total/);
+  });
+
+  // 24 paragraphs of 3000 characters: far more than one call reads, so the text is read section by section.
+  const long = Array.from({ length: 24 }, (_, k) => para(k + 1, `${BODY(k + 1)} ${"The tide goes in and out. ".repeat(110)}`));
+  const longInput = () => input({ variant: "study", blocks: long, totalParagraphs: 24 });
+  const isSection = (system: string) => /This is one section/.test(system);
+  const sectionOf = (system: string) => /paragraphs (\d+) to (\d+)/.exec(system)!.slice(1).map(Number);
+
+  it("a section the model cannot answer is left out, the others still make the summary, and the reader is told what was not read", async () => {
+    let failedRange: number[] | undefined;
+    const generate: Generate = async (a) => {
+      if (!isSection(a.system)) return ok("Combined notes.");
+      const range = sectionOf(a.system);
+      failedRange ??= range; // the first section asked for is the one that fails, on both attempts
+      if (range[0] === failedRange[0]) return { text: "I could not produce JSON for this.", inputTokens: 1, outputTokens: 1 };
+      return ok(`Notes on ${range.join("-")}.`);
+    };
+    const { result } = await runAiOp(longInput(), generate);
+    expect(result.kind).toBe("summary");
+    if (result.kind !== "summary") return;
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(result.coverage.complete).toBe(false);
+    expect(result.coverage.used).toBeLessThan(24);
+    expect(result.coverage.note).toMatch(/not read/);
+    expect(result.caveats.join(" ")).toMatch(/1 section of the text could not be summarised/);
+  });
+
+  it("when the sections that were read are not one stretch, the coverage says there are gaps instead of claiming a range", () => {
+    const read = [...blocks(3), ...blocks(9).slice(6)]; // paragraphs 1-3 and 7-9
+    const c = coverageOf(read, 9, true);
+    expect(c.complete).toBe(false);
+    expect(c.note).toMatch(/with gaps/);
+    expect(c.note).not.toMatch(/paragraphs 1 to 9/);
+  });
+
+  it("when no section can be read, the answer is the plain refusal, not an empty summary", async () => {
+    const generate: Generate = async () => ({ text: "no", inputTokens: 1, outputTokens: 1 });
+    await expect(runAiOp(longInput(), generate)).rejects.toMatchObject({ code: "bad-output" });
+  });
+
+  it("a timeout or a reader who leaves is not mistaken for an unusable section: it ends the request", async () => {
+    const generate: Generate = async () => {
+      throw Object.assign(new Error("aborted"), { name: "AbortError" });
+    };
+    await expect(runAiOp(longInput(), generate)).rejects.toMatchObject({ name: "AbortError" });
   });
 });

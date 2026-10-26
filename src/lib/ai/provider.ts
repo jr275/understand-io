@@ -1,7 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 export const TOGETHER_BASE = "https://api.together.xyz/v1";
-export const CHAT_MODEL = process.env.GLOSS_CHAT_MODEL || "deepseek-ai/DeepSeek-V3.1";
+export const CHAT_MODEL = process.env.GLOSS_CHAT_MODEL || "openai/gpt-oss-120b";
 export const EMBED_MODEL = process.env.GLOSS_EMBED_MODEL || "BAAI/bge-base-en-v1.5";
 export const WHISPER_MODEL = process.env.GLOSS_WHISPER_MODEL || "openai/whisper-large-v3";
 
@@ -31,6 +31,7 @@ export function noKeyResponse() {
 /** Rough cost estimate for the footer, per million tokens (USD). Documented as an estimate. */
 export function estimateCost(model: string, input: number, output: number) {
   const table: Record<string, [number, number]> = {
+    "openai/gpt-oss-120b": [0.15, 0.6],
     "deepseek-ai/DeepSeek-V3.1": [0.6, 1.7],
     "deepseek-ai/DeepSeek-V3": [1.25, 1.25],
   };

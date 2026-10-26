@@ -27,6 +27,28 @@ export const timedOut = (signal: AbortSignal, caller: AbortSignal) => signal.abo
 
 export const TIMEOUT_MESSAGE = "The AI service took too long to answer. Try again, or ask about a shorter passage.";
 
+/* ------------------------------------------------------------------ reasoning models */
+
+/**
+ * Models that think before they answer (gpt-oss, the Qwen3 and MiniMax families, ...) count that thinking against the output limit. With
+ * a cap sized for the answer alone, a short answer can come back empty: the whole budget went on thinking. Every cap therefore gets this
+ * much room on top. It costs nothing when the model answers briefly (the prompt asks for brevity and the model stops by itself); it only
+ * bounds the worst case.
+ */
+export const REASONING_HEADROOM = 1200;
+export const withHeadroom = (maxOutputTokens: number) => maxOutputTokens + REASONING_HEADROOM;
+
+/**
+ * `GLOSS_REASONING_EFFORT=low|medium|high` asks a reasoning model to think less (faster, cheaper). Unset by default: a model that does not
+ * take the parameter would refuse the request, so it is sent only when the operator asks for it.
+ */
+export function providerOptions(): { openaiCompatible: { reasoningEffort: string } } | undefined {
+  const v = process.env.GLOSS_REASONING_EFFORT?.trim().toLowerCase();
+  return v === "low" || v === "medium" || v === "high" ? { openaiCompatible: { reasoningEffort: v } } : undefined;
+}
+
+export const NO_ROOM_MESSAGE = "The AI model used up its room thinking and gave no answer. Try again, or ask for a longer answer.";
+
 /* ------------------------------------------------------------------ concurrency */
 
 /**

@@ -2,7 +2,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import { CHAT_MODEL, estimateCost, noKeyResponse, provider, resolveKey } from "@/lib/ai/provider";
 import { LIMITS, SERVER_KEY_ERROR } from "@/lib/ai/requestLimits";
-import { DEADLINE_MS, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, timedOut, tryAcquire } from "@/lib/ai/guard";
+import { DEADLINE_MS, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, providerOptions, timedOut, tryAcquire, withHeadroom } from "@/lib/ai/guard";
 import { LANGUAGE_CODES } from "@/lib/ai/languages";
 import { AiOpError, OP_LIMITS, runAiOp, type Generate } from "@/lib/ai/ops";
 import { readJsonLimited } from "@/lib/server/body";
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const signal = deadlineSignal(req.signal, DEADLINE_MS.structured);
   const model = provider(key).chatModel(CHAT_MODEL);
   const generate: Generate = async ({ system, prompt, maxOutputTokens, signal }) => {
-    const r = await generateText({ model, system, prompt, temperature: 0.2, maxOutputTokens, abortSignal: signal, maxRetries: PROVIDER_RETRIES });
+    const r = await generateText({ model, system, prompt, temperature: 0.2, maxOutputTokens: withHeadroom(maxOutputTokens), abortSignal: signal, maxRetries: PROVIDER_RETRIES, providerOptions: providerOptions() });
     return { text: r.text, inputTokens: r.usage?.inputTokens ?? 0, outputTokens: r.usage?.outputTokens ?? 0 };
   };
   try {

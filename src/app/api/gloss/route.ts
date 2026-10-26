@@ -5,7 +5,7 @@ import { actionQuestion, systemPrompt, userPrompt } from "@/lib/ai/prompts";
 import { GLOSS_ACTIONS, LIMITS, SERVER_KEY_ERROR, anchorSchema, historySchema, limitHistory } from "@/lib/ai/requestLimits";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
-import { DEADLINE_MS, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, timedOut, tryAcquire } from "@/lib/ai/guard";
+import { DEADLINE_MS, NO_ROOM_MESSAGE, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, providerOptions, timedOut, tryAcquire, withHeadroom } from "@/lib/ai/guard";
 
 export const maxDuration = 60;
 
@@ -56,7 +56,8 @@ export async function POST(req: Request) {
       system: systemPrompt(b.length ?? "normal"),
       messages,
       temperature: 0.4,
-      maxOutputTokens: b.length === "long" ? 900 : b.length === "short" ? 220 : 480,
+      maxOutputTokens: withHeadroom(b.length === "long" ? 900 : b.length === "short" ? 220 : 480),
+      providerOptions: providerOptions(),
       abortSignal: signal,
       maxRetries: PROVIDER_RETRIES,
       // The SDK's default logs the whole error (request body values included) to stdout; the stream trailer already reports it to the caller.
@@ -69,7 +70,12 @@ export async function POST(req: Request) {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          for await (const part of result.textStream) controller.enqueue(encoder.encode(part));
+          let answered = false;
+          for await (const part of result.textStream) {
+            if (part.trim()) answered = true;
+            controller.enqueue(encoder.encode(part));
+          }
+          if (!answered) throw new Error("empty answer");
           const usage = await result.totalUsage;
           const input = usage.inputTokens ?? 0;
           const output = usage.outputTokens ?? 0;
@@ -77,7 +83,7 @@ export async function POST(req: Request) {
           logUsage("gloss", b.action, source, CHAT_MODEL, { input, output, cost });
           controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ model: CHAT_MODEL, usage: { input, output, cost } })));
         } catch (err) {
-          controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ error: timedOut(signal, req.signal) ? TIMEOUT_MESSAGE : describe(providerError ?? err, source) })));
+          controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ error: timedOut(signal, req.signal) ? TIMEOUT_MESSAGE : providerError || !(err instanceof Error && err.message === "empty answer") ? describe(providerError ?? err, source) : NO_ROOM_MESSAGE })));
         } finally {
           release();
           controller.close();

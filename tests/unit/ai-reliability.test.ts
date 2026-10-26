@@ -221,3 +221,62 @@ describe("a document that talks to the model", () => {
     expect(j.result.caveats.join(" ")).toMatch(/could not be tied to a quote/);
   });
 });
+
+/** A streamed provider answer made of these text pieces (what a chat provider sends as server-sent events). */
+const sse = (pieces: string[], finish = "stop", usage = { prompt_tokens: 50, completion_tokens: 30 }) => {
+  const chunk = (delta: object, finish_reason: string | null = null, extra: object = {}) => `data: ${JSON.stringify({ id: "c", object: "chat.completion.chunk", created: 1, model: "m", choices: [{ index: 0, delta, finish_reason }], ...extra })}\n\n`;
+  const body = [chunk({ role: "assistant" }), ...pieces.map((p) => chunk({ content: p })), chunk({}, finish, { usage: { ...usage, total_tokens: usage.prompt_tokens + usage.completion_tokens } }), "data: [DONE]\n\n"].join("");
+  return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+};
+const sentBody = (spy: ReturnType<typeof vi.fn>) => JSON.parse(String(((spy.mock.calls[0] as unknown[])[1] as RequestInit).body)) as Record<string, unknown>;
+const glossBody = (length: string) => ({ title: "T", action: "explain", length, anchor: null, context: [{ id: "p1", n: 1, text: BLOCKS[0].text }] });
+
+describe("a model that thinks before it answers", () => {
+  it("every output cap leaves room for the thinking: a short answer is allowed far more than 220 tokens, a quick summary more than 800", async () => {
+    const { gloss, ai } = await routes();
+    const streamFetch = vi.fn(async () => sse(["==Short.== It says so ¶1."]));
+    vi.stubGlobal("fetch", streamFetch);
+    await (await gloss(post("/api/gloss", glossBody("short")))).text();
+    expect(sentBody(streamFetch).max_tokens).toBeGreaterThanOrEqual(220 + 1000);
+    const jsonFetch = vi.fn(async () => completion(GOOD));
+    vi.stubGlobal("fetch", jsonFetch);
+    await ai(post("/api/ai", aiBody()));
+    expect(sentBody(jsonFetch).max_tokens).toBeGreaterThanOrEqual(800 + 1000);
+  });
+
+  it("an answer that is empty because the thinking used the whole budget is reported in plain words, not shown as a blank answer", async () => {
+    const { gloss } = await routes();
+    vi.stubGlobal("fetch", vi.fn(async () => sse([], "length")));
+    const res = await gloss(post("/api/gloss", glossBody("short")));
+    const text = await res.text();
+    expect(text.slice(0, text.indexOf("\u001e")).trim()).toBe("");
+    expect(JSON.parse(text.slice(text.indexOf("\u001e") + 1)).error).toMatch(/used up its room thinking and gave no answer/);
+  });
+
+  it("a normal streamed answer still ends with usage, and no error", async () => {
+    const { gloss } = await routes();
+    vi.stubGlobal("fetch", vi.fn(async () => sse(["==The tide follows the moon.== ", "It says so ¶1."])));
+    const text = await (await gloss(post("/api/gloss", glossBody("normal")))).text();
+    expect(text.slice(0, text.indexOf("\u001e"))).toContain("It says so ¶1.");
+    const trailer = JSON.parse(text.slice(text.indexOf("\u001e") + 1));
+    expect(trailer.error).toBeUndefined();
+    expect(trailer.usage).toMatchObject({ input: 50, output: 30 });
+  });
+
+  it("asks the model to think less only when the operator says so", async () => {
+    const off = vi.fn(async () => completion(GOOD));
+    vi.stubGlobal("fetch", off);
+    await (await routes()).ai(post("/api/ai", aiBody()));
+    expect(sentBody(off)).not.toHaveProperty("reasoning_effort");
+
+    const on = vi.fn(async () => completion(GOOD));
+    vi.stubGlobal("fetch", on);
+    await (await routes({ GLOSS_REASONING_EFFORT: "low" })).ai(post("/api/ai", aiBody()));
+    expect(sentBody(on).reasoning_effort).toBe("low");
+
+    const junk = vi.fn(async () => completion(GOOD));
+    vi.stubGlobal("fetch", junk);
+    await (await routes({ GLOSS_REASONING_EFFORT: "maximum-overdrive" })).ai(post("/api/ai", aiBody()));
+    expect(sentBody(junk)).not.toHaveProperty("reasoning_effort");
+  });
+});

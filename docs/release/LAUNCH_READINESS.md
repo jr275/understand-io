@@ -29,6 +29,7 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 | G12 | Projetos duplicados da Vercel | **PASS** (auditoria) | `understand-io-z8gn` e `understand-io-6ugt`: sem variáveis, públicos, sem banco, constroem a cada push; nenhuma dependência encontrada em código, workflows e variáveis (o redirect do Google não foi inspecionado no console) | Você decide excluir; **não excluí nada** |
 | G13 | Falha local do WebKit sem explicação | **Documentada** | `docs/quality/webkit-unexplained-stop.md`: um servidor local de produção parou de responder durante uma rodada; não se repetiu nas rodadas seguintes (liveness checado a cada etapa); sem sinal em produção | — |
 | G14 | Regressão completa da branch (`230282c`) | **PASS** (com 6 diferenças conhecidas) | ver "Regressão" abaixo | — |
+| G15 | Produção conecta ao banco com a credencial atual | **PASS** (com ressalva) | Em 2026-10-27 21:54Z, `GET /api/health?strict=1` em produção: HTTP 200, `status: ok`, `database: ok`, `ai.budget: ok`, `allowancesShared: true` (o orçamento lê o `ai_ledger`, então é leitura real de tabela), commit `b89c6fc`. `DATABASE_URL` existe só em Production (valor oculto; nunca exibido). A senha antiga foi revogada na rotação, então uma conexão que funciona não pode estar usando a antiga. Ressalva: a coluna "created" da Vercel mostra 9 dias para a variável, e não consigo comparar o valor com a senha nova sem expô-la | Você (opcional): no Neon, conferir a data do último reset de senha do papel usado |
 
 ## Antes de abrir para convidados (beta)
 

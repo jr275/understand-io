@@ -28,7 +28,7 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 | G11 | Backups e recuperação | **PASS** (documento) / **BLOCKED** (janela) | `docs/ops/rollback-and-recovery.md`: promover o deploy anterior; migrações só acrescentam, nunca se revertem; restauração do Neon por ponto no tempo. A janela real depende do plano (G10) | Você: confirmar plano; recomendo ensaiar uma restauração em um branch do Neon antes do público |
 | G12 | Projetos duplicados da Vercel | **PASS** (auditoria) | `understand-io-z8gn` e `understand-io-6ugt`: sem variáveis, públicos, sem banco, constroem a cada push; nenhuma dependência encontrada em código, workflows e variáveis (o redirect do Google não foi inspecionado no console) | Você decide excluir; **não excluí nada** |
 | G13 | Falha local do WebKit sem explicação | **Documentada** | `docs/quality/webkit-unexplained-stop.md`: um servidor local de produção parou de responder durante uma rodada; não se repetiu nas rodadas seguintes (liveness checado a cada etapa); sem sinal em produção | — |
-| G14 | Regressão completa da branch | ver "Regressão" | | |
+| G14 | Regressão completa da branch (`230282c`) | **PASS** (com 6 diferenças conhecidas) | ver "Regressão" abaixo | — |
 
 ## Antes de abrir para convidados (beta)
 
@@ -79,9 +79,22 @@ Leitura: a IA domina a partir de 1.000 usuários. Os limites atuais (US$ 40/mês
 4. **Páginas legais:** desligar `GLOSS_LEGAL_PUBLISHED`.
 5. Passo a passo e comandos: `docs/ops/rollback-and-recovery.md`, `docs/ops/runbook.md`.
 
-## Regressão da branch `feature/legal-pages`
+## Regressão da branch `feature/legal-pages` (commit `230282c`, código idêntico ao último commit de código)
 
-(preenchida ao fim, ver abaixo)
+Banco descartável `gloss_beta` (o banco de desenvolvimento `gloss` ficou com 538 documentos antes e depois). Servidor verificado vivo após cada etapa.
+
+| Etapa | Resultado |
+| --- | --- |
+| Migrações do zero; build de produção | ok; ok |
+| Integração (servidor de produção + PostgreSQL) | **51 de 51** (5 arquivos, inclui `legal.test.ts`) |
+| Firefox, iPhone e Pixel no build de produção | 38 de 38; 4 de 4 |
+| Chromium no build de produção | 197 passam, 4 falham: HSTS presente em produção (a suíte espera ausente), contraste durante o fade-in, e **duas** reclamações de pré-carregamentos `_rsc` interrompidos (landing e biblioteca; mesma causa, dependente de tempo; as URLs são da entrada, da biblioteca e dos textos de exemplo, nenhuma é de página legal) |
+| WebKit no build de produção | 33 passam, 5 falham (cookie `Secure` em `http://localhost`; no site real passa) |
+| Chromium e Pixel no servidor de desenvolvimento | 201 passam, **2 falharam** (arrastar seleção dentro de um destaque; captura por bookmarklet), **nenhuma relacionada às páginas legais**; reexecutadas isoladas **3 vezes cada, 6 de 6 passaram**: instabilidade sob carga numa rodada de 17 min, não defeito reproduzido |
+| Firefox, WebKit e iPhone no servidor de desenvolvimento | **78 de 78** |
+| Visuais | **46 de 46** (imagens-base inalteradas: as páginas legais ocultas não mudam as telas) |
+
+Os testes unitários desta fase (`tests/unit/legal.test.ts`) rodaram na CI da fase anterior e localmente a cada commit; **não repeti a suíte unitária inteira** nesta rodada final.
 
 ## Arquivos desta fase
 

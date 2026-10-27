@@ -60,3 +60,14 @@ Placeholders look like `⚠️ [OWNER DECISION: ...]` or `⚠️ [LEGAL REVIEW: 
 - The app has no page for the privacy policy, terms, AI notice or beta notice yet, and no link to them from the interface.
 - The in-app text is in English only; the Portuguese drafts name interface buttons as they appear in English ("Download backup").
 - Sessions cannot be revoked by the server before 90 days (`docs/quality/phase-b-data-and-security.md`, S1). The drafts say so plainly.
+
+## How these texts reach readers
+
+The app has the pages and the links, switched off. `/privacy`, `/terms` and `/legal/ai-notice`, `/legal/retention`, `/legal/beta` (each in English, `?lang=pt` for Portuguese) answer **404**, and the links "Privacy · Terms" are not drawn on the landing page or in the library, until **both** of these are true:
+
+1. The operator sets `GLOSS_LEGAL_PUBLISHED=1` in Production and redeploys.
+2. The text itself is final: **no `⚠️` marker is left in the English or the Portuguese file** (every open owner decision, every legal review item and the "draft, not legal advice" banner carries one). If the variable is on while a marker is left, the page stays a 404 and the server log says `[legal] <text> is not shown: it still has open items`.
+
+So the order is: fill the fields (`OPEN_ITEMS.md` lists every one), have the texts reviewed, remove the markers and the banner in both languages, merge, and only then set the variable. To preview final texts without touching these files, put them in a subfolder of `docs/legal` and start the server with `GLOSS_LEGAL_SET=<folder>` (the repository's own tests use `test-fixtures`).
+
+The in-app text is English; the Portuguese texts name interface buttons as they appear ("Download backup", "Remove").

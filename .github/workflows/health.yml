@@ -1,12 +1,17 @@
 name: Health
 
-# Polls the live site every 15 minutes. A run that fails is an alert: GitHub emails the people watching this repository about failed
+# Polls the live site every 30 minutes (a private repository on the free GitHub plan has 2,000 Actions minutes a month and each run is rounded
+# up to a whole minute: every 15 minutes would use about 2,900 and stop the checks, and the CI, part-way through the month). A run that fails is an alert: GitHub emails the people watching this repository about failed
 # workflow runs, and the Actions tab lists the history. Set the repository variable HEALTH_URL to check another address
 # (Settings > Secrets and variables > Actions > Variables). GitHub pauses scheduled workflows after 60 days without repository activity.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/30 * * * *"
   workflow_dispatch:
+    inputs:
+      url:
+        description: "Address to check instead of the usual one. A wrong address makes the run fail, which is how to test that the alert reaches you."
+        required: false
 
 permissions:
   contents: read
@@ -18,7 +23,7 @@ jobs:
     steps:
       - name: Check the live site (database, AI, budget)
         env:
-          URL: ${{ vars.HEALTH_URL || 'https://understand-io.vercel.app' }}
+          URL: ${{ inputs.url || vars.HEALTH_URL || 'https://understand-io.vercel.app' }}
         run: |
           code=000
           for i in 1 2 3; do

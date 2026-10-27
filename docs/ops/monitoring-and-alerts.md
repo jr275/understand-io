@@ -28,7 +28,7 @@ With `?strict=1` the answer is 503 whenever `reasons` is not empty, so a monitor
 | Database failure | `database-down` makes `/api/health` answer 503 |
 | AI provider failure | `ai-failing` (and the log line `[ai] provider call failed: <status>`: 401 the key, 400 the model, 429 the provider's own limit) |
 | Budget used up | `ai-budget-exhausted` |
-| Delivery | `.github/workflows/health.yml` runs every 15 minutes against `https://understand-io.vercel.app/api/health?strict=1` (set the repository variable `HEALTH_URL` for another address, for example the final domain). A failing run is a failed workflow, and GitHub emails the people watching the repository: check **Watch → Custom → Actions** in your GitHub notification settings, and that scheduled workflows are enabled (GitHub pauses them after 60 days without activity in the repository) |
+| Delivery | `.github/workflows/health.yml` runs every 30 minutes against `https://understand-io.vercel.app/api/health?strict=1` (set the repository variable `HEALTH_URL` for another address, for example the final domain). A failing run is a failed workflow, and GitHub emails the people watching the repository: check **Watch → Custom → Actions** in your GitHub notification settings, and that scheduled workflows are enabled (GitHub pauses them after 60 days without activity in the repository) |
 | Optional, in Vercel | Project → Settings → Notifications: deployment failures; Observability shows function errors and durations |
 | Optional | any external uptime monitor pointed at `/api/health?strict=1` (a free tier of one is enough) |
 

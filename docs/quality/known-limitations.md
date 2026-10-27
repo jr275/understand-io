@@ -62,3 +62,13 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 - **No monitoring or alerting.** Logs are the platform's request logs and 10 `console` calls that record error codes, not text.
 - **The browser suite is a dev-server suite.** Run against a production build, 181 of 185 tests pass; see `phase-b-data-and-security.md` section 3c. One end-to-end test (ANNOT-1, real server) is intermittent under parallel load on the dev server.
 - **Google sign-in** has not run against Google. The account merge after it is tested against a local PostgreSQL (`accountMerge.test.ts`), never against a production database.
+
+## Added for the controlled public beta
+
+| Limit | Note |
+| --- | --- |
+| The shared AI is allowed 3 questions a day per browser for visitors (10 per network address, 300 in all) and 20 for a signed-in account, one generation at a time per user, and a global daily and monthly budget; all set by environment variables | `docs/ops/configuration.md`; a reader's own Together key is not counted but also runs one generation at a time |
+| Days are UTC days; a fixed window allows up to twice an hourly limit across a boundary; costs are estimates | the spending limit on the provider's account is the hard stop |
+| A generation is one request: closing the tab loses it, and a long text's study notes take 45 to 130 seconds | the function limit is 300 seconds; no queue exists and none was needed |
+| Several people behind one network address share the address's allowance and its one-at-a-time lease | the per-browser allowance is the one that applies first |
+| The browser suite is written for the development server; against a production build over plain http WebKit refuses the `Secure` cookie, and three Chromium tests assume development behaviour | proven separately on the live HTTPS site (`docs/release/BETA_LAUNCH_REPORT.md`) |

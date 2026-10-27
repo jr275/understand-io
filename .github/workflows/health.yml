@@ -1,0 +1,33 @@
+name: Health
+
+# Polls the live site every 15 minutes. A run that fails is an alert: GitHub emails the people watching this repository about failed
+# workflow runs, and the Actions tab lists the history. Set the repository variable HEALTH_URL to check another address
+# (Settings > Secrets and variables > Actions > Variables). GitHub pauses scheduled workflows after 60 days without repository activity.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check the live site (database, AI, budget)
+        env:
+          URL: ${{ vars.HEALTH_URL || 'https://understand-io.vercel.app' }}
+        run: |
+          code=000
+          for i in 1 2 3; do
+            code=$(curl -s -o health.json -w '%{http_code}' --max-time 20 "$URL/api/health?strict=1" || true)
+            [ "$code" = "200" ] && break
+            sleep 20
+          done
+          cat health.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::The health check of $URL answered $code (503 means the database is down, or the AI is failing or paused by its budget; see the reasons in the body)."
+            exit 1
+          fi

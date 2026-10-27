@@ -123,6 +123,30 @@ describe("a provider that fails", () => {
     expect(text).not.toMatch(/12345|quota/);
   });
 
+  it.each([402, 429])("the provider's own spending or rate limit (%i) on the shared key becomes a plain 502 with a fixed message, never a 500 and never the provider's text", async (status) => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { ai, gloss } = await routes();
+    const upstream = vi.fn(async () => new Response(JSON.stringify({ error: { message: "account acct_98765 spending limit reached, add credits" } }), { status }));
+    vi.stubGlobal("fetch", upstream);
+    const pending = ai(post("/api/ai", aiBody()));
+    await vi.advanceTimersByTimeAsync(60_000);
+    const res = await pending;
+    expect(res.status).toBe(502);
+    const body = await res.json();
+    expect(body.error).toBe("provider");
+    expect(body.message).toMatch(/shared AI service could not answer/);
+    expect(JSON.stringify(body)).not.toMatch(/98765|credits|spending/);
+    // The margin answer streams: the refusal arrives as an ordinary response the page can show, not a crash.
+    const g = gloss(post("/api/gloss", { title: "T", action: "explain", length: "short", anchor: null, context: [{ id: "p1", n: 1, text: BLOCKS[0].text }] }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    const gres = await g;
+    expect(gres.status).not.toBe(500);
+    const gtext = await gres.text();
+    expect(gtext).toMatch(/shared AI service could not answer/);
+    expect(gtext).not.toMatch(/98765|credits|spending/);
+  });
+
   it("a rejected key is not retried", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { ai } = await routes();

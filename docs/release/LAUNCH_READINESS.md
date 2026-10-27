@@ -8,8 +8,8 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 
 | Decisão | Resultado | Condição |
 | --- | --- | --- |
-| **Beta controlado (convidados, poucos usuários)** | **GO** | Itens B1 a B3 abaixo, que levam minutos: limite de gasto na Together, orçamento confirmado, e-mail de alerta recebido. |
-| **Lançamento público** | **NO-GO** | Textos legais finais e publicados (G9), tela de consentimento do Google em produção (G8), orçamento calibrado com preços reais (G4/G5), entrega do alerta confirmada (G7), planos e backups confirmados (G10/G11). |
+| **Beta controlado (convidados, poucos usuários)** | **GO** | Condições B1 e B2 abaixo; B3 (monitor externo) é recomendado, não bloqueia. |
+| **Lançamento público** | **NO-GO** | Textos legais finais e publicados (G9), tela de consentimento do Google em produção (G8), alerta em minutos (G7), planos e backups confirmados (G10/G11), preços reais da Together conferidos (G4).
 
 ## Gates
 
@@ -18,8 +18,8 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 | G1 | Produção na release aprovada | **PASS** | `main` = `b89c6fc`; deploy Ready; `/api/health` com `commit` igual, `status: ok`, `database: ok`, `allowancesShared: true`; migração `0006` aplicada | — |
 | G2 | Verificação pós-publicação reproduzível | **PASS** | `node scripts/post-deploy-check.mjs [url]` (28 verificações contra produção, todas passaram; não grava nada e gasta no máximo 1 pergunta de IA) | — |
 | G3 | Cotas, trava de concorrência e orçamento no código | **PASS** | 1009 testes unitários com PostgreSQL real; integração com 2 a 5 servidores reais no mesmo banco (`allowances.test.ts`); detalhes em `docs/release/BETA_LAUNCH_REPORT.md` | — |
-| G4 | Orçamento real e gasto observável | **BLOCKED** | Padrões **provisórios**: US$ 3/dia e US$ 40/mês (`GLOSS_BUDGET_*`). O gasto fica no `ai_ledger` do Neon; não tenho credencial do banco aqui e os logs de runtime da Vercel guardam cerca de 1 hora, então não consigo informar o gasto real das últimas 24 h. `/api/health` não mostra valores em dinheiro, de propósito | Você: conferir o consumo na conta da Together e, se quiser, ler o `ai_ledger`; confirmar ou ajustar `GLOSS_BUDGET_*` e informar `GLOSS_PRICE_IN_PER_M`/`GLOSS_PRICE_OUT_PER_M` (não alterei nada) |
-| G5 | Freio final: limite de gasto na Together | **BLOCKED** | Não verificado | Você, no painel da Together |
+| G4 | Orçamento real e gasto observável | **PASS** (valores) / **BLOCKED** (gasto real) | **Orçamento confirmado pelo dono em 2026-10-27: US$ 3 por dia e US$ 40 por mês, só para IA (Together).** São os valores já em vigor (padrões de `GLOSS_BUDGET_*`; a variável não está definida em produção, então não alterei nada). O gasto fica no `ai_ledger` do Neon; não tenho credencial do banco aqui e os logs de runtime da Vercel guardam cerca de 1 hora, então não consigo informar o gasto real das últimas 24 h. `/api/health` não mostra valores em dinheiro, de propósito | Você: conferir o consumo na conta da Together; opcionalmente informar `GLOSS_PRICE_IN_PER_M`/`GLOSS_PRICE_OUT_PER_M` com os preços da sua fatura (hoje o app usa a tabela interna, US$ 0,15 e US$ 0,60) |
+| G5 | Freio final: limite de gasto na Together | **BLOCKED** | Você configura no painel; não verificável daqui. **Quando a Together recusa por limite** (402 ou 429) na chave compartilhada, o app devolve **502 com mensagem fixa** ("The shared AI service could not answer right now. Try again later, or add your own Together key…"), sem 500 e sem texto do provedor, tanto em `/api/ai` quanto na resposta de margem em streaming; a cota do leitor é devolvida. Coberto por teste (`ai-reliability.test.ts`, 402 e 429) | Você, no painel da Together |
 | G6 | Logs | **PASS** (com ressalva) | Teste automático: nenhum texto do leitor, chave, segredo, cookie ou senha do banco nos logs de 5 servidores reais. Ressalva: retenção curta na Vercel (~1 h observada) | Você: decidir se quer um drain de logs (custo à parte) |
 | G7 | Alertas | **BLOCKED** (parcial) | O monitor `Health` roda **agendado**: execuções agendadas em `main` às 09:37Z e 15:33Z de 2026-10-27, ambas com sucesso. O GitHub não cumpre a cadência de 30 min (intervalo observado de 6 h; agendamentos são adiados em horários de pico), então a detecção real é de horas, não de minutos. Uma falha **provocada de propósito** (execução 40449462055) falhou como esperado; **não consigo confirmar a chegada do e-mail**: o conector do Gmail está desconectado | Você: ver se chegou "Run failed: Health" (~04:25Z) e conferir as notificações do GitHub (Watch, Custom, Actions). Para detecção em minutos é preciso um monitor externo (ex.: UptimeRobot, plano gratuito de 5 min): decisão sua, sem custo de código |
 | G8 | Google OAuth | **BLOCKED** | O estado da tela de consentimento não é observável de fora. Login funciona em produção (confirmado por você). Não toquei em credenciais nem sessões | Você: Google Cloud → Auth Platform → Audience: **Publishing status = In production**, e preencher Application home page, **Privacy policy URL** e **Terms URL** (as páginas `/privacy` e `/terms` já existem no código, ver G9). Teste: entrar com uma conta que não está na lista de teste; "Access blocked / has not completed verification" significa Testing. Escopos básicos (openid, e-mail, perfil) normalmente não exigem verificação do app; confirme no console |
@@ -32,9 +32,23 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 
 ## Antes de abrir para convidados (beta)
 
-* **B1.** Defina o limite de gasto mensal na conta da Together (valor seu).
-* **B2.** Confirme ou ajuste `GLOSS_BUDGET_DAILY_USD` / `GLOSS_BUDGET_MONTHLY_USD`. Com os padrões (US$ 40/mês) e o modelo abaixo, cabem cerca de **700 usuários "típicos"** por mês.
-* **B3.** Confirme que o e-mail "Run failed: Health" chegou; se não, ajuste as notificações do GitHub.
+* **B1.** Defina o limite de gasto mensal na conta da Together (você mesmo; sugestão: igual ou pouco acima de US$ 40).
+* **B2.** ~~Confirmar orçamento~~ **Feito:** US$ 3/dia e US$ 40/mês, só IA. Nada a alterar em produção.
+* **B3 (recomendado).** Monitor externo de 5 minutos (próxima seção) e confirmar que o e-mail "Run failed: Health" chegou. Sem isso, uma queda pode levar horas para ser notada.
+
+## Monitor externo: proposta (não implementada)
+
+O cron do GitHub Actions roda na prática a cada ~6 h. Para alerta, o ideal é um serviço externo que chame `GET https://understand-io.vercel.app/api/health?strict=1` (responde **503** quando algo está degradado, **200** quando ok; não expõe segredo nem valores em dinheiro).
+
+| Opção | Intervalo (plano gratuito) | Custo | Observação |
+| --- | --- | --- | --- |
+| **UptimeRobot** | 5 min, 50 monitores | US$ 0 | A fonte aponta restrição de uso comercial no plano gratuito; confira os termos |
+| **Better Stack** | 3 min, 10 monitores (fontes divergem entre 3 e 5) | US$ 0 | Alertas por e-mail e, no gratuito, telefone/SMS limitados; confira na página de preços |
+| Vercel Cron | até 1 min no Pro | já incluso | **Não serve:** roda dentro do mesmo projeto, então não avisa se o projeto cair, e não envia alerta por si só |
+
+Fontes (comparativos de terceiros, confirme no site de cada serviço): [Hyperping](https://hyperping.com/blog/uptimerobot-vs-betterstack), [Host-Tracker](https://www.host-tracker.com/blog/uptimerobot-alternative), [Better Stack](https://betterstack.com/community/comparisons/uptime-robot-alternatives).
+
+**O que você precisa configurar** (cerca de 10 minutos, sem mudar o app): criar a conta; um monitor HTTP em `https://understand-io.vercel.app/api/health?strict=1` com intervalo mínimo e "alertar se status ≠ 200"; um contato de alerta (e-mail e, se quiser, celular); testar pausando/retomando ou apontando temporariamente para uma URL que dê 503. Recomendo manter o `Health` do GitHub como segunda camada. **Recomendação: Better Stack ou UptimeRobot, gratuito, 3 a 5 minutos.**
 
 ## Riscos
 
@@ -49,6 +63,8 @@ Legenda: **PASS** = provado com evidência; **FAIL** = não atende; **BLOCKED** 
 | Janelas de cota são dias UTC | Até o dobro na virada do dia | Aceito; orçamento global limita |
 
 ## Custos estimados de operação (por mês, em dólares)
+
+**O orçamento de US$ 40/mês é só da IA.** O total abaixo soma IA + Neon + Vercel (domínio e GitHub Actions desprezíveis). Resumo do caso típico (40 ações por usuário por mês): **100 usuários ≈ US$ 30; 1.000 ≈ US$ 98; 10.000 ≈ US$ 693.** Em 100 usuários o orçamento de IA sobra; em 1.000 usuários típicos ele **faltaria** (≈ US$ 56 só de IA contra US$ 40): a IA compartilhada pararia no fim do mês, e o leitor com chave própria continuaria.
 
 **São estimativas de modelo, não medições de produção.** Premissas:
 

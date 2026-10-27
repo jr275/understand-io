@@ -120,7 +120,53 @@ export function extractJson(text: string): unknown {
   return JSON.parse(body.slice(a, b + 1));
 }
 
-async function ask<T>(generate: Generate, schema: z.ZodType<T>, a: Parameters<Generate>[0], usage: { input: number; output: number }): Promise<T> {
+/**
+ * The complete objects of the `items` array in a reply that was cut off before it ended (a long answer that reached the output limit).
+ * Strings and nesting are followed, so a brace inside a quote does not end an item; the item that was being written when the reply
+ * stopped is dropped. Null when there is no complete item.
+ */
+export function salvageItems(text: string): { items: unknown[] } | null {
+  const key = text.search(/"items"\s*:\s*\[/);
+  if (key < 0) return null;
+  const items: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = text.indexOf("[", key) + 1; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (c === "}") {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        try {
+          items.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          /* an item that is not valid JSON is skipped */
+        }
+        start = -1;
+      }
+      if (depth < 0) break;
+    } else if (c === "]" && depth === 0) break;
+  }
+  return items.length ? { items } : null;
+}
+
+/**
+ * One reply, parsed against `schema`; a reply that cannot be used is asked for once more. With `salvage`, a reply that was cut off keeps
+ * its complete items instead of being thrown away (asking again would only produce the same long answer and be cut off again), and
+ * `onSalvaged` says so, so the reader can be told.
+ */
+async function ask<T>(generate: Generate, schema: z.ZodType<T>, a: Parameters<Generate>[0], usage: { input: number; output: number }, salvage?: { onSalvaged: () => void }): Promise<T> {
   let prompt = a.prompt;
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await generate({ ...a, prompt });
@@ -130,7 +176,15 @@ async function ask<T>(generate: Generate, schema: z.ZodType<T>, a: Parameters<Ge
       const parsed = schema.safeParse(extractJson(r.text));
       if (parsed.success) return parsed.data;
     } catch {
-      /* fall through to the retry */
+      /* fall through to salvage and the retry */
+    }
+    if (salvage) {
+      const cut = salvageItems(r.text);
+      const kept = (cut?.items ?? []).filter((x) => ItemZ.safeParse(x).success).slice(0, 40);
+      if (kept.length) {
+        salvage.onSalvaged();
+        return { items: kept } as unknown as T;
+      }
     }
     prompt = `${a.prompt}\n\nYour previous reply was not a valid JSON object of the required shape. Reply again with only the JSON object.`;
   }
@@ -199,6 +253,8 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
   let read = input.blocks;
   let digest: string | null = null;
   let skippedSections = 0;
+  let cutSections = 0;
+  let cutFinal = false;
   const direct = isPassage || totalChars <= OP_LIMITS.directChars;
   if (!direct) {
     const chunks = planChunks(input.blocks, OP_LIMITS.chunkChars);
@@ -219,6 +275,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
             signal,
           },
           usage,
+          { onSalvaged: () => { cutSections += 1; } },
         ).catch((err: unknown) => {
           if (err instanceof AiOpError && err.code === "bad-output") return null;
           throw err; // a timeout, a caller leaving or a provider failure ends the request as before
@@ -247,10 +304,12 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
       ? `${head(input)}\n\nSelected passage: “${input.selection}”\n\nThe passage sits in these paragraphs:\n\n${fenceDocument(formatBlocks(input.blocks))}`
       : `${head(input)}\n\n${fenceDocument(`${variant === "detailed" || variant === "study" ? outline(read) : ""}${formatBlocks(read)}`)}`;
 
-  const out = await ask(generate, ItemsOutZ, { system, prompt: body, maxOutputTokens, signal }, usage);
+  const out = await ask(generate, ItemsOutZ, { system, prompt: body, maxOutputTokens, signal }, usage, { onSalvaged: () => { cutFinal = true; } });
   const allowed = new Set(read.map((b) => b.id));
   const items: AiItem[] = checkItems(out.items as ProposedItem[], byId, allowed);
   const caveats = out.caveats ?? [];
+  if (cutFinal) caveats.push("The model's answer was cut off before it ended, so only the complete items are shown.");
+  if (cutSections) caveats.push(`The notes on ${cutSections} section${cutSections === 1 ? " were" : "s were"} cut off, so parts of the text may be covered less fully.`);
   if (skippedSections) caveats.push(`${skippedSections} section${skippedSections === 1 ? "" : "s"} of the text could not be summarised and ${skippedSections === 1 ? "is" : "are"} not covered here.`);
   if (items.some((i) => i.unverified)) caveats.push("Some statements could not be tied to a quote from the text and are shown as interpretation.");
   if (input.op === "summarize") return { result: { kind: "summary", variant, items, caveats, coverage }, usage };

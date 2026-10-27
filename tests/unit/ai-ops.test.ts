@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AiOpError, coverageOf, extractJson, planChunks, runAiOp, type AiOpInput, type Generate, type OpBlock } from "@/lib/ai/ops";
+import { AiOpError, coverageOf, extractJson, planChunks, runAiOp, salvageItems, type AiOpInput, type Generate, type OpBlock } from "@/lib/ai/ops";
 
 /** The model is a fake that returns what the test says; everything else (parsing, validation, evidence checks, coverage) is the real code. */
 const para = (i: number, text: string): OpBlock => ({ id: `p${i}`, n: i, type: "p", text });
@@ -271,5 +271,79 @@ describe("reading a long text section by section", () => {
     const sections = systems.filter((s) => /This is one section/.test(s));
     expect(sections.length).toBeGreaterThan(1);
     for (const s of sections) expect(s).toMatch(/five to eight short notes/);
+  });
+});
+
+describe("a reply that was cut off", () => {
+  const item = (text: string, extra = "") => `{"text":${JSON.stringify(text)},"basis":"interpretation"${extra}}`;
+
+  it("salvageItems keeps the complete items and drops the one that was being written", () => {
+    const cut = `{"items":[${item("One.")},${item("Two.")},{"text":"Thr`;
+    expect(salvageItems(cut)).toEqual({ items: [{ text: "One.", basis: "interpretation" }, { text: "Two.", basis: "interpretation" }] });
+  });
+  it("follows strings: braces, brackets, quotes and escapes inside an item do not end it", () => {
+    const tricky = 'He said "stop" } and then ] left { alone \\ done';
+    const cut = `\`\`\`json\n{"items":[${item(tricky)},{"text":"cut off in the mid`;
+    expect(salvageItems(cut)).toEqual({ items: [{ text: tricky, basis: "interpretation" }] });
+  });
+  it("answers null when there is no complete item or no items at all", () => {
+    expect(salvageItems('{"items":[{"text":"Thr')).toBeNull();
+    expect(salvageItems("I cannot do that.")).toBeNull();
+    expect(salvageItems('{"other":[{"a":1}]}')).toBeNull();
+  });
+  it("a whole reply is read as before (salvage never replaces a complete answer)", () => {
+    expect(salvageItems(`{"items":[${item("One.")}],"caveats":["x"]}`)).toEqual({ items: [{ text: "One.", basis: "interpretation" }] });
+  });
+
+  it("a final answer that is cut off keeps its complete items, says so, and is not asked for again", async () => {
+    let calls = 0;
+    const generate: Generate = async () => {
+      calls += 1;
+      return { text: `{"items":[${item("First idea.")},${item("Second idea.")},{"text":"Third id`, inputTokens: 10, outputTokens: 5000 };
+    };
+    const { result } = await runAiOp(input({ variant: "study" }), generate);
+    expect(calls).toBe(1);
+    expect(result.kind).toBe("summary");
+    if (result.kind !== "summary") return;
+    expect(result.items.map((i) => i.text)).toEqual(["First idea.", "Second idea."]);
+    expect(result.caveats.join(" ")).toMatch(/cut off before it ended, so only the complete items are shown/);
+  });
+
+  it("salvaged items are still checked against the text: a quote that is not there leaves the item flagged, not supported", async () => {
+    const generate: Generate = async () => ({
+      text: `{"items":[{"text":"Claimed from the text.","basis":"text","evidence":[{"id":"p1","quote":"words that are not in paragraph one at all"}]},{"text":"Cut`,
+      inputTokens: 1,
+      outputTokens: 1,
+    });
+    const { result } = await runAiOp(input({ variant: "study" }), generate);
+    if (result.kind !== "summary") throw new Error("expected a summary");
+    expect(result.items[0]).toMatchObject({ basis: "interpretation", unverified: true, evidence: [] });
+  });
+
+  it("a reply with nothing complete is still asked for once more, then refused", async () => {
+    let calls = 0;
+    const generate: Generate = async () => {
+      calls += 1;
+      return { text: '{"items":[{"text":"Thr', inputTokens: 1, outputTokens: 1 };
+    };
+    await expect(runAiOp(input({ variant: "study" }), generate)).rejects.toMatchObject({ code: "bad-output" });
+    expect(calls).toBe(2);
+  });
+
+  it("a section whose notes are cut off is kept with what arrived, and the summary says so", async () => {
+    const long = Array.from({ length: 21 }, (_, k) => para(k + 1, `${BODY(k + 1)} ${"The tide goes in and out. ".repeat(110)}`));
+    let firstSection = true;
+    const generate: Generate = async (a) => {
+      if (!/This is one section/.test(a.system)) return reply({ items: [{ text: "Combined notes.", basis: "interpretation" }] });
+      if (firstSection) {
+        firstSection = false;
+        return { text: `{"items":[${item("A note that arrived.")},{"text":"A note that was cu`, inputTokens: 1, outputTokens: 900 };
+      }
+      return reply({ items: [{ text: "A note.", basis: "interpretation" }] });
+    };
+    const { result } = await runAiOp(input({ variant: "quick", blocks: long, totalParagraphs: 21 }), generate);
+    if (result.kind !== "summary") throw new Error("expected a summary");
+    expect(result.coverage.complete).toBe(true); // every section contributed something
+    expect(result.caveats.join(" ")).toMatch(/notes on 1 section were cut off/);
   });
 });

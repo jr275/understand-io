@@ -5,6 +5,7 @@ import { ImportBar } from "@/components/landing/ImportBar";
 import { SampleRow } from "@/components/landing/SampleRow";
 import { Desk } from "@/components/landing/Desk";
 import { Notice } from "@/components/chrome/Notice";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 
 export const metadata: Metadata = { title: "Understand.io" };
 
@@ -30,6 +31,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
           </section>
         </div>
         <Desk />
+        <LegalLinks />
       </main>
       <Toasts bottom={24} />
       {signin ? <Notice text={signin} /> : null}

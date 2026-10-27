@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
     },
   },
   serverExternalPackages: ["postgres", "unpdf", "undici"],
+  // The legal texts are read from disk at request time (docs/legal): the deployment must carry them to the routes that read them.
+  outputFileTracingIncludes: {
+    "/": ["./docs/legal/*.md"],
+    "/library": ["./docs/legal/*.md"],
+    "/privacy": ["./docs/legal/*.md"],
+    "/terms": ["./docs/legal/*.md"],
+    "/legal/[doc]": ["./docs/legal/*.md"],
+  },
   // With a proxy file Next buffers each matched request body up to this size (default 10 MB, then truncates it): keep it above the
   // largest upload the import routes accept (25 MB file).
   experimental: { proxyClientMaxBodySize: "30mb" },

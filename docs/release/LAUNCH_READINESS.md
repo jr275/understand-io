@@ -94,7 +94,7 @@ Banco descartável `gloss_beta` (o banco de desenvolvimento `gloss` ficou com 53
 | Firefox, WebKit e iPhone no servidor de desenvolvimento | **78 de 78** |
 | Visuais | **46 de 46** (imagens-base inalteradas: as páginas legais ocultas não mudam as telas) |
 
-Os testes unitários desta fase (`tests/unit/legal.test.ts`) rodaram na CI da fase anterior e localmente a cada commit; **não repeti a suíte unitária inteira** nesta rodada final.
+Os testes unitários desta fase (`tests/unit/legal.test.ts`) rodaram localmente quando foram escritos; **não repeti a suíte unitária inteira nesta rodada final**, e a CI do GitHub **ainda não rodou nesta branch** (ela não foi enviada ao GitHub: aguardo sua autorização para `push` e PR).
 
 ## Arquivos desta fase
 

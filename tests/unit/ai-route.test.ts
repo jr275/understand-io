@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createMemoryAiStore, setAiStore } from "@/lib/server/aiStore";
 
 /** The /api/ai route with the AI SDK's generateText replaced: everything else (key resolution, limits, validation, evidence checks) is real. */
 const generateText = vi.fn();
@@ -14,6 +15,7 @@ const post = (b: unknown, headers: Record<string, string> = { "x-gloss-key": "us
 
 let POST: (req: Request) => Promise<Response>;
 beforeEach(async () => {
+  setAiStore(createMemoryAiStore()); // allowances in memory: no database involved
   delete process.env.TOGETHER_API_KEY;
   generateText.mockReset();
   ({ POST } = await import("@/app/api/ai/route"));

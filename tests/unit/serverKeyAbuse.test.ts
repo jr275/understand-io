@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LIMITS, SERVER_KEY_ERROR, limitHistory } from "@/lib/ai/requestLimits";
 import { SlidingWindowLimiter, limitFor, resetRateLimits, setSharedCounter } from "@/lib/server/rateLimit";
 import { READER_COOKIE, readerCookieValue } from "@/lib/server/reader";
+import { createMemoryAiStore, setAiStore } from "@/lib/server/aiStore";
 
 const realFetch = globalThis.fetch;
 let upstream: ReturnType<typeof vi.fn>;
@@ -17,6 +18,7 @@ beforeEach(() => {
   delete process.env.GLOSS_RATE_TRANSCRIBE;
   delete process.env.GLOSS_RATE_WINDOW_SEC;
   setSharedCounter(null); // the per-process layer is under test here; the shared layer has its own tests
+  setAiStore(createMemoryAiStore()); // and the daily allowances have theirs
   resetRateLimits();
   upstream = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Your credit balance is too low (acct 12345)" } }), { status: 402, headers: { "content-type": "application/json" } }));
   vi.stubGlobal("fetch", upstream);

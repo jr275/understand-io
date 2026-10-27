@@ -7,6 +7,8 @@ import { LANGUAGE_CODES } from "@/lib/ai/languages";
 import { AiOpError, OP_LIMITS, runAiOp, type Generate } from "@/lib/ai/ops";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
+import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
+import { worstCaseOp } from "@/lib/ai/budget";
 
 /** Long texts are read section by section and then combined (two rounds of provider calls); the deadline in `lib/ai/guard.ts` fires before this. */
 export const maxDuration = 300;
@@ -48,6 +50,12 @@ export async function POST(req: Request) {
   // Server-key work runs at most a few at a time per instance; the reader's own key is theirs to spend.
   const release = source === "server" ? tryAcquire() : () => {};
   if (!release) return busyResponse();
+  // The reader's daily allowance, one generation at a time, and the global budget (see lib/server/aiAdmission.ts).
+  const admission = await admitAi({ req, source: source === "server" ? "server" : "user", estimate: worstCaseOp(parsed.data), leaseTtlMs: DEADLINE_MS.structured + 30_000, model: CHAT_MODEL });
+  if (!admission.ok) {
+    release();
+    return admission.response;
+  }
   const signal = deadlineSignal(req.signal, DEADLINE_MS.structured);
   const model = provider(key).chatModel(CHAT_MODEL);
   const generate: Generate = async ({ system, prompt, maxOutputTokens, signal }) => {
@@ -58,8 +66,12 @@ export async function POST(req: Request) {
     const { result, usage } = await runAiOp(parsed.data, generate, signal);
     const cost = estimateCost(CHAT_MODEL, usage.input, usage.output);
     logUsage("ai", `${parsed.data.op}${parsed.data.variant ? `:${parsed.data.variant}` : ""}`, source, CHAT_MODEL, { ...usage, cost });
+    await admission.settle({ kind: "ok", inputTokens: usage.input, outputTokens: usage.output });
     return Response.json({ result, model: CHAT_MODEL, usage: { ...usage, cost } });
   } catch (err) {
+    const outcome: Outcome =
+      err instanceof AiOpError ? (err.code === "bad-output" ? { kind: "bad-output" } : { kind: "rejected" }) : req.signal.aborted ? { kind: "client-gone" } : timedOut(signal, req.signal) ? { kind: "timeout" } : { kind: "provider-error" };
+    await admission.settle(outcome);
     if (err instanceof AiOpError) return Response.json({ error: err.code, message: err.message }, { status: err.code === "bad-output" ? 502 : 400 });
     if (req.signal.aborted) return new Response(null, { status: 499 });
     if (timedOut(signal, req.signal)) return Response.json({ error: "timeout", message: TIMEOUT_MESSAGE }, { status: 504 });

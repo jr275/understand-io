@@ -28,7 +28,23 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
-      - run: pnpm build
+      # Built with recognisable stand-in values in every secret variable, so the next step can prove none of them is written into what the browser is served.
+      - name: Build, with stand-in secrets in the environment
+        run: pnpm build
+        env:
+          TOGETHER_API_KEY: SENTINEL-TOGETHER-ci-7f3a91c2d4e8
+          GOOGLE_CLIENT_ID: SENTINEL-GOOGLE-ID-ci-7f3a91c2d4e8
+          GOOGLE_CLIENT_SECRET: SENTINEL-GOOGLE-SECRET-ci-7f3a91c2d4e8
+          GLOSS_COOKIE_SECRET: SENTINEL-COOKIE-SECRET-ci-7f3a91c2d4e8-0000
+          DATABASE_URL: postgres://ci:SENTINELDBPASSWORD7f3a91c2@localhost:5432/not-used
+      - name: No secret in what the browser is served
+        run: node scripts/scan-bundle.mjs
+        env:
+          TOGETHER_API_KEY: SENTINEL-TOGETHER-ci-7f3a91c2d4e8
+          GOOGLE_CLIENT_ID: SENTINEL-GOOGLE-ID-ci-7f3a91c2d4e8
+          GOOGLE_CLIENT_SECRET: SENTINEL-GOOGLE-SECRET-ci-7f3a91c2d4e8
+          GLOSS_COOKIE_SECRET: SENTINEL-COOKIE-SECRET-ci-7f3a91c2d4e8-0000
+          DATABASE_URL: postgres://ci:SENTINELDBPASSWORD7f3a91c2@localhost:5432/not-used
 
   # Ownership, migrations and transactions against a real PostgreSQL (docs/quality/integration-testing.md).
   integration:
@@ -67,7 +83,8 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3201/api/documents > /dev/null && exit 0; sleep 1; done
           cat server.log; exit 1
       - name: Unit tests that need a real database (skipped when DATABASE_URL is unset)
-        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts
+        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts
+      # Includes the allowances test, which starts its own production servers (ports 3311 to 3315) and a stand-in AI provider.
       - name: Integration tests
         run: INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration
       - name: Server log on failure

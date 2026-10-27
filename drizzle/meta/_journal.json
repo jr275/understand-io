@@ -43,6 +43,13 @@
       "when": 1792987815872,
       "tag": "0005_rate_hits",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793069341895,
+      "tag": "0006_ai_budget",
+      "breakpoints": true
     }
   ]
 }

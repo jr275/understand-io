@@ -4,6 +4,7 @@ import { EMBED_MODEL, provider, resolveKey } from "@/lib/ai/provider";
 import { LIMITS, SERVER_KEY_ERROR } from "@/lib/ai/requestLimits";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
+import { limitDaily } from "@/lib/server/aiAdmission";
 
 export const maxDuration = 30;
 
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
   const { key, source } = resolveKey(req);
   if (!key) return Response.json({ error: "needs-key", message: "Semantic search needs a Together AI key; lexical search still works." }, { status: 402 });
   if (source === "server") {
-    const limited = await limitServerKey(req, "search");
+    const limited = (await limitServerKey(req, "search")) ?? (await limitDaily(req, "search"));
     if (limited) return limited;
   }
   const json = await readJsonLimited(req, LIMITS.jsonBytes);

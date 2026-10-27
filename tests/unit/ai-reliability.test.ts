@@ -33,6 +33,9 @@ async function routes(env: Record<string, string> = {}) {
   const limits = await import("@/lib/server/rateLimit");
   limits.setSharedCounter(null);
   limits.resetRateLimits();
+  // Allowances live in memory here, so a run never depends on (or leaves anything in) a database.
+  const allowances = await import("@/lib/server/aiStore");
+  allowances.setAiStore(allowances.createMemoryAiStore());
   return { ai: ai.POST, gloss: gloss.POST };
 }
 

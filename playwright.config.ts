@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
 /** The journeys a reader cannot do without: importing, reading, selecting, marking, coming back. Run on every engine, not only Chromium. */
-const CRITICAL = /(ingest-and-marks|reader|annotations|position|import-and-isolation)\.spec\.ts/;
+const CRITICAL = /(ingest-and-marks|reader|annotations|position|import-and-isolation|ai-limits)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./tests/e2e",

@@ -78,7 +78,7 @@ const VARIANT_TASK: Record<SummaryVariant, string> = {
 };
 
 /** Output room per variant. Study notes and detailed summaries of a long text are long answers: a cap that cuts the JSON in the middle loses all of it. */
-const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 3200, ideas: 1000, study: 5000, passage: 600 };
+export const VARIANT_TOKENS: Record<SummaryVariant, number> = { quick: 800, executive: 1200, detailed: 3200, ideas: 1000, study: 5000, passage: 600 };
 
 function outline(blocks: OpBlock[]) {
   const heads = blocks.filter((b) => b.type === "h2" || b.type === "h3");

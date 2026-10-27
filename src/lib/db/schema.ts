@@ -139,3 +139,34 @@ export const rateHits = pgTable(
   },
   (t) => [primaryKey({ columns: [t.key, t.windowStart] }), index("rate_hits_expires_idx").on(t.expiresAt)],
 );
+
+/**
+ * What the operator's AI key has cost, by UTC hour (`period` is `YYYY-MM-DDTHH`), counted in millionths of a US dollar. The daily and monthly
+ * budgets are sums over these rows, so they survive restarts and are the same for every instance. `errors` feeds the health check.
+ */
+export const aiLedger = pgTable("ai_ledger", {
+  period: text("period").primaryKey(),
+  spentMicro: bigint("spent_micro", { mode: "number" }).notNull().default(0),
+  inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+  outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+  requests: integer("requests").notNull().default(0),
+  errors: integer("errors").notNull().default(0),
+});
+
+/** Money set aside for AI requests that are running now, so concurrent requests cannot spend the same remaining budget. Rows expire by themselves. */
+export const aiReservations = pgTable(
+  "ai_reservations",
+  {
+    id: text("id").primaryKey(),
+    amountMicro: bigint("amount_micro", { mode: "number" }).notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  },
+  (t) => [index("ai_reservations_expires_idx").on(t.expiresAt)],
+);
+
+/** One AI generation at a time per user: a row means "this key is generating", and it expires if the request never reports back. Keys are hashed. */
+export const aiLeases = pgTable("ai_leases", {
+  key: text("key").primaryKey(),
+  token: text("token").notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+});

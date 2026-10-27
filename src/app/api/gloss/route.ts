@@ -5,6 +5,8 @@ import { actionQuestion, systemPrompt, userPrompt } from "@/lib/ai/prompts";
 import { GLOSS_ACTIONS, LIMITS, SERVER_KEY_ERROR, anchorSchema, historySchema, limitHistory } from "@/lib/ai/requestLimits";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
+import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
+import { worstCaseGloss } from "@/lib/ai/budget";
 import { DEADLINE_MS, NO_ROOM_MESSAGE, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, providerOptions, timedOut, tryAcquire, withHeadroom } from "@/lib/ai/guard";
 
 export const maxDuration = 60;
@@ -43,12 +45,21 @@ export async function POST(req: Request) {
   const b = parsed.data;
   const release = source === "server" ? tryAcquire() : () => {};
   if (!release) return busyResponse();
-  const signal = deadlineSignal(req.signal, DEADLINE_MS.stream);
   const question = actionQuestion(b.action, b.question);
+  const history = limitHistory(b.history);
   const messages = [
-    ...limitHistory(b.history).map((t) => ({ role: t.role, content: t.content })),
+    ...history.map((t) => ({ role: t.role, content: t.content })),
     { role: "user" as const, content: userPrompt({ title: b.title, author: b.author, anchor: b.anchor, context: b.context, question }) },
   ];
+  const maxOutputTokens = withHeadroom(b.length === "long" ? 900 : b.length === "short" ? 220 : 480);
+  const chars = b.title.length + question.length + (b.anchor?.quote.length ?? 0) + b.context.reduce((n, c) => n + c.text.length, 0) + history.reduce((n, t) => n + t.content.length, 0);
+  // The reader's daily allowance, one generation at a time, and the global budget (see lib/server/aiAdmission.ts).
+  const admission = await admitAi({ req, source: source === "server" ? "server" : "user", estimate: worstCaseGloss(chars, maxOutputTokens), leaseTtlMs: DEADLINE_MS.stream + 30_000, model: CHAT_MODEL });
+  if (!admission.ok) {
+    release();
+    return admission.response;
+  }
+  const signal = deadlineSignal(req.signal, DEADLINE_MS.stream);
   try {
     let providerError: unknown;
     const result = streamText({
@@ -56,7 +67,7 @@ export async function POST(req: Request) {
       system: systemPrompt(b.length ?? "normal"),
       messages,
       temperature: 0.4,
-      maxOutputTokens: withHeadroom(b.length === "long" ? 900 : b.length === "short" ? 220 : 480),
+      maxOutputTokens,
       providerOptions: providerOptions(),
       abortSignal: signal,
       maxRetries: PROVIDER_RETRIES,
@@ -81,8 +92,12 @@ export async function POST(req: Request) {
           const output = usage.outputTokens ?? 0;
           const cost = estimateCost(CHAT_MODEL, input, output);
           logUsage("gloss", b.action, source, CHAT_MODEL, { input, output, cost });
+          await admission.settle({ kind: "ok", inputTokens: input, outputTokens: output });
           controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ model: CHAT_MODEL, usage: { input, output, cost } })));
         } catch (err) {
+          const empty = err instanceof Error && err.message === "empty answer";
+          const outcome: Outcome = req.signal.aborted ? { kind: "client-gone" } : timedOut(signal, req.signal) ? { kind: "timeout" } : empty && !providerError ? { kind: "bad-output" } : { kind: "provider-error" };
+          await admission.settle(outcome);
           controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ error: timedOut(signal, req.signal) ? TIMEOUT_MESSAGE : providerError || !(err instanceof Error && err.message === "empty answer") ? describe(providerError ?? err, source) : NO_ROOM_MESSAGE })));
         } finally {
           release();
@@ -92,6 +107,7 @@ export async function POST(req: Request) {
     });
     return new Response(stream, { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-gloss-model": CHAT_MODEL } });
   } catch (err) {
+    await admission.settle({ kind: "provider-error" });
     release();
     return Response.json({ error: "provider", message: describe(err, source) }, { status: 502 });
   }

@@ -2,6 +2,7 @@ import { TOGETHER_BASE, WHISPER_MODEL, resolveKey } from "@/lib/ai/provider";
 import { LIMITS, SERVER_KEY_ERROR } from "@/lib/ai/requestLimits";
 import { readFormLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
+import { limitDaily } from "@/lib/server/aiAdmission";
 
 export const maxDuration = 60;
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   const { key, source } = resolveKey(req);
   if (!key) return Response.json({ error: "needs-key", message: "Server transcription needs a Together AI key." }, { status: 402 });
   if (source === "server") {
-    const limited = await limitServerKey(req, "transcribe");
+    const limited = (await limitServerKey(req, "transcribe")) ?? (await limitDaily(req, "transcribe"));
     if (limited) return limited;
   }
   // The multipart envelope adds a little to the file itself.

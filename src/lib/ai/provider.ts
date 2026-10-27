@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-export const TOGETHER_BASE = "https://api.together.xyz/v1";
+/** The provider's API address. Only the operator sets the override (an AI gateway or proxy, or a local stand-in under test); nothing a reader sends can change it. */
+export const TOGETHER_BASE = process.env.GLOSS_TOGETHER_BASE_URL?.trim().replace(/\/$/, "") || "https://api.together.xyz/v1";
 export const CHAT_MODEL = process.env.GLOSS_CHAT_MODEL || "openai/gpt-oss-120b";
 export const EMBED_MODEL = process.env.GLOSS_EMBED_MODEL || "BAAI/bge-base-en-v1.5";
 export const WHISPER_MODEL = process.env.GLOSS_WHISPER_MODEL || "openai/whisper-large-v3";
@@ -30,6 +31,10 @@ export function noKeyResponse() {
 
 /** Rough cost estimate for the footer, per million tokens (USD). Documented as an estimate. */
 export function estimateCost(model: string, input: number, output: number) {
+  // The operator can state the real prices (US dollars per million tokens, from the provider's billing page) instead of trusting the table.
+  const envIn = Number(process.env.GLOSS_PRICE_IN_PER_M);
+  const envOut = Number(process.env.GLOSS_PRICE_OUT_PER_M);
+  if (process.env.GLOSS_PRICE_IN_PER_M && process.env.GLOSS_PRICE_OUT_PER_M && Number.isFinite(envIn) && Number.isFinite(envOut) && envIn >= 0 && envOut >= 0) return (input * envIn + output * envOut) / 1_000_000;
   const table: Record<string, [number, number]> = {
     "openai/gpt-oss-120b": [0.15, 0.6],
     "deepseek-ai/DeepSeek-V3.1": [0.6, 1.7],

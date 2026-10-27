@@ -11,7 +11,7 @@ const positive = (raw: string | undefined, fallback: number) => {
 /** Longest a request may wait for the provider, retries included (a streamed answer; a structured operation may read several sections). */
 export const DEADLINE_MS = {
   stream: positive(process.env.GLOSS_AI_STREAM_TIMEOUT_MS, 50_000),
-  structured: positive(process.env.GLOSS_AI_TIMEOUT_MS, 100_000),
+  structured: positive(process.env.GLOSS_AI_TIMEOUT_MS, 240_000),
 } as const;
 
 /** The SDK retries a rate-limited or failing provider call with growing waits; this is the most it may add to one call. */

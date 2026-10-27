@@ -258,3 +258,18 @@ describe("long answers and long texts", () => {
     await expect(runAiOp(longInput(), generate)).rejects.toMatchObject({ name: "AbortError" });
   });
 });
+
+describe("reading a long text section by section", () => {
+  it("asks for a short set of notes per section, so the combining step has less to read and the sections finish sooner", async () => {
+    const long = Array.from({ length: 24 }, (_, k) => para(k + 1, `${BODY(k + 1)} ${"The tide goes in and out. ".repeat(110)}`));
+    const systems: string[] = [];
+    const generate: Generate = async (a) => {
+      systems.push(a.system);
+      return reply({ items: [{ text: "A note.", basis: "interpretation" }] });
+    };
+    await runAiOp(input({ variant: "quick", blocks: long, totalParagraphs: 24 }), generate);
+    const sections = systems.filter((s) => /This is one section/.test(s));
+    expect(sections.length).toBeGreaterThan(1);
+    for (const s of sections) expect(s).toMatch(/five to eight short notes/);
+  });
+});

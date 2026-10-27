@@ -213,7 +213,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
           generate,
           ItemsOutZ,
           {
-            system: [...RULES, `This is one section (${where}) of a longer text. Write five to twelve short notes on what it says: its claims, arguments, evidence, conclusions and reservations. Shape: ${SHAPE}`, "Write in the language of the text."].join(" "),
+            system: [...RULES, `This is one section (${where}) of a longer text. Write five to eight short notes on what it says: its claims, arguments, evidence, conclusions and reservations. Shape: ${SHAPE}`, "Write in the language of the text."].join(" "),
             prompt: `${head(input)}\n\n${fenceDocument(formatBlocks(chunk))}`,
             maxOutputTokens: 900,
             signal,

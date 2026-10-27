@@ -280,3 +280,15 @@ describe("a model that thinks before it answers", () => {
     expect(sentBody(junk)).not.toHaveProperty("reasoning_effort");
   });
 });
+
+describe("the deadline fires before the platform would cut the function off", () => {
+  it("each route's deadline is shorter than its maxDuration, and a long text has minutes to be read section by section", async () => {
+    vi.resetModules();
+    const { DEADLINE_MS } = await import("@/lib/ai/guard");
+    const ai = await import("@/app/api/ai/route");
+    const gloss = await import("@/app/api/gloss/route");
+    expect(DEADLINE_MS.structured).toBeLessThan(ai.maxDuration * 1000);
+    expect(DEADLINE_MS.stream).toBeLessThan(gloss.maxDuration * 1000);
+    expect(DEADLINE_MS.structured).toBeGreaterThanOrEqual(200_000);
+  });
+});

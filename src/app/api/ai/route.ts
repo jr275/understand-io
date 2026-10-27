@@ -8,7 +8,8 @@ import { AiOpError, OP_LIMITS, runAiOp, type Generate } from "@/lib/ai/ops";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
 
-export const maxDuration = 120;
+/** Long texts are read section by section and then combined (two rounds of provider calls); the deadline in `lib/ai/guard.ts` fires before this. */
+export const maxDuration = 300;
 
 const BlockZ = z.object({
   id: z.string().min(1).max(LIMITS.blockId),

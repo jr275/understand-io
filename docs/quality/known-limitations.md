@@ -48,18 +48,18 @@ _What the product does not do, or does only in part, stated plainly. Written 202
 | The lens toolbar is one tab stop, not arrow-key navigable | A11Y-5 |
 | Sites that refuse server fetches need the bookmarklet | IMP-4 |
 | A saved link has nothing to annotate or search until its text is brought in | `docs/evolution-report.md` section 12 |
-| Rate limits count in the database when there is one (so they hold across instances) and per process when there is not or it is slow; a fixed window allows up to twice the limit across a boundary; there is no global spending cap, only the per-client limits, the concurrency cap per instance and the `[usage]` log lines | `docs/ops/configuration.md` |
-| No server backups | operational readiness item 9 |
+| Rate limits count in the database when there is one (so they hold across instances) and per process when there is not or it is slow; a fixed window allows up to twice the limit across a boundary. **Since the beta release the shared AI also has a global daily and monthly budget** (provisional US$ 3 and US$ 40, AI only), counted in the database and checked atomically; the spending limit on the provider's own account is the hard stop (set by the owner) | `docs/ops/configuration.md` |
+| Backups are the database provider's, not the app's: how far back Neon can restore depends on its plan (Free 6 hours, Launch up to 7 days; the plan is not readable from the repository) | `docs/ops/restore-rehearsal.md` (the logical dump and restore was rehearsed on disposable databases; the Neon restore itself has not been rehearsed) |
 | Not built: connect an agent (MCP), painted covers, web search inside answers, server TTS and transcription | REF-7, REF-24, REF-25, TTS-R12, VS-R3 |
 
 ## Server and sessions (Phase B)
 
-- **There is no production database.** The deployed site runs in local-only mode: every reader's library exists only in that browser. Backup is the only recovery path, and it is manual.
-- **Counters are per process.** The AI limits and the import limit (60 per ten minutes) count in one function instance's memory; on Vercel the effective cap is that times the number of warm instances. A speed bump, not a quota or a spending cap.
+- **There is a production database (Neon PostgreSQL, since the beta release).** A reader's library lives on the server under the reader cookie or the signed-in account; the browser also keeps a local copy and the manual backup file remains a second, independent recovery path. A deployment without `DATABASE_URL` (a preview) still runs in local-only mode.
+- **Counters are in the database.** The AI allowances, the one-at-a-time lease and the budget are counted in PostgreSQL and hold across instances; when the database is unreadable the shared AI refuses (fail closed). The short-window limiters (the import limit of 60 per ten minutes, for one) follow the rule in the table above: the database when it answers, per process otherwise.
 - **Overlapping first requests.** The client now settles the reader cookie before its first save, but the import routes still mint a cookie themselves, and two tabs opened together by a brand-new visitor can still end up as two readers.
 - **Sessions cannot be revoked.** A signed-in session is a signed cookie valid for 90 days; signing out deletes the cookie, but a copied one stays valid until it expires. Relevant only once sign-in is configured.
 - **Content Security Policy has no `script-src`.** It covers framing, `<base>` and form targets only; the one raw-HTML sink is a static constant, and imported content is rendered through React.
-- **No monitoring or alerting.** Logs are the platform's request logs and 10 `console` calls that record error codes, not text.
+- **Monitoring is partial.** `GET /api/health?strict=1` answers 503 when the database is down, the AI is failing or the budget is exhausted, and a scheduled GitHub workflow calls it; GitHub fires that schedule only about every 6 hours in practice, so an external 5-minute monitor is recommended (`docs/ops/monitoring-and-alerts.md`). Logs are the platform's, retained about an hour on this plan, and 10 `console` calls record error codes, not text.
 - **The browser suite is a dev-server suite.** Run against a production build, 181 of 185 tests pass; see `phase-b-data-and-security.md` section 3c. One end-to-end test (ANNOT-1, real server) is intermittent under parallel load on the dev server.
 - **Google sign-in** has not run against Google. The account merge after it is tested against a local PostgreSQL (`accountMerge.test.ts`), never against a production database.
 

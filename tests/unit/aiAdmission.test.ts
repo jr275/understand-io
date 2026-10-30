@@ -14,10 +14,14 @@ const T0 = Date.UTC(2026, 9, 27, 15, 0, 0); // a fixed moment in the middle of a
 let store: MemoryAiStore;
 beforeEach(() => {
   store = createMemoryAiStore();
+  // settle() stamps the ledger with the clock (the request's end), while admit() is given T0: without a fixed clock these tests only pass on T0's own day.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(T0);
   vi.stubEnv("NODE_ENV", "test");
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });

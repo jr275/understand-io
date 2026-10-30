@@ -35,7 +35,18 @@ const atkinson = Atkinson_Hyperlegible_Next({
 const description =
   "Highlight any line and ask it anything. An open model writes the answer in the margin, beside the words, citing the paragraphs it used.";
 
+/** The public origin, so canonical and social-card addresses follow `APP_URL` when the domain changes (no code change then). Absent in previews and local work. */
+const siteOrigin = (() => {
+  try {
+    return process.env.APP_URL ? new URL(process.env.APP_URL) : undefined;
+  } catch {
+    return undefined;
+  }
+})();
+
 export const metadata: Metadata = {
+  metadataBase: siteOrigin,
+  alternates: siteOrigin ? { canonical: "./" } : undefined,
   title: { default: "Understand.io", template: "%s" },
   description,
   applicationName: "Understand.io",

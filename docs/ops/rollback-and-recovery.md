@@ -49,3 +49,5 @@ Use the direct host (without `-pooler`) for `pg_dump`. Store the file somewhere 
 ## After any incident
 
 Write down what happened, what was done and the commit that fixed it in `docs/audit/defect-backlog.md`.
+
+A rehearsal of a dump, a restore and a targeted recovery of a deleted text, and the steps to repeat it on a Neon branch, are in `docs/ops/restore-rehearsal.md`.

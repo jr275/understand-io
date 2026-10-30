@@ -2,12 +2,15 @@
 
 What watches the beta, what each signal means, and how to read what the AI has cost. Nothing here needs a paid monitoring product.
 
+> **Status, 2026-10-29: no external monitor is configured or tested.** What exists is the health endpoint and a scheduled GitHub workflow that calls it (GitHub fires that schedule about every 6 hours in practice). Do not treat the site as monitored until the checklist under "Proving that alerts reach you" is filled in.
+
 ## The health check
 
 `GET /api/health` (public, never calls the AI provider, so polling it costs nothing):
 
 ```json
-{ "status": "ok", "reasons": [], "commit": "4962466", "environment": "production", "region": "iad1", "database": "ok",
+{ "status": "ok", "reasons": [], "warnings": [], "commit": "4962466", "environment": "production", "region": "iad1", "database": "ok",
+  "storage": { "usedMb": 41.2, "limitMb": 1024, "percent": 4, "level": "ok" }, "checked": { "at": "2026-10-30T04:23:42.255Z", "cached": true },
   "ai": { "configured": true, "model": "openai/gpt-oss-120b", "budget": "ok", "errorsLastHour": 0, "requestsLastHour": 3, "allowancesShared": true } }
 ```
 
@@ -17,7 +20,10 @@ What watches the beta, what each signal means, and how to read what the AI has c
 | `database` | `ok`, `down` (no answer within 3 seconds; HTTP 503) or `not-configured` (a preview or local run) |
 | `ai.budget` | `ok`, `low` (80% of today's budget used or set aside), `exhausted` (the shared AI is paused) or `unknown` (no database) |
 | `ai.errorsLastHour` / `requestsLastHour` | the shared AI's requests in the current UTC hour, and how many ended in a provider failure or a timeout |
-| `reasons` | `database-down`, `ai-failing` (5 or more errors and at least half of the requests failed) or `ai-budget-exhausted` |
+| `storage` | the database size against `GLOSS_DB_STORAGE_LIMIT_MB` (default 1024, Neon Free's 1 GB): `level` is `ok`, `watch` (70% or more) or `high` (85% or more) |
+| `warnings` | `db-storage-70`: informational, never changes the HTTP status |
+| `checked` | when the database was last read and whether this answer reused that reading (a healthy reading is reused for 15 minutes so that polling does not keep a Neon Free compute awake; `?fresh=1` forces a new one) |
+| `reasons` | `database-down`, `ai-failing` (5 or more errors and at least half of the requests failed), `ai-budget-exhausted` or `db-storage-85` |
 
 With `?strict=1` the answer is 503 whenever `reasons` is not empty, so a monitor can alert on it. It holds no secret and no amount of money.
 
@@ -25,9 +31,10 @@ With `?strict=1` the answer is 503 whenever `reasons` is not empty, so a monitor
 
 | Alert | How |
 | --- | --- |
-| Database failure | `database-down` makes `/api/health` answer 503 |
+| Database failure | `database-down` makes `/api/health` answer 503 (after one repeat, and not reused from the cache: recovery shows at once; a failure the monitor sees can be up to 15 minutes late when the last reading was healthy) |
 | AI provider failure | `ai-failing` (and the log line `[ai] provider call failed: <status>`: 401 the key, 400 the model, 429 the provider's own limit) |
 | Budget used up | `ai-budget-exhausted` |
+| Database filling up | `warnings: ["db-storage-70"]` at 70% (monitor on the text `"warnings":[]`), `db-storage-85` at 85% (strict answer 503) |
 | Delivery | `.github/workflows/health.yml` runs every 30 minutes against `https://understand-io.vercel.app/api/health?strict=1` (set the repository variable `HEALTH_URL` for another address, for example the final domain). A failing run is a failed workflow, and GitHub emails the people watching the repository: check **Watch → Custom → Actions** in your GitHub notification settings, and that scheduled workflows are enabled (GitHub pauses them after 60 days without activity in the repository) |
 | Optional, in Vercel | Project → Settings → Notifications: deployment failures; Observability shows function errors and durations |
 | Optional | any external uptime monitor pointed at `/api/health?strict=1` (a free tier of one is enough) |
@@ -78,6 +85,32 @@ It prints, per UTC day, the estimated spend, the share of the daily budget, requ
 On this plan the platform keeps runtime logs for about an hour (observed), so yesterday's request logs are gone. **Nothing needs them for money**: the ledger (above) is the durable record of AI usage, and `/api/health` plus the external monitor cover errors. What is lost is the detail of an old error (status code lines such as `[ai] provider call failed: 429`).
 
 A Vercel **log drain** (Team settings → Drains, to a destination such as Better Stack Logs or Axiom) keeps them longer, at a cost that depends on the volume and the destination plan: check the current price before enabling. The logs carry no reader text, key, cookie or password (an automated test checks it), so a drain is privacy-safe. **Recommendation for the beta: do not add one yet**; revisit if a problem cannot be explained without older logs. At the time of writing no drain is configured on the team.
+
+## The two monitors to create (when you set the external monitor up)
+
+| Monitor | URL | Alert when |
+| --- | --- | --- |
+| Availability | `https://understand-io.vercel.app/api/health?strict=1` | the status is not **200** (database down, AI failing, budget exhausted, or storage at 85%) |
+| Early warning | the same URL | the response does **not contain** `"warnings":[]` (storage at 70%, or the site is down): a keyword monitor |
+
+Together AI failures: `ai-failing` appears in `reasons` when 5 or more of the last hour's shared-AI requests failed and at least half of the requests did (a rejected key, a spent account, the provider down); the `/api/health` answer then turns 503 under `?strict=1` and the Availability monitor alerts. The `[ai] provider call failed: <status>` log line says why (401 the key, 402 or 429 the provider's own limit, 400 the model).
+
+## Proving that alerts reach you
+
+Fill this in when the monitor exists. **An alert path is not working until a test alert has been seen arriving.**
+
+| Check | How | Date | Seen by | Result |
+| --- | --- | --- | --- | --- |
+| External monitor created, interval at the vendor's minimum | the vendor's dashboard | | | |
+| The vendor's own "send test alert" arrived by e-mail | the inbox (and the spam folder) of `jm@useclave.io` | | | |
+| A real failure was detected: point the Availability monitor for a minute at a URL that answers 503, or pause the check and use the vendor's incident test | the vendor's incident list and the e-mail | | | |
+| The GitHub `Health` workflow's failure e-mail arrived ("Run failed: Health"): run it from Actions → Health → Run workflow with the `url` input set to a 503 address | the inbox; GitHub → Settings → Notifications → Actions | | | |
+| Spend notifications reach the owner (Vercel Spend Management 50/75/100%) | Vercel → Settings → My Notifications | | | |
+| Neon compute and storage are looked at weekly (until a key lets the app read them) | calendar entry | | | |
+
+## Spend reporting
+
+`DATABASE_URL='<your Neon connection string>' node scripts/spend-report.mjs 14` prints the estimated AI spend per day and per month against the budget (read-only). Compare it with the Together invoice weekly during the beta. The Vercel and Neon costs are in their dashboards.
 
 ## Reading the usage limits
 

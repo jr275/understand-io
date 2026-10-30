@@ -16,7 +16,8 @@ export function resolveKey(req: Request): { key: string | null; source: "user" |
 }
 
 export function provider(key: string) {
-  return createOpenAICompatible({ name: "together", baseURL: TOGETHER_BASE, apiKey: key });
+  // Streamed answers only report their token usage when it is asked for; without it the ledger would charge them nothing.
+  return createOpenAICompatible({ name: "together", baseURL: TOGETHER_BASE, apiKey: key, includeUsage: true });
 }
 
 export function noKeyResponse() {

@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/health/route";
 import { createMemoryAiStore, setAiStore, type AiStore, type MemoryAiStore } from "@/lib/server/aiStore";
 import { toMicro } from "@/lib/ai/budget";
+import { forgetHealthCache } from "@/lib/server/healthProbe";
 
 let store: MemoryAiStore;
 beforeEach(() => {
+  forgetHealthCache();
   store = createMemoryAiStore();
   setAiStore(store);
   vi.stubEnv("DATABASE_URL", "postgres://placeholder/never-connected"); // only decides that a database is configured; the store above is what answers
@@ -60,7 +62,7 @@ describe("GET /api/health", () => {
     vi.useFakeTimers();
     setAiStore({ ...(store as AiStore), ping: () => new Promise(() => {}) });
     const pending = get();
-    await vi.advanceTimersByTimeAsync(3100);
+    await vi.advanceTimersByTimeAsync(6300); // one reading, then one more before it is called down
     expect((await pending).status).toBe(503);
     vi.useRealTimers();
   });
@@ -88,7 +90,7 @@ describe("GET /api/health", () => {
     await settle(1, 0, toMicro(0.85));
     expect((await (await get()).json()).ai.budget).toBe("low");
     await settle(1, 0, toMicro(0.2));
-    const j = await (await get("?strict=1")).json();
+    const j = await (await get("?strict=1&fresh=1")).json(); // a healthy reading is otherwise reused for 15 minutes
     expect(j.ai.budget).toBe("exhausted");
     expect(j.reasons).toContain("ai-budget-exhausted");
   });
@@ -98,5 +100,80 @@ describe("GET /api/health", () => {
     const j = await (await get()).json();
     expect(j).toMatchObject({ status: "ok", database: "not-configured" });
     expect(j.ai.budget).toBe("unknown");
+  });
+});
+
+describe("GET /api/health, the compute allowance and the storage alerts (Neon Free)", () => {
+  const withSize = (bytes: number | null) => setAiStore({ ...(store as AiStore), storageBytes: async () => bytes });
+  const MB = 1_048_576;
+
+  it("reuses a healthy reading, so a monitor polling every five minutes does not keep the database awake", async () => {
+    const ping = vi.fn(async () => {});
+    setAiStore({ ...(store as AiStore), ping });
+    expect((await (await get()).json()).checked.cached).toBe(false);
+    expect((await (await get()).json()).checked.cached).toBe(true);
+    expect((await (await get("?strict=1")).json()).checked.cached).toBe(true);
+    expect(ping).toHaveBeenCalledTimes(1);
+  });
+
+  it("?fresh=1 reads the database again, and the reuse ends after the configured time", async () => {
+    const ping = vi.fn(async () => {});
+    setAiStore({ ...(store as AiStore), ping });
+    await get();
+    await get("?fresh=1");
+    expect(ping).toHaveBeenCalledTimes(2);
+    vi.stubEnv("GLOSS_HEALTH_DB_CACHE_SECONDS", "0");
+    await get();
+    expect(ping).toHaveBeenCalledTimes(3);
+  });
+
+  it("never reuses a failure: when the database comes back the next call sees it", async () => {
+    let up = false;
+    setAiStore({ ...(store as AiStore), ping: async () => { if (!up) throw new Error("down"); } });
+    expect((await get()).status).toBe(503);
+    up = true;
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect((await res.json()).database).toBe("ok");
+  });
+
+  it("repeats one failed reading before calling the database down (a sleeping compute may be waking)", async () => {
+    let calls = 0;
+    setAiStore({ ...(store as AiStore), ping: async () => { if (calls++ === 0) throw new Error("waking up"); } });
+    const res = await get();
+    expect(res.status).toBe(200);
+    expect(calls).toBe(2);
+  });
+
+  it("is quiet below 70% of the storage limit, warns at 70% (still 200, even when strict) and becomes a reason at 85% (503 when strict)", async () => {
+    vi.stubEnv("GLOSS_DB_STORAGE_LIMIT_MB", "1000");
+    withSize(500 * MB);
+    let j = await (await get("?fresh=1")).json();
+    expect(j.storage).toMatchObject({ level: "ok", limitMb: 1000 });
+    expect(j.warnings).toEqual([]);
+
+    withSize(720 * MB);
+    let res = await get("?strict=1&fresh=1");
+    j = await res.json();
+    expect(res.status).toBe(200);
+    expect(j).toMatchObject({ status: "ok", warnings: ["db-storage-70"], reasons: [] });
+    expect(j.storage).toMatchObject({ level: "watch", percent: 72 });
+
+    withSize(860 * MB);
+    res = await get("?strict=1&fresh=1");
+    j = await res.json();
+    expect(res.status).toBe(503);
+    expect(j).toMatchObject({ status: "degraded", reasons: ["db-storage-85"] });
+    expect(j.storage.level).toBe("high");
+    expect((await get("?fresh=1")).status).toBe(200); // not strict: still answers 200
+  });
+
+  it("defaults to the 1 GB of Neon Free, ignores an unreadable limit, and says nothing about size when the store cannot tell", async () => {
+    withSize(800 * MB);
+    expect((await (await get("?fresh=1")).json()).storage).toMatchObject({ limitMb: 1024, level: "watch" });
+    vi.stubEnv("GLOSS_DB_STORAGE_LIMIT_MB", "lots");
+    expect((await (await get("?fresh=1")).json()).storage.limitMb).toBe(1024);
+    withSize(null);
+    expect((await (await get("?fresh=1")).json()).storage).toBeNull();
   });
 });

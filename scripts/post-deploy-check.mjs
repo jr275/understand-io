@@ -56,10 +56,12 @@ const skipped = (name, why) => {
 };
 
 // 1. health, and the commit that is live
-const h = await call("GET", "/api/health", { cookie: false });
+const h = await call("GET", "/api/health?fresh=1", { cookie: false }); // fresh: a real reading, not the one reused for 15 minutes
 ok("health answers 200 and says ok", h.status === 200 && h.json?.status === "ok", `status ${h.status}, ${h.json?.status}${h.json?.reasons?.length ? ` ${h.json.reasons}` : ""}`);
 ok("the database answers", h.json?.database === "ok", h.json?.database);
 if (commit) ok(`the live commit is ${commit}`, !!h.json?.commit && commit.startsWith(h.json.commit), `live: ${h.json?.commit}`);
+if (h.json?.storage) ok(`the database is below 85% of its storage limit (${h.json.storage.usedMb} of ${h.json.storage.limitMb} MB, ${h.json.storage.percent}%)`, h.json.storage.level !== "high", h.json.warnings?.length ? `warning: ${h.json.warnings}` : "");
+else skipped("database storage level", "the answer carries no size (no database, or an older deployment)");
 ok("AI allowances are kept in the database (shared by every instance)", h.json?.database !== "ok" || h.json?.ai?.allowancesShared === true);
 ok("the health answer holds no secret and no money", !/(sk-|tgp_|postgres:|password|spent|usd)/i.test(h.text));
 

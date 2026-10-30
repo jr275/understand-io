@@ -119,6 +119,11 @@ describe.skipIf(!db)("the allowance store (real PostgreSQL)", () => {
     expect((await store.usage(now + 2 * 3_600_000)).lastHour).toEqual({ requests: 0, errors: 0 });
   });
 
+  it("tells the size of the database, for the storage alert", async () => {
+    const bytes = await store.storageBytes!();
+    expect(bytes).toBeGreaterThan(0);
+  });
+
   it("answers ping when the database is there", async () => {
     await expect(store.ping()).resolves.toBeUndefined();
   });

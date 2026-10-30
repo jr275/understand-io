@@ -50,6 +50,8 @@ export interface AiStore {
   usage(now: number): Promise<Usage>;
   /** Throws when the store cannot be reached. */
   ping(): Promise<void>;
+  /** The size of the database in bytes, for the storage alert; null when the store has no such thing (memory) or cannot tell. */
+  storageBytes?(): Promise<number | null>;
 }
 
 const periodOf = (now: number) => new Date(now).toISOString().slice(0, 13); // YYYY-MM-DDTHH (UTC)
@@ -129,6 +131,9 @@ export function createMemoryAiStore(): MemoryAiStore {
       return { day: sum(periodOf(now).slice(0, 10)), month: sum(periodOf(now).slice(0, 7)), reservedMicro: reserved(now), lastHour: { requests: hour.requests, errors: hour.errors } };
     },
     async ping() {},
+    async storageBytes() {
+      return null;
+    },
     clear() {
       quota.clear();
       leases.clear();
@@ -239,6 +244,14 @@ export const databaseAiStore: AiStore = {
     const db = getDb();
     if (!db) throw new Error("no database");
     await db.execute(sql`SELECT 1`);
+  },
+
+  async storageBytes() {
+    const db = getDb();
+    if (!db) return null;
+    const rows = await db.execute<{ size: string }>(sql`SELECT pg_database_size(current_database())::text AS size`);
+    const n = Number(rows[0]?.size);
+    return Number.isFinite(n) ? n : null;
   },
 };
 

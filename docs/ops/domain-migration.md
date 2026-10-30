@@ -13,7 +13,7 @@ Prepared, not executed. **Do not change `APP_URL` in production until the domain
 | CSRF / cross-site check (`src/proxy.ts`) | a state-changing browser request must come from the host it was sent to, or from the `APP_URL` host | the new domain works as soon as it is attached; the old one keeps working while it stays attached |
 | CORS | none: the API is same-origin only and sends no `Access-Control-*` header | nothing to change |
 | HTTPS | Vercel issues certificates for attached domains; the app sends `Strict-Transport-Security` in production and the cookies are `Secure` | confirm the certificate is issued before switching |
-| Canonical URL | the app sets no `<link rel="canonical">` and no `metadataBase` | two addresses serving the same pages are two copies for a search engine; decide on a redirect (below) rather than leaving both open to indexing for long |
+| Canonical URL | since 2026-10-29 the root layout sets `metadataBase` and `<link rel="canonical">` from `APP_URL` **at build time** (nothing is set when `APP_URL` is absent, as in previews). Changing `APP_URL` and redeploying (step 4) moves the canonical address with no code change | two addresses serving the same pages are still two copies for a search engine: also redirect the old address (below) |
 | Reader pages | `/read/<slug>` are personal libraries and built-in samples | not meant to be indexed; consider `noindex` after launch (not done: no new features before launch) |
 
 ## Redirect policy for the old address (`understand-io.vercel.app`)
@@ -30,9 +30,31 @@ Prepared, not executed. **Do not change `APP_URL` in production until the domain
 4. **Only now:** set `APP_URL=https://<new-domain>` in Production, redeploy. (Setting it earlier would break sign-in on the old address.)
 5. Make the new domain primary and set the old address to redirect to it.
 6. Point the health workflow at the new address (repository variable `HEALTH_URL`).
-7. Verify: `GET /api/health` on the new domain (commit, `ok`); sign in with Google on the new domain and check the library is the same; sign out; reload (the session survives); import a text; ask one question; the old address redirects.
+7. Verify with the read-only checkers: `node scripts/domain-check.mjs <domain>` (DNS, certificate, http→https, HSTS, health, canonical, old address) and then `node scripts/post-deploy-check.mjs https://<domain>` (cookies, headers, the Google redirect address). By hand: `GET /api/health` on the new domain (commit, `ok`); sign in with Google on the new domain and check the library is the same; sign out; reload (the session survives); import a text; ask one question; the old address redirects.
 8. After a quiet period, remove the old redirect URIs from the Google client.
 
 ## Rolling back
 
 Set `APP_URL` back to the old origin and redeploy; remove the redirect from the old domain. Nothing in the database depends on the address.
+
+## Technical preparation already in the code (2026-10-29)
+
+* `APP_URL` is the single source of the public address: the Google redirect, the CSRF allowance and now the canonical address and `metadataBase`. Nothing else holds the domain.
+* `scripts/domain-check.mjs <domain>`: read-only checks of DNS, the certificate, the redirect from http, HSTS, the health answer, the canonical link and the old address.
+* `scripts/post-deploy-check.mjs <url>`: includes "the Google sign-in redirect uses this address for the return", so after step 4 it proves `APP_URL` is right.
+* Production `APP_URL` has **not** been changed, and the old Vercel address stays live as the transition alias until step 5.
+
+## Checklist to hand over when the domain is chosen
+
+| # | Item | Who | Done when |
+| --- | --- | --- | --- |
+| 1 | Domain chosen and bought (not done by the agent) | owner | the name is known |
+| 2 | Add it in Vercel, set the DNS records Vercel shows | owner (DNS) | Settings → Domains says Valid; `domain-check.mjs` passes DNS and HTTPS |
+| 3 | Add the callback and origin to the Google OAuth client; keep the old ones | owner | the new redirect URI is listed |
+| 4 | Tell anonymous readers to sign in or download a backup | owner | announcement sent |
+| 5 | Set `APP_URL=https://<domain>` in Production and redeploy | owner or agent, with the owner's go-ahead | `post-deploy-check.mjs` passes on the domain; canonical shows the domain |
+| 6 | Make it primary; redirect the old address (or keep it for a while) | owner | `domain-check.mjs` old-address line shows the redirect |
+| 7 | Update the external monitor URL and the repository variable `HEALTH_URL` | owner | the monitor is green on the new address |
+| 8 | Update the legal texts if the address appears in them, then publish them (separate gate) | owner | `docs/legal/OPEN_ITEMS.md` is empty |
+| 9 | After a quiet period, remove the old redirect URIs from the Google client | owner | list contains only the new ones |
+

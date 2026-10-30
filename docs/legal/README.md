@@ -68,6 +68,6 @@ The app has the pages and the links, switched off. `/privacy`, `/terms` and `/le
 1. The operator sets `GLOSS_LEGAL_PUBLISHED=1` in Production and redeploys.
 2. The text itself is final: **no `⚠️` marker is left in the English or the Portuguese file** (every open owner decision, every legal review item and the "draft, not legal advice" banner carries one). If the variable is on while a marker is left, the page stays a 404 and the server log says `[legal] <text> is not shown: it still has open items`.
 
-So the order is: fill the fields (`OPEN_ITEMS.md` lists every one), have the texts reviewed, remove the markers and the banner in both languages, merge, and only then set the variable. To preview final texts without touching these files, put them in a subfolder of `docs/legal` and start the server with `GLOSS_LEGAL_SET=<folder>` (the repository's own tests use `test-fixtures`).
+So the order is: fill the fields (`OPEN_ITEMS.md` lists every one; rebuild it after each edit with `node scripts/legal-open-items.mjs`, and `--check` fails if it is stale or the two languages differ), have the texts reviewed, remove the markers and the banner in both languages, merge, and only then set the variable. To preview final texts without touching these files, put them in a subfolder of `docs/legal` and start the server with `GLOSS_LEGAL_SET=<folder>` (the repository's own tests use `test-fixtures`).
 
 The in-app text is English; the Portuguese texts name interface buttons as they appear ("Download backup", "Remove").

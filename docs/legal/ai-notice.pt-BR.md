@@ -60,4 +60,4 @@ Limites atuais da versão beta: visitantes anônimos, 3 perguntas à IA por dia 
 
 ## 7. Contato
 
-Para relatar uma resposta errada ou nociva, ou para tirar dúvidas sobre este aviso: ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]
+Para relatar uma resposta errada ou nociva, ou para tirar dúvidas sobre este aviso: [jm@useclave.io](mailto:jm@useclave.io)

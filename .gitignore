@@ -37,3 +37,4 @@ yarn-error.log*
 
 # git worktrees created for parallel agents
 /.claude/worktrees/
+/backups/

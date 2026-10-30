@@ -6,7 +6,7 @@ import { GLOSS_ACTIONS, LIMITS, SERVER_KEY_ERROR, anchorSchema, historySchema, l
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
 import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
-import { worstCaseGloss } from "@/lib/ai/budget";
+import { estimateStreamedUsage, worstCaseGloss } from "@/lib/ai/budget";
 import { DEADLINE_MS, NO_ROOM_MESSAGE, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, providerOptions, timedOut, tryAcquire, withHeadroom } from "@/lib/ai/guard";
 
 export const maxDuration = 60;
@@ -82,14 +82,19 @@ export async function POST(req: Request) {
       async start(controller) {
         try {
           let answered = false;
+          let outChars = 0;
           for await (const part of result.textStream) {
             if (part.trim()) answered = true;
+            outChars += part.length;
             controller.enqueue(encoder.encode(part));
           }
           if (!answered) throw new Error("empty answer");
           const usage = await result.totalUsage;
-          const input = usage.inputTokens ?? 0;
-          const output = usage.outputTokens ?? 0;
+          // A provider that streams without a usage report must not make the answer free: fall back to an estimate from what was sent and received.
+          const reported = (usage.inputTokens ?? 0) > 0 || (usage.outputTokens ?? 0) > 0;
+          const fallback = estimateStreamedUsage(chars, outChars);
+          const input = reported ? (usage.inputTokens ?? 0) : fallback.inputTokens;
+          const output = reported ? (usage.outputTokens ?? 0) : fallback.outputTokens;
           const cost = estimateCost(CHAT_MODEL, input, output);
           logUsage("gloss", b.action, source, CHAT_MODEL, { input, output, cost });
           await admission.settle({ kind: "ok", inputTokens: input, outputTokens: output });

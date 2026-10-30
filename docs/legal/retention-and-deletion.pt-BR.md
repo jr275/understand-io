@@ -19,7 +19,7 @@ Esta página diz por quanto tempo os dados ficam e o que você pode excluir. Em 
 | Registro de leitor anônimo e cookie `gloss_reader` | Servidor, e o cookie no seu navegador | O cookie dura até 2 anos a partir de quando foi definido. O registro no servidor não expira. | Não. Limpar os cookies não exclui o registro no servidor. Peça a nós (seção 4). |
 | Conta (identificador do Google, e-mail, nome, endereço da foto) | Servidor | Sem expiração. O cookie de sessão dura 90 dias. | Não. O aplicativo não tem exclusão de conta. Peça a nós (seção 4). |
 | Contadores de requisições (chaves com hash) | Servidor | Cada linha recebe uma expiração igual ao dobro da sua janela de contagem. As linhas expiradas são apagadas por uma limpeza que roda em cerca de uma a cada cinquenta requisições contadas; por isso podem durar mais quando o tráfego é baixo. | Não. |
-| Logs da plataforma | Vercel | ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo de retenção de logs no plano da Vercel] | Não. |
+| Logs da plataforma | Vercel | Curto, definido pelo plano de hospedagem (cerca de uma hora foi observada em outubro de 2026 e pode mudar). ⚠️ [DECISÃO DO PROPRIETÁRIO: confirmar o prazo mostrado na conta da Vercel antes de publicar] | Não. |
 | Dados enviados à Together AI | Together AI | ⚠️ [REVISÃO JURÍDICA: termos de retenção da Together AI para a conta do operador e para a sua própria chave] | Não. |
 
 <!-- NOTE FOR OWNER: the limits are shipped with these defaults and are set by environment variables (docs/ops/configuration.md). Update this text if the operator changes them. -->
@@ -30,7 +30,7 @@ Sair da conta apaga os cookies e limpa a cópia da biblioteca naquele navegador.
 
 ## 2. Backups
 
-- **O aplicativo não faz backups no servidor.** ⚠️ [DECISÃO DO PROPRIETÁRIO: se o provedor do banco de dados mantém backups ou recuperação a um ponto no tempo no seu plano, e por quanto tempo]. Dados excluídos podem permanecer nesses backups até que eles expirem: ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo de retenção dos backups].
+- **O aplicativo não faz backups automáticos no servidor.** O provedor do banco de dados (Neon, plano Free) mantém um histórico de restauração de 6 horas, e o operador também pode fazer arquivos de backup do banco manualmente. Dados excluídos podem permanecer no histórico de restauração por até esse tempo, e em um arquivo de backup até que ele seja apagado: ⚠️ [DECISÃO DO PROPRIETÁRIO: por quanto tempo os arquivos de backup são mantidos].
 - **Arquivo de backup que você baixa:** o aplicativo pode criar um arquivo com os textos guardados apenas neste navegador e com as marcações, perguntas e posições deles. Ele não é criptografado e não contém textos que existem apenas no servidor. Guarde-o em local seguro. Não podemos excluir arquivos que você baixou.
 - **Exportação de notas:** um arquivo Markdown com os destaques, notas e perguntas dos textos guardados no seu navegador.
 - Ainda não existe uma exportação completa de tudo o que o servidor guarda sobre você.
@@ -41,7 +41,7 @@ Os serviços de fala do navegador (se o seu navegador envia áudio ao fabricante
 
 ## 4. Como pedir a exclusão ou a exportação de dados
 
-Para excluir a sua conta ou as cópias dos seus dados no servidor, ou para perguntar o que guardamos, escreva para ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]. Hoje isso é feito manualmente pelo operador. Responderemos em até ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo para responder]. Podemos pedir que você comprove quem é: ⚠️ [REVISÃO JURÍDICA: verificações de identidade e os direitos e prazos exatos que se aplicam].
+Para excluir a sua conta ou as cópias dos seus dados no servidor, ou para perguntar o que guardamos, escreva para [jm@useclave.io](mailto:jm@useclave.io). Hoje isso é feito manualmente pelo operador. Responderemos em até ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo para responder]. Podemos pedir que você comprove quem é: ⚠️ [REVISÃO JURÍDICA: verificações de identidade e os direitos e prazos exatos que se aplicam].
 
 ## 5. Contas inativas
 

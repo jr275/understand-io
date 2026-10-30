@@ -6,7 +6,7 @@
 
 ## 1. Who we are and what you agree to
 
-Understand.io ("the service") is run by ⚠️ [OWNER DECISION: legal name, address and registration number of the operator]. By using the service you agree to these terms and to the Privacy Policy. If you do not agree, do not use it. The service is in **beta** (see the Beta notice).
+Understand.io ("the service") is run by Menlo Software AIP. ⚠️ [OWNER DECISION: address and registration number of Menlo Software AIP, if any; its legal form is deliberately not stated here]. By using the service you agree to these terms and to the Privacy Policy. If you do not agree, do not use it. The service is in **beta** (see the Beta notice).
 
 ## 2. What the service does
 
@@ -64,11 +64,11 @@ The service is provided "as is" during the beta. We do not promise that it will 
 
 ## 12. Price
 
-⚠️ [OWNER DECISION: whether the beta is free, whether paid plans will exist, and how users will be told before any charge]. The app has no payment feature today.
+Understand.io is offered free of charge, with limited daily use of its AI features (a freemium service; see the usage limits above). The app has no payment feature today. ⚠️ [OWNER DECISION: whether paid plans will exist, and how users will be told before any charge]
 
 ## 13. Ending
 
-You can stop using the service at any time and delete your content in the app (see the Retention and deletion policy). To delete your account, write to ⚠️ [OWNER DECISION: contact email or form]. We may suspend or end your access if you break these terms. ⚠️ [OWNER DECISION: notice period, and whether users get time to export before the service or the beta ends]
+You can stop using the service at any time and delete your content in the app (see the Retention and deletion policy). To delete your account, write to [jm@useclave.io](mailto:jm@useclave.io). We may suspend or end your access if you break these terms. ⚠️ [OWNER DECISION: notice period, and whether users get time to export before the service or the beta ends]
 
 ## 14. Changes to these terms
 

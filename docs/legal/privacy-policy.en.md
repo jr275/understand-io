@@ -8,8 +8,8 @@ Understand.io is a reading companion. You import articles, PDFs or text, read th
 
 ## 1. Who runs the service
 
-- Operator: ⚠️ [OWNER DECISION: legal name of the person or company that runs Understand.io, postal address and registration number, if any]
-- Contact for privacy questions: ⚠️ [OWNER DECISION: contact email or form]
+- Operator: Menlo Software AIP. ⚠️ [OWNER DECISION: postal address and registration number of Menlo Software AIP, if any; its legal form is deliberately not stated here]
+- Contact for privacy questions and requests: [jm@useclave.io](mailto:jm@useclave.io)
 - Data protection officer or named privacy contact: ⚠️ [LEGAL REVIEW: whether one is required and who it is]
 
 ## 2. What is stored, and where
@@ -86,7 +86,7 @@ Current beta limits: anonymous visitors, 3 AI questions per day per client; sign
 
 ## 9. International transfers
 
-Vercel, Neon, Together AI and Google are companies that may process data in countries other than yours. Server region: ⚠️ [OWNER DECISION: region of the Vercel deployment and the Neon database; the repository does not state it]. ⚠️ [LEGAL REVIEW: transfer mechanism and required disclosures]
+Vercel, Neon, Together AI and Google are companies that may process data in countries other than yours. Server region: the app's functions run on Vercel in region `iad1` (Washington, D.C., United States). Database region: ⚠️ [OWNER DECISION: the region of the Neon database; the repository does not state it]. ⚠️ [LEGAL REVIEW: transfer mechanism and required disclosures]
 
 ## 10. Keeping and deleting data
 
@@ -94,7 +94,7 @@ You can delete a document (this also removes its marks, questions and reading po
 
 ## 11. Your choices and rights
 
-In the app you can delete content, download a backup and a Markdown export of your notes, remove your pasted key, and clear your browser data. For anything else, such as deleting your account or copies of your data on the server, write to ⚠️ [OWNER DECISION: contact email or form]. Response time and process: ⚠️ [OWNER DECISION: time to answer requests]. ⚠️ [LEGAL REVIEW: wording of data subject rights, how to verify identity, and the supervisory authority to name]
+In the app you can delete content, download a backup and a Markdown export of your notes, remove your pasted key, and clear your browser data. For anything else, such as deleting your account or copies of your data on the server, write to [jm@useclave.io](mailto:jm@useclave.io) (see section 16). Response time and process: ⚠️ [OWNER DECISION: time to answer requests]. ⚠️ [LEGAL REVIEW: wording of data subject rights, how to verify identity, and the supervisory authority to name]
 
 ## 12. Legal bases
 
@@ -112,6 +112,11 @@ Each request to your data is checked against your reader id. Production uses HTT
 
 ⚠️ [OWNER DECISION: how users will be told about changes, for example a notice in the app or an email]
 
-## 16. Contact
+## 16. Contact and privacy requests
 
-⚠️ [OWNER DECISION: contact email or form]
+Menlo Software AIP, the operator, answers privacy questions and requests at **[jm@useclave.io](mailto:jm@useclave.io)**.
+
+- **What you can ask for:** a copy of the data we hold about you, correction, deletion of your library or your account, an explanation of how your data is used, and withdrawal of anything you agreed to. Deleting inside the app (section 10) does not need a request.
+- **What to send:** which request it is. If you signed in, the email of the Google account you used. If you never signed in, your library is known to the server only by a random reader id, stored in the `gloss_reader` cookie of your browser: we can find that library only if you send us that id, and we cannot tell you apart from someone else without it.
+- **What happens next:** we may ask you to confirm that the library or account is yours before we act. ⚠️ [LEGAL REVIEW: identity verification, deadlines, and the exact rights that apply]. ⚠️ [OWNER DECISION: the time in which requests are answered]
+- **Requests about the AI provider, hosting or sign-in:** those companies act as described in section 7; a request to delete data also covers the copies we hold, but not copies a provider keeps under its own terms (see the AI notice and the Retention and deletion text).

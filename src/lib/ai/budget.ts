@@ -106,5 +106,13 @@ export function worstCaseGloss(chars: number, maxOutputTokens: number): Estimate
   return { inputTokens: tokens(chars + OVERHEAD_CHARS), outputTokens: maxOutputTokens };
 }
 
+/**
+ * What a streamed answer used when the provider did not say (a missing or all-zero usage report): the characters sent plus the fixed prompt overhead,
+ * and the characters received, at the same low characters-per-token as the worst case. Better a slight overcount than a free answer in the ledger.
+ */
+export function estimateStreamedUsage(inputChars: number, outputChars: number): Estimate {
+  return { inputTokens: tokens(inputChars + OVERHEAD_CHARS), outputTokens: Math.max(1, tokens(outputChars)) };
+}
+
 /** What an estimate may cost, in millionths of a dollar (at least 1, so every request is visible in the ledger). */
 export const costMicro = (e: Estimate, model: string = CHAT_MODEL) => Math.max(1, toMicro(estimateCost(model, e.inputTokens, e.outputTokens)));

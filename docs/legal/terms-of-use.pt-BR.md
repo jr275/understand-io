@@ -6,7 +6,7 @@
 
 ## 1. Quem somos e com o que você concorda
 
-O Understand.io ("o serviço") é operado por ⚠️ [DECISÃO DO PROPRIETÁRIO: nome jurídico, endereço e número de registro do operador]. Ao usar o serviço, você concorda com estes termos e com a Política de Privacidade. Se não concordar, não use o serviço. O serviço está em **beta** (veja o Aviso de limitações da versão beta).
+O Understand.io ("o serviço") é operado pela Menlo Software AIP. ⚠️ [DECISÃO DO PROPRIETÁRIO: endereço e número de registro da Menlo Software AIP, se houver; a forma jurídica não é indicada aqui de propósito]. Ao usar o serviço, você concorda com estes termos e com a Política de Privacidade. Se não concordar, não use o serviço. O serviço está em **beta** (veja o Aviso de limitações da versão beta).
 
 ## 2. O que o serviço faz
 
@@ -64,11 +64,11 @@ O serviço é fornecido "como está" durante o beta. Não prometemos que ele fic
 
 ## 12. Preço
 
-⚠️ [DECISÃO DO PROPRIETÁRIO: se o beta é gratuito, se haverá planos pagos e como os usuários serão avisados antes de qualquer cobrança]. O aplicativo não tem recurso de pagamento hoje.
+O Understand.io é oferecido gratuitamente, com uso diário limitado dos seus recursos de IA (um serviço freemium; veja os limites de uso acima). O aplicativo não tem recurso de pagamento hoje. ⚠️ [DECISÃO DO PROPRIETÁRIO: se haverá planos pagos e como os usuários serão avisados antes de qualquer cobrança]
 
 ## 13. Encerramento
 
-Você pode parar de usar o serviço a qualquer momento e excluir o seu conteúdo no aplicativo (veja a Política de retenção e exclusão). Para excluir a sua conta, escreva para ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]. Podemos suspender ou encerrar o seu acesso se você violar estes termos. ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo de aviso e se os usuários terão tempo para exportar antes do fim do serviço ou do beta]
+Você pode parar de usar o serviço a qualquer momento e excluir o seu conteúdo no aplicativo (veja a Política de retenção e exclusão). Para excluir a sua conta, escreva para [jm@useclave.io](mailto:jm@useclave.io). Podemos suspender ou encerrar o seu acesso se você violar estes termos. ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo de aviso e se os usuários terão tempo para exportar antes do fim do serviço ou do beta]
 
 ## 14. Alterações destes termos
 

@@ -290,6 +290,29 @@ describe("a model that thinks before it answers", () => {
     expect(trailer.usage).toMatchObject({ input: 50, output: 30 });
   });
 
+  it("asks the provider to report the usage of a streamed answer (otherwise the ledger would charge it nothing)", async () => {
+    const { gloss } = await routes();
+    const spy = vi.fn(async () => sse(["==The tide follows the moon.== ", "It says so ¶1."]));
+    vi.stubGlobal("fetch", spy);
+    await (await gloss(post("/api/gloss", glossBody("normal")))).text();
+    expect(sentBody(spy).stream_options).toMatchObject({ include_usage: true });
+  });
+
+  it("a provider that streams without any usage report still costs something: the trailer and the ledger use an estimate, never zero", async () => {
+    const { gloss } = await routes();
+    const noUsage = (pieces: string[]) => {
+      const chunk = (delta: object, finish_reason: string | null = null) => `data: ${JSON.stringify({ id: "c", object: "chat.completion.chunk", created: 1, model: "m", choices: [{ index: 0, delta, finish_reason }] })}\n\n`;
+      return new Response([chunk({ role: "assistant" }), ...pieces.map((p) => chunk({ content: p })), chunk({}, "stop"), "data: [DONE]\n\n"].join(""), { status: 200, headers: { "content-type": "text/event-stream" } });
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => noUsage(["==The tide follows the moon.== ", "It says so ¶1."])));
+    const text = await (await gloss(post("/api/gloss", glossBody("normal")))).text();
+    const trailer = JSON.parse(text.slice(text.indexOf("\u001e") + 1));
+    expect(trailer.error).toBeUndefined();
+    expect(trailer.usage.input).toBeGreaterThan(500); // the fixed prompt overhead alone is more than that
+    expect(trailer.usage.output).toBeGreaterThan(0);
+    expect(trailer.usage.cost).toBeGreaterThan(0);
+  });
+
   it("asks the model to think less only when the operator says so", async () => {
     const off = vi.fn(async () => completion(GOOD));
     vi.stubGlobal("fetch", off);

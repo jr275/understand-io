@@ -60,4 +60,4 @@ Current beta limits: anonymous visitors, 3 AI questions per day per client; sign
 
 ## 7. Contact
 
-To report a wrong or harmful answer, or to ask about this notice: ⚠️ [OWNER DECISION: contact email or form]
+To report a wrong or harmful answer, or to ask about this notice: [jm@useclave.io](mailto:jm@useclave.io)

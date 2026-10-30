@@ -22,4 +22,4 @@ Understand.io is in **beta**. It works, but it is still being built. Please read
 - **Browsers and devices.** The app has been tested mainly in Chrome and on emulated phone sizes, not on every browser, device or screen reader. Voice features depend on your browser.
 - **Sessions.** Signing out removes the cookie in your browser, but a copy of it made elsewhere would stay valid for up to 90 days.
 
-Found a problem? Tell us: ⚠️ [OWNER DECISION: contact email or form for feedback and bug reports]
+Found a problem? Tell us: [jm@useclave.io](mailto:jm@useclave.io)

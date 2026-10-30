@@ -22,4 +22,4 @@ O Understand.io está em **beta**. Ele funciona, mas ainda está sendo construí
 - **Navegadores e dispositivos.** O aplicativo foi testado principalmente no Chrome e em tamanhos de celular emulados, não em todos os navegadores, dispositivos ou leitores de tela. Os recursos de voz dependem do seu navegador.
 - **Sessões.** Sair da conta remove o cookie no seu navegador, mas uma cópia dele feita em outro lugar continuaria válida por até 90 dias.
 
-Encontrou um problema? Avise-nos: ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato para feedback e relatos de erros]
+Encontrou um problema? Avise-nos: [jm@useclave.io](mailto:jm@useclave.io)

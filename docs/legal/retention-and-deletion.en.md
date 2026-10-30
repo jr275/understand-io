@@ -19,7 +19,7 @@ This page says how long data stays and what you can delete. In short: **the app 
 | Anonymous reader record and `gloss_reader` cookie | Server, and the cookie in your browser | The cookie lasts up to 2 years from when it was set. The server record has no expiry. | No. Clearing cookies does not delete the server record. Ask us (section 4). |
 | Account (Google id, email, name, picture address) | Server | No expiry. The session cookie lasts 90 days. | No. There is no account deletion in the app. Ask us (section 4). |
 | Request counters (hashed keys) | Server | Each row gets an expiry of twice its counting window. Expired rows are deleted by a clean-up that runs on about one in fifty counted requests, so they can stay longer when traffic is low. | No. |
-| Platform logs | Vercel | ⚠️ [OWNER DECISION: log retention period on the Vercel plan] | No. |
+| Platform logs | Vercel | Short, set by the hosting plan (about one hour was observed in October 2026 and it can change). ⚠️ [OWNER DECISION: confirm the period shown in the Vercel account before publishing] | No. |
 | Data sent to Together AI | Together AI | ⚠️ [LEGAL REVIEW: Together AI's retention terms for the operator's account and for your own key] | No. |
 
 <!-- NOTE FOR OWNER: the limits are shipped with these defaults and are set by environment variables (docs/ops/configuration.md). Update this text if the operator changes them. -->
@@ -30,7 +30,7 @@ Signing out deletes the cookies and clears the library copy in that browser. It 
 
 ## 2. Backups
 
-- **The app makes no server backups.** ⚠️ [OWNER DECISION: whether the database provider keeps backups or point-in-time recovery on your plan, and for how long]. Deleted data may remain in such backups until they expire: ⚠️ [OWNER DECISION: backup retention period].
+- **The app makes no automatic server backups.** The database provider (Neon, Free plan) keeps a restore history of 6 hours, and the operator may also make backup files of the database by hand. Deleted data may remain in the restore history for up to that long, and in a backup file until that file is deleted: ⚠️ [OWNER DECISION: how long backup files are kept].
 - **Backup file you download:** the app can create a file with the texts kept only in this browser and the marks, questions and positions for them. It is not encrypted, and it does not hold texts that live only on the server. Keep it safe. We cannot delete files you have downloaded.
 - **Export of notes:** one Markdown file with the highlights, notes and questions of the texts held in your browser.
 - There is no full export of everything the server holds about you yet.
@@ -41,7 +41,7 @@ Browser speech services (if your browser sends audio to its vendor), Together AI
 
 ## 4. Asking us to delete or export data
 
-To delete your account or the server copies of your data, or to ask what we hold, write to ⚠️ [OWNER DECISION: contact email or form]. Today this is done by hand by the operator. We will answer within ⚠️ [OWNER DECISION: time to answer]. We may ask you to prove who you are: ⚠️ [LEGAL REVIEW: identity checks and the exact rights and deadlines that apply].
+To delete your account or the server copies of your data, or to ask what we hold, write to [jm@useclave.io](mailto:jm@useclave.io). Today this is done by hand by the operator. We will answer within ⚠️ [OWNER DECISION: time to answer]. We may ask you to prove who you are: ⚠️ [LEGAL REVIEW: identity checks and the exact rights and deadlines that apply].
 
 ## 5. Inactive accounts
 

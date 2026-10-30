@@ -8,8 +8,8 @@ O Understand.io é um companheiro de leitura. Você importa artigos, PDFs ou tex
 
 ## 1. Quem opera o serviço
 
-- Operador: ⚠️ [DECISÃO DO PROPRIETÁRIO: nome jurídico da pessoa ou empresa que opera o Understand.io, endereço postal e número de registro, se houver]
-- Contato para dúvidas de privacidade: ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]
+- Operador: Menlo Software AIP. ⚠️ [DECISÃO DO PROPRIETÁRIO: endereço postal e número de registro da Menlo Software AIP, se houver; a forma jurídica não é indicada aqui de propósito]
+- Contato para dúvidas e solicitações de privacidade: [jm@useclave.io](mailto:jm@useclave.io)
 - Encarregado de proteção de dados ou responsável nomeado pela privacidade: ⚠️ [REVISÃO JURÍDICA: se é exigido e quem é]
 
 ## 2. O que é guardado e onde
@@ -85,7 +85,7 @@ Limites atuais da versão beta: visitantes anônimos, 3 perguntas à IA por dia 
 
 ## 9. Transferências internacionais
 
-Vercel, Neon, Together AI e Google são empresas que podem tratar dados em países diferentes do seu. Região do servidor: ⚠️ [DECISÃO DO PROPRIETÁRIO: região da implantação na Vercel e do banco de dados na Neon; o repositório não informa]. ⚠️ [REVISÃO JURÍDICA: mecanismo de transferência e avisos exigidos]
+Vercel, Neon, Together AI e Google são empresas que podem tratar dados em países diferentes do seu. Região do servidor: as funções do aplicativo rodam na Vercel na região `iad1` (Washington, D.C., Estados Unidos). Região do banco de dados: ⚠️ [DECISÃO DO PROPRIETÁRIO: a região do banco de dados na Neon; o repositório não informa]. ⚠️ [REVISÃO JURÍDICA: mecanismo de transferência e avisos exigidos]
 
 ## 10. Guarda e exclusão de dados
 
@@ -93,7 +93,7 @@ Dentro do aplicativo você pode excluir um documento (isso também remove as sua
 
 ## 11. Suas escolhas e direitos
 
-No aplicativo você pode excluir conteúdo, baixar um backup e uma exportação em Markdown das suas notas, remover a chave que colou e limpar os dados do navegador. Para qualquer outra coisa, como excluir a sua conta ou cópias dos seus dados no servidor, escreva para ⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]. Prazo e procedimento de resposta: ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo para responder às solicitações]. ⚠️ [REVISÃO JURÍDICA: redação dos direitos dos titulares de dados, como verificar a identidade e qual autoridade de supervisão citar]
+No aplicativo você pode excluir conteúdo, baixar um backup e uma exportação em Markdown das suas notas, remover a chave que colou e limpar os dados do navegador. Para qualquer outra coisa, como excluir a sua conta ou cópias dos seus dados no servidor, escreva para [jm@useclave.io](mailto:jm@useclave.io) (veja a seção 16). Prazo e procedimento de resposta: ⚠️ [DECISÃO DO PROPRIETÁRIO: prazo para responder às solicitações]. ⚠️ [REVISÃO JURÍDICA: redação dos direitos dos titulares de dados, como verificar a identidade e qual autoridade de supervisão citar]
 
 ## 12. Bases legais
 
@@ -111,6 +111,11 @@ Cada requisição aos seus dados é verificada com o seu identificador de leitor
 
 ⚠️ [DECISÃO DO PROPRIETÁRIO: como os usuários serão avisados das alterações, por exemplo um aviso no aplicativo ou um e-mail]
 
-## 16. Contato
+## 16. Contato e solicitações de privacidade
 
-⚠️ [DECISÃO DO PROPRIETÁRIO: e-mail ou formulário de contato]
+A Menlo Software AIP, operadora do serviço, responde a dúvidas e solicitações de privacidade em **[jm@useclave.io](mailto:jm@useclave.io)**.
+
+- **O que você pode pedir:** uma cópia dos dados que mantemos sobre você, correção, exclusão da sua biblioteca ou da sua conta, explicação de como seus dados são usados e a retirada de qualquer concordância que você tenha dado. Excluir dentro do aplicativo (seção 10) não exige solicitação.
+- **O que enviar:** qual é a solicitação. Se você entrou com o Google, o e-mail da conta usada. Se nunca entrou, sua biblioteca é conhecida pelo servidor apenas por um identificador aleatório de leitor, guardado no cookie `gloss_reader` do seu navegador: só conseguimos encontrar essa biblioteca se você nos enviar esse identificador, e sem ele não temos como distinguir você de outra pessoa.
+- **O que acontece depois:** podemos pedir que você confirme que a biblioteca ou a conta é sua antes de agirmos. ⚠️ [REVISÃO JURÍDICA: verificação de identidade, prazos e os direitos exatos que se aplicam]. ⚠️ [DECISÃO DO PROPRIETÁRIO: o prazo para responder às solicitações]
+- **Solicitações sobre o provedor de IA, a hospedagem ou o login:** essas empresas atuam como descrito na seção 7; um pedido de exclusão cobre também as cópias que mantemos, mas não as cópias que um provedor guarda sob seus próprios termos (veja o Aviso de IA e o texto de Retenção e exclusão).

@@ -7,6 +7,7 @@ import { LogIn, LogOut } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { Pop } from "@/components/ui/Pop";
 import { resetLocalLibrary } from "@/lib/store/library";
+import { signInHref } from "@/lib/client/analytics";
 
 export interface Me {
   configured: boolean;
@@ -98,7 +99,7 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
 
   if (me.configured) {
     return (
-      <a href={`/api/auth/google?next=${encodeURIComponent(pathname === "/" ? "/library" : pathname)}`} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] max-[480px]:w-9 max-[480px]:justify-center max-[480px]:px-0">
+      <a href={signInHref(pathname === "/" ? "/library" : pathname)} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] max-[480px]:w-9 max-[480px]:justify-center max-[480px]:px-0">
         <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">Sign in</span>
       </a>
     );

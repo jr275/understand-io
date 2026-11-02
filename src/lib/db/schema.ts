@@ -170,3 +170,25 @@ export const aiLeases = pgTable("ai_leases", {
   token: text("token").notNull(),
   expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
 });
+
+/**
+ * First-party product analytics (`lib/analytics`, `docs/product/analytics.md`). One row per event: its name, a pseudonymous actor, the route as a
+ * pattern, the few enumerated properties the taxonomy allows, and the acquisition channel. Never text, a title, a query, a note or an address.
+ * `at` is milliseconds since the epoch. Rows older than `GLOSS_ANALYTICS_RETENTION_DAYS` (default 120) are deleted.
+ */
+export const analyticsEvents = pgTable(
+  "analytics_events",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    at: bigint("at", { mode: "number" }).notNull(),
+    event: text("event").notNull(),
+    actor: text("actor").notNull(),
+    actorKind: text("actor_kind").$type<"reader" | "daily">().notNull(),
+    route: text("route"),
+    props: jsonb("props").$type<Record<string, unknown>>().notNull().default({}),
+    channel: text("channel"),
+    campaign: text("campaign"),
+    ref: text("ref"),
+  },
+  (t) => [index("analytics_events_at_idx").on(t.at), index("analytics_events_event_idx").on(t.event, t.at), index("analytics_events_actor_idx").on(t.actor, t.at)],
+);

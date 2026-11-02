@@ -20,6 +20,11 @@ function sign(id: string) {
   return createHmac("sha256", secret()).update(id).digest("base64url").slice(0, 22);
 }
 
+/** A stable pseudonym for `value` under `kind`: the same input always gives the same answer, and nothing can be recovered from it without the secret. */
+export function pseudonym(kind: string, value: string) {
+  return sign(`pseudonym:${kind}:${value}`);
+}
+
 /** `value.signature` for other cookies (session, OAuth state); `kind` keeps the signatures apart. */
 export function signToken(kind: string, value: string) {
   return `${value}.${sign(`${kind}:${value}`)}`;

@@ -8,6 +8,7 @@ import { getLocalDocument, useLibrary } from "@/lib/store/library";
 import { Topbar } from "@/components/chrome/Topbar";
 import { Reader } from "./Reader";
 import { LinkPage } from "./LinkPage";
+import { OpenedBeacon } from "@/components/chrome/AnalyticsBeacons";
 
 /** Server-provided document, or a local-only one from this browser, or a not-found state. */
 export function ReaderLoader({ slug, initial, unavailable = false }: { slug: string; initial: GlossDocument | null; unavailable?: boolean }) {
@@ -19,7 +20,13 @@ export function ReaderLoader({ slug, initial, unavailable = false }: { slug: str
   const checked = !!initial || mounted;
 
   if (doc?.kind === "link") return <LinkPage doc={doc} key={doc.slug} />;
-  if (doc) return <Reader doc={doc} key={doc.slug} />;
+  if (doc)
+    return (
+      <>
+        <OpenedBeacon kind={doc.kind} savedAt={doc.createdAt} slug={doc.slug} />
+        <Reader doc={doc} key={doc.slug} />
+      </>
+    );
   return (
     <div className="relative z-[1] min-h-dvh">
       <Topbar variant="reader" />

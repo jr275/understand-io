@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import { FileText, StickyNote } from "lucide-react";
+import { track } from "@/lib/client/analytics";
+import { bucketCount } from "@/lib/analytics/buckets";
 import { highlightTerms, markHref, passageHref, type LibrarySearch as Result } from "@/lib/search/library";
 
 function Marked({ text, matched, lang }: { text: string; matched: string[]; lang: string }) {
@@ -21,6 +23,12 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 export function LibrarySearch({ query, result, titleMatches }: { query: string; result: Result; titleMatches: number }) {
   const { passages, marks, searched, unsearched, queryTokens } = result;
   const none = !passages.length && !marks.length;
+  // Counts a search once the reader pauses typing: that a search happened and roughly how much it found, never what was typed.
+  const found = passages.length + marks.length + titleMatches;
+  useEffect(() => {
+    const t = setTimeout(() => track("library_searched", { scope: "library", results: bucketCount(found) }), 1200);
+    return () => clearTimeout(t);
+  }, [query, found]);
   const texts = new Set(passages.map((p) => p.slug)).size;
   return (
     <section className="libs" aria-label="Search results" data-testid="library-search">

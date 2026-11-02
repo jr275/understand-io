@@ -49,25 +49,7 @@ export const CLIENT_EVENTS: readonly EventName[] = ["landing_viewed", "document_
 // The definitions of "active" and "retrieval" live with the metrics (which have no imports, so a plain Node script can run them).
 export { ACTIVE_EVENTS, isRetrieval } from "./metrics";
 
-export const bucketAge = (savedAtMs: number, nowMs: number): z.infer<typeof ageBucket> => {
-  const days = Math.max(0, Math.floor((nowMs - savedAtMs) / 86_400_000));
-  return days < 1 ? "0d" : days < 7 ? "1-6d" : days < 30 ? "7-29d" : "30d+";
-};
-
-export const bucketCount = (n: number): z.infer<typeof countBucket> => (n <= 0 ? "0" : n <= 3 ? "1-3" : n <= 10 ? "4-10" : "11+");
-
-/** The routes an event may name, with every identifier replaced: `/read/my-private-title` is recorded as `/read/:slug`. */
-export function routePattern(path: string | undefined): string | null {
-  if (!path) return null;
-  const clean = path.split(/[?#]/)[0].slice(0, 200);
-  if (!clean.startsWith("/")) return null;
-  if (clean === "/") return "/";
-  if (/^\/read\/[^/]+\/?$/.test(clean)) return "/read/:slug";
-  if (/^\/learn\/[^/]+\/?$/.test(clean)) return "/learn/:page";
-  if (/^\/legal\/[^/]+\/?$/.test(clean)) return "/legal/:doc";
-  if (["/library", "/privacy", "/terms"].includes(clean.replace(/\/$/, ""))) return clean.replace(/\/$/, "");
-  return "/other";
-}
+export { bucketAge, bucketCount, routePattern } from "./buckets";
 
 export interface ParsedEvent {
   event: EventName;

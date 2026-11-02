@@ -65,12 +65,19 @@ const memorySink: AnalyticsSink = {
 /** One in this many inserts also deletes what is past retention. */
 const PRUNE_ONE_IN = 200;
 
+/** Deletes events past retention (`GLOSS_ANALYTICS_RETENTION_DAYS`, default 120) and answers how many went. Also runs now and then by itself, after an insert. */
+export async function pruneAnalytics(now: number = Date.now()): Promise<number> {
+  const db = getDb();
+  if (!db) return 0;
+  return (await db.delete(analyticsEvents).where(lt(analyticsEvents.at, now - retentionDays() * DAY_MS)).returning({ id: analyticsEvents.id })).length;
+}
+
 const databaseSink: AnalyticsSink = {
   async insert(rows) {
     const db = getDb();
     if (!db) throw new Error("no database");
     await db.insert(analyticsEvents).values(rows);
-    if (Math.random() * PRUNE_ONE_IN < 1) void db.delete(analyticsEvents).where(lt(analyticsEvents.at, Date.now() - retentionDays() * DAY_MS)).catch(() => {});
+    if (Math.random() * PRUNE_ONE_IN < 1) void pruneAnalytics().catch(() => {});
   },
 };
 

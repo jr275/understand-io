@@ -11,10 +11,11 @@ const PW = "SECRETPW99";
 const host = (id: string, pooled = false) => `${id}${pooled ? "-pooler" : ""}${DOMAIN}`;
 const url = (h: string, db = "neondb") => `postgresql://owner:${PW}@${h}/${db}?sslmode=require&channel_binding=require`;
 const base = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
+const envOf = (e: Record<string, string>) => e as unknown as NodeJS.ProcessEnv; // the project's ProcessEnv type insists on NODE_ENV
 
 function node(args: string[], env: Record<string, string> = {}) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, ["scripts/migration-rehearsal.mjs", ...args], { env: { ...base, ...env }, encoding: "utf8", timeout: 30_000, input: "" });
+  const r = spawnSync(process.execPath, ["scripts/migration-rehearsal.mjs", ...args], { env: envOf({ ...base, ...env }), encoding: "utf8", timeout: 30_000, input: "" });
   return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}`, ms: Date.now() - t0 };
 }
 const goodArgs = (over: { branch?: string; endpoint?: string; prod?: string[]; confirm?: string } = {}) => [
@@ -94,7 +95,7 @@ describe("migration-rehearsal.mjs refuses before it touches anything", () => {
 
 describe("neon-rehearsal.sh fails closed", () => {
   function shell(args: string[], env: Record<string, string>) {
-    const r = spawnSync("bash", ["scripts/neon-rehearsal.sh", ...args], { env: { ...base, ...env }, encoding: "utf8", timeout: 30_000, input: "" }); // closed stdin: a prompt gets end-of-file
+    const r = spawnSync("bash", ["scripts/neon-rehearsal.sh", ...args], { env: envOf({ ...base, ...env }), encoding: "utf8", timeout: 30_000, input: "" }); // closed stdin: a prompt gets end-of-file
     return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
   }
   const all = { ...stagingEnv(), STAGING_BRANCH: "staging-0007", STAGING_ENDPOINT: STAGING, PRODUCTION_ENDPOINT: host(PROD), CONFIRMATION: `staging-0007@${STAGING}` };
@@ -115,8 +116,9 @@ describe("neon-rehearsal.sh fails closed", () => {
     expect(r.out).toContain("Nothing was touched");
   });
   it("refuses the removed PRODUCTION_HOST variable", () => {
-    const { PRODUCTION_ENDPOINT: _drop, ...rest } = all;
-    const r = shell(["--guard-only"], { ...rest, PRODUCTION_HOST: host(PROD) });
+    const env: Record<string, string> = { ...all, PRODUCTION_HOST: host(PROD) };
+    delete env.PRODUCTION_ENDPOINT;
+    const r = shell(["--guard-only"], env);
     expect(r.status).toBe(2);
     expect(r.out).toContain("PRODUCTION_HOST is no longer accepted");
   });

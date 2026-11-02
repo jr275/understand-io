@@ -17,14 +17,15 @@ const admin = (() => {
 const stamp = Date.now();
 const dbUrl = (name: string) => `postgresql://${admin?.username || "postgres"}:${decodeURIComponent(admin?.password || "x")}@${admin?.hostname}:${admin?.port || "5432"}/${name}`;
 const base = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
+const envOf = (e: Record<string, string>) => e as unknown as NodeJS.ProcessEnv; // the project's ProcessEnv type insists on NODE_ENV
 const names = { behind: `gloss_rh_${stamp}`, applied: `gloss_rh_${stamp + 1}`, empty: `gloss_rh_${stamp + 2}` };
 
 function migrate(url: string) {
-  const r = spawnSync(process.execPath, ["node_modules/drizzle-kit/bin.cjs", "migrate"], { env: { ...base, DATABASE_URL: url }, encoding: "utf8", timeout: 120_000 });
+  const r = spawnSync(process.execPath, ["node_modules/drizzle-kit/bin.cjs", "migrate"], { env: envOf({ ...base, DATABASE_URL: url }), encoding: "utf8", timeout: 120_000 });
   if (r.status !== 0) throw new Error(`migrate failed: ${(r.stdout ?? "") + (r.stderr ?? "")}`.replaceAll(url, "[hidden]").slice(0, 400));
 }
 function rehearse(url: string, extra: string[] = [], env: Record<string, string> = {}) {
-  const r = spawnSync(process.execPath, ["scripts/migration-rehearsal.mjs", "--confirm-not-production", "--local", ...extra], { env: { ...base, REHEARSAL_DATABASE_URL: url, ...env }, encoding: "utf8", timeout: 170_000 });
+  const r = spawnSync(process.execPath, ["scripts/migration-rehearsal.mjs", "--confirm-not-production", "--local", ...extra], { env: envOf({ ...base, REHEARSAL_DATABASE_URL: url, ...env }), encoding: "utf8", timeout: 170_000 });
   return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 async function state(url: string) {

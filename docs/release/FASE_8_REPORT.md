@@ -18,7 +18,7 @@ The brief's acceptance criteria, honestly: every event has a documented schema (
 
 ## Technical decisions
 
-1. **Off by default, three modes.** `GLOSS_ANALYTICS=off|anonymous|full`. Merging changes nothing until the owner sets it. `full` is the only mode that can measure retention and it is personal data (a stable pseudonym), so it is the owner's decision.
+1. **Off by default, three modes.** `GLOSS_ANALYTICS=off|daily|full`. Merging changes nothing until the owner sets it. `full` is the only mode that can measure retention and it is personal data (a stable pseudonym), so it is the owner's decision.
 2. **Taxonomy as strict schemas.** An event is dropped whole if it carries a property that is not listed; no property of any event is free text. This makes "no document content" a property of the code, not of discipline.
 3. **Pseudonyms, not ids.** The actor is an HMAC of the reader id (or a daily hash before there is a reader); the table holds no reader id and no IP.
 4. **The server records what a browser cannot be trusted with** (registration; later, payments). Attribution rides through the Google sign-in inside the signed OAuth state.
@@ -46,7 +46,7 @@ Run 2026-11-02 on a disposable local PostgreSQL 16 (never the developer database
 
 Two honest notes. A first full browser run had one failure (`annotations.spec.ts` ANNOT-13) while source files were being edited under the dev server; it passed three times alone and in the next two full runs, so it is recorded as interference from hot reload, not a defect, and not as proof it can never flake. `pnpm audit --prod` was not rerun: no dependency was added (`package.json` and the lockfile are unchanged).
 
-Not tested: any of this against production or against Neon (nothing was deployed or connected); analytics in `anonymous` mode against a database (unit-tested only); the OAuth callback that records a registration (unit-tested through the state and `recordServerEvent`; a real Google sign-in is not possible here).
+Not tested: any of this against production or against Neon (nothing was deployed or connected); analytics in `daily` mode against a database (unit-tested only); the OAuth callback that records a registration (unit-tested through the state and `recordServerEvent`; a real Google sign-in is not possible here).
 
 ## Commits (branch `feature/growth-distribution`, local)
 
@@ -63,7 +63,7 @@ The branch is cut from `main` 57d9a76. It touches `tests/e2e/seo.spec.ts` with a
 ## Privacy implications
 
 - With `off` (the default) the change adds a beacon call per page that the server answers with 204 and stores nothing; the browser then stops sending for that tab.
-- With `anonymous` nothing identifies a person across days and nothing is stored on the device.
+- With `daily` nothing follows a person from one day to the next and nothing is stored on the device, but **it is pseudonymous, not anonymous**: the identifier is a keyed hash of network address, browser and day, which singles out one browser within a day and which the operator could recompute for a known address and browser (`docs/product/analytics.md`).
 - With `full` a reader's actions are linked by a pseudonym and first-touch attribution is kept in `sessionStorage` for the life of the tab. This needs the owner's decision on consent wording, the privacy policy must name it, and it should be added to the legal review list (`docs/legal/OPEN_ITEMS.md`): purpose, retention (120 days), the provider (none: first party), the right to object (Do Not Track and Global Privacy Control are honoured).
 - No document text, title, address, note, question, answer or search query is ever recorded, in any mode.
 

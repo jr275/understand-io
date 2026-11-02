@@ -41,6 +41,19 @@ describe.skipIf(!db)("analytics events (real PostgreSQL)", () => {
     await db!.delete(analyticsEvents).where(eq(analyticsEvents.id, row.id));
   });
 
+  it("writes no row at all while analytics is off, whatever is posted", async () => {
+    vi.stubEnv("GLOSS_ANALYTICS", "off");
+    const count = async () => (await db!.select({ id: analyticsEvents.id }).from(analyticsEvents)).length;
+    const before = await count();
+    for (const body of [{ events: [{ event: "landing_viewed", props: {}, path: "/" }] }, { events: [{ event: "document_opened", props: { kind: "pdf", via: "library", age: "0d" } }] }]) {
+      const res = await handleEvents(new Request("http://x.test/api/events", { method: "POST", headers: { "content-type": "application/json", "user-agent": "UA" }, body: JSON.stringify(body) }), Date.now());
+      expect(res.status).toBe(204);
+      expect(res.headers.get("x-gloss-analytics")).toBe("off");
+    }
+    expect(await count()).toBe(before);
+    vi.stubEnv("GLOSS_ANALYTICS", "full");
+  });
+
   it("deletes what is past retention and keeps the rest", async () => {
     const tag = run.slice(0, 12);
     const now = Date.now();

@@ -8,7 +8,7 @@ import { openReader } from "./helpers";
  */
 type Sent = { events: { event: string; props: Record<string, unknown>; path: string }[]; attribution?: Record<string, unknown> };
 
-async function capture(page: Page, mode: "full" | "anonymous" | "off" = "full") {
+async function capture(page: Page, mode: "full" | "daily" | "off" = "full") {
   const bodies: Sent[] = [];
   await page.route("**/api/events", async (route) => {
     bodies.push(JSON.parse(route.request().postData() ?? "{}"));
@@ -98,7 +98,7 @@ test.describe("product analytics, as the browser sends it", () => {
   test("the collector itself accepts a well-formed event and refuses an unlisted property, without breaking the page", async ({ request }) => {
     const ok = await request.post("/api/events", { data: { events: [{ event: "landing_viewed", props: {}, path: "/" }] } });
     expect(ok.status()).toBe(204);
-    expect(["off", "anonymous", "full"]).toContain(ok.headers()["x-gloss-analytics"]);
+    expect(["off", "daily", "full"]).toContain(ok.headers()["x-gloss-analytics"]);
     const odd = await request.post("/api/events", { data: { events: [{ event: "document_saved", props: { kind: "url", via: "link", url: "https://example.org/x" } }] } });
     expect(odd.status()).toBe(204);
     // With analytics off the endpoint answers 204 before it reads anything; otherwise a body that is not JSON is refused.

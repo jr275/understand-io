@@ -26,7 +26,7 @@ Isolated staging: a new database on local PostgreSQL 16.15, built **in productio
 | ai_reservations | 2 |
 | ai_leases | 2 |
 
-(14 MB; the 11 tables are all the tables production has before 0007.) Then, with `scripts/migration-rehearsal.mjs --confirm-not-production --production-host <host> --rollback-test`, which runs the real production step (`scripts/vercel-build.mjs` with `VERCEL_ENV=production`, `SKIP_NEXT_BUILD=1`) and checks the result:
+(14 MB; the 11 tables are all the tables production has before 0007.) Then, with `scripts/migration-rehearsal.mjs --confirm-not-production --local --rollback-test` (a disposable local database; for a Neon branch use `scripts/neon-rehearsal.sh`), which runs the real production step (`scripts/vercel-build.mjs` with `VERCEL_ENV=production`, `SKIP_NEXT_BUILD=1`) and checks the result:
 
 | Check | Result |
 | --- | --- |
@@ -43,7 +43,7 @@ Isolated staging: a new database on local PostgreSQL 16.15, built **in productio
 | Rollback (below) returns the database to exactly its earlier state | PASS |
 | The migration applies again after the rollback | PASS |
 
-12 of 12. The script also refuses to run without both `--confirm-not-production` and the production host, refuses the production host itself (checked with `localhost`), and, run on a database that already has 0007, **fails** its first check instead of reporting a meaningless pass (checked).
+12 of 12. The script also refuses to run unless its guard accepts the target (`scripts/lib/rehearsal-guard.mjs`; see the runbook), and **stops without changing anything** on a database that already has 0007, including one that holds rows (automated tests on a disposable PostgreSQL, `tests/unit/rehearsalDatabase.test.ts`).
 
 **The product with analytics off, on that migrated copy** (production build, `GLOSS_ANALYTICS` unset): landing, library, sample reader, document list, reader bootstrap, text import and health answered 200; `/api/events` answered 204 and `off`; `/learn/ai-pdf-reader`, `/privacy` answered 404 as intended; health `ok`, database `ok`, storage 13.9 of 1024 MB; `scripts/post-deploy-check.mjs`: 24 passed, 2 skipped (legal pages not published, as intended), **3 failed, all for sign-in, because the staging copy has no Google credentials** (expected, not a finding); **0 rows** in `analytics_events` after all of it. With the table missing and with the cookie secret missing the product also kept answering (see `docs/ops/secrets-and-rotation.md`).
 
@@ -53,7 +53,7 @@ The staging is PostgreSQL 16.15 under Homebrew on a Mac, not Neon. Not covered: 
 
 ## The Neon branch rehearsal (owner action; runbook ready)
 
-The step-by-step procedure, the exact credentials and permissions it needs, and what to send back are in **`docs/ops/neon-staging-runbook.md`**. In short: create a Neon branch of production in the console, run `bash scripts/neon-rehearsal.sh` (it takes the branch's connection string at a hidden prompt, refuses a host equal to production's, runs the same 12 checks plus a final "left one migration behind" check, so 13 PASS lines), run it once more with the other kind of connection string (pooled or direct), send back the saved text (it holds no secret), and delete the branch. It has **not been run**: it needs the owner's Neon console access.
+The step-by-step procedure, the exact credentials and permissions it needs, and what to send back are in **`docs/ops/neon-staging-runbook.md`**. In short: create a Neon branch of production in the console, run `bash scripts/neon-rehearsal.sh` (it takes the branch's connection string at a hidden prompt, then the branch name, the endpoint ids of the branch and of production and a typed confirmation, refuses production and anything that looks like it, runs the same 12 checks plus a final "left one migration behind" check, so 13 PASS lines), run it once more with the other kind of connection string (pooled or direct), send back the saved text (it holds no secret), and delete the branch. It has **not been run**: it needs the owner's Neon console access.
 
 ## Operational rollback, written down
 
@@ -73,5 +73,5 @@ drizzle has no down migrations; the second row is the "down". Do the last row on
 | Migration SQL content (test) | yes | yes | not run | not run |
 | Apply through the real mechanism, 11 tables identical, idempotent, rollback | yes | **yes (12 of 12; 13 of 13 with the helper's extra check, twice in a row)** | **not yet: owner step above** | not run; must not be run before the branch passes |
 | Product with analytics off and migration applied | yes (integration, e2e) | yes | not run | not applicable (code not deployed) |
-| Cookie secret present and usable | n/a | n/a | n/a | **yes, read-only probe** |
+| Cookie secret present and usable | n/a | n/a | n/a | **yes (read-only)** |
 | `/api/events` | yes | yes | not run | 404 (code not deployed), as expected |

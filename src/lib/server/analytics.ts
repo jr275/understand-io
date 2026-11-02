@@ -30,6 +30,27 @@ export function analyticsMode(): AnalyticsMode {
   return v === "daily" || v === "full" ? v : "off"; // anything else, including a mode that does not exist, is off
 }
 
+/**
+ * What is actually in force. Every identifier analytics makes is a keyed hash, and in production the key is `GLOSS_COOKIE_SECRET`, which the
+ * server refuses to use when it is missing, short or the example value. So when the key is not usable, analytics is off: nothing is recorded, and
+ * nothing throws (the collector answers 204, the sign-in callback goes on). It never falls back to a weaker key or to unkeyed hashing.
+ */
+let lastKeyWarning = 0;
+export function effectiveMode(): AnalyticsMode {
+  const mode = analyticsMode();
+  if (mode === "off") return mode;
+  try {
+    pseudonym("probe", "x");
+    return mode;
+  } catch {
+    if (Date.now() - lastKeyWarning > 60_000) {
+      lastKeyWarning = Date.now();
+      console.warn("[analytics] switched off: the cookie secret is missing or too weak to key the identifiers (the secret itself is never logged)");
+    }
+    return "off";
+  }
+}
+
 const DAY_MS = 86_400_000;
 const whole = (name: string, fallback: number) => {
   const n = Number(process.env[name]);
@@ -143,7 +164,7 @@ async function underDailyCap(now: number): Promise<boolean> {
 }
 
 export async function handleEvents(req: Request, now: number = Date.now()): Promise<Response> {
-  const mode = analyticsMode();
+  const mode = effectiveMode();
   if (mode === "off" || optedOut(req)) return noContent("dropped");
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return Response.json({ error: "bad-request" }, { status: 400 }); // refused before it is read
   const raw = await req.text().catch(() => "");
@@ -186,7 +207,7 @@ export async function handleEvents(req: Request, now: number = Date.now()): Prom
  * the database longer than the request that called it already does. `readerId` is the reader the event is about.
  */
 export async function recordServerEvent(name: EventName, props: Record<string, unknown>, readerId: string, attribution?: Attribution | null, now: number = Date.now()): Promise<void> {
-  const mode = analyticsMode();
+  const mode = effectiveMode();
   if (mode !== "full") return; // without a stable pseudonym there is nothing meaningful to say about one person's registration
   const parsed = parseEvent(name, props);
   if (!parsed || !(await underDailyCap(now))) return;

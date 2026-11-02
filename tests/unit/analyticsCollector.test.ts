@@ -55,6 +55,31 @@ describe("modes", () => {
   });
 });
 
+describe("when the key that makes the identifiers is not usable", () => {
+  beforeEach(() => vi.stubEnv("GLOSS_ANALYTICS", "full"));
+
+  it.each([
+    ["missing", ""],
+    ["the example value", "change-me"],
+    ["too short", "short-secret"],
+  ])("analytics is off in production and nothing throws or is stored: the cookie secret is %s", async (_label, secret) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("GLOSS_COOKIE_SECRET", secret);
+    const res = await post([landing, { event: "document_opened", props: { kind: "pdf", via: "library", age: "0d" }, path: "/read/x" }]);
+    expect(res.status).toBe(204);
+    expect(res.headers.get("x-gloss-analytics")).toBe("off");
+    await recordServerEvent("account_registered", { method: "google" }, "r_new", null, NOW);
+    expect(kept).toEqual([]);
+  });
+
+  it("a usable key (32 characters or more) in production keeps it on", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("GLOSS_COOKIE_SECRET", "k".repeat(40));
+    expect((await post([landing])).headers.get("x-gloss-analytics")).toBe("full");
+    expect(kept).toHaveLength(1);
+  });
+});
+
 describe("what is stored", () => {
   beforeEach(() => vi.stubEnv("GLOSS_ANALYTICS", "full"));
 

@@ -83,7 +83,19 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3201/api/documents > /dev/null && exit 0; sleep 1; done
           cat server.log; exit 1
       - name: Unit tests that need a real database (skipped when DATABASE_URL is unset)
-        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts
+        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts tests/unit/analyticsDatabase.test.ts tests/unit/rehearsalDatabase.test.ts
+      # rehearsalDatabase.test.ts creates and drops its own databases (gloss_rh_*) on this disposable service; analyticsDatabase.test.ts removes the rows it adds.
+      - name: The disposable service was left clean
+        run: |
+          node --input-type=module <<'EOF'
+          import postgres from "postgres";
+          const sql = postgres(process.env.DATABASE_URL, { max: 1, prepare: false });
+          const [{ n: databases }] = await sql`SELECT count(*)::int AS n FROM pg_database WHERE starts_with(datname, 'gloss_rh_')`;
+          const [{ n: rows }] = await sql`SELECT count(*)::int AS n FROM public.analytics_events`;
+          await sql.end();
+          console.log(`rehearsal databases left: ${databases}; analytics rows left: ${rows}`);
+          if (databases !== 0 || rows !== 0) process.exit(1);
+          EOF
       # Includes the allowances test, which starts its own production servers (ports 3311 to 3315) and a stand-in AI provider.
       - name: Integration tests
         run: INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration

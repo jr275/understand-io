@@ -6,6 +6,8 @@
 
 **One-line answer.** Production runs on a Neon PostgreSQL that is *probably* a pooled endpoint in AWS us-east-1, the one used on 2026-10-19. The application is healthy. Nobody can currently *administer* that database from the Neon account reachable on the working machine: that is the blocker, not the schema.
 
+**Publication status (2026-11-02, updated).** The sanitised report is published at commit `52f7e14` on the branch of PR #12, which stays in Draft. The CI run for that commit, CI #34 (GitHub Actions, event `pull_request`), finished `success`: `audit` 37 s, `checks` 1 m 26 s, `integration` 1 m 20 s; the three Vercel previews and Vercel Preview Comments also passed. The commit changes one documentation file, so CI #34 proves the branch still builds and passes its tests; it says nothing new about the database. Production was re-read at 21:14 UTC: still commit `57d9a76`, `database ok`, 8.3 MB. The Neon organisations and projects visible from the working machine are unchanged since section 2 was written. The follow-up plan is in `docs/release/OPERATIONAL_CLOSURE_PLAN.md`.
+
 ## 1. Current production status
 
 | Item | Value | How known |
@@ -60,7 +62,7 @@
 1. **No identified owner account/login for the Neon project** (section 2). Without it: no console, no backup, no branch, no password rotation under control, no rehearsal.
 2. **No backup under our control.** Free plan: 6 hours of restore history, no automatic long-term backup. No logical dump has been made from this database.
 3. **The production string is unreadable** (Sensitive). Rotating or moving the database needs the owner to hold the new string; a rollback to the old one is impossible unless it is stored somewhere before any change.
-4. **Credential hygiene debt:** database credentials shown in earlier sessions must be treated as exposed. The reset of 2026-10-27 covers the Understand.io role; the same rotation is still due for an unrelated project's role.
+4. **Credential hygiene:** any database credential that was ever displayed outside a password manager must be treated as exposed and rotated. The owner tracks the status of each rotation privately.
 5. **Free-plan single point of failure:** 100 CU-hours a month per project and a 1 GB cap. Exhaustion would make the database unreachable, with no alert today other than `/api/health`.
 
 **Can the project be recovered through the original Neon account?** Recovery as such is not needed: the database is alive. What is needed is *login* to the account that owns it. If the project had been deleted, Neon keeps it recoverable for 7 days through the CLI or API (`neonctl projects list --recoverable-only`, `neonctl projects recover <id>`; no console flow documented); after that, deletion is permanent. Today's recoverable list is empty in both visible organisations. If a different account holds it, ask Neon support only after the owner proves control of that account's e-mail; Neon cannot be asked to expose a connection string.

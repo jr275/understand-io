@@ -51,18 +51,9 @@ Isolated staging: a new database on local PostgreSQL 16.15, built **in productio
 
 The staging is PostgreSQL 16.15 under Homebrew on a Mac, not Neon. Not covered: Neon's pooled endpoint and autosuspend/cold start (the migration step has a 180 s timeout and the site's own health check tolerates a cold start), Neon's exact server version, the copy-on-write branch itself, and timing at Neon's real data size. Reasons it is expected to behave the same: migration 0006 (three tables and an index) was applied to Neon by this same production-build step (`docs/release/BETA_LAUNCH_REPORT.md`, step 3), and production's health now reads and writes those tables (`allowancesShared: true`, the AI ledger counting requests), and 0007 adds a table and indexes, which take no lock on existing tables. Expected is not verified: the Neon branch run below is what verifies it.
 
-## The Neon branch rehearsal (owner, about 15 minutes, changes nothing in production)
+## The Neon branch rehearsal (owner action; runbook ready)
 
-1. Neon console, the project, **Branches, Create branch** from the production branch at the current time. A branch is a copy; production is untouched. Note the branch's connection host (it differs from production's).
-2. On your machine, in a checkout of this branch (`feature/growth-distribution`), with the connection string of the **branch** (never of production; do not paste it in chat):
-   ```bash
-   REHEARSAL_DATABASE_URL='<branch connection string>' \
-     node scripts/migration-rehearsal.mjs --confirm-not-production \
-     --production-host <host of the production connection string> --rollback-test
-   ```
-   It prints only counts, hashes and PASS or FAIL, never the connection string or any row. Expect 12 checks, all PASS, on a copy that is exactly one migration behind.
-3. Delete the branch (it costs storage).
-4. Keep the output with the PR as the evidence for verdict B.
+The step-by-step procedure, the exact credentials and permissions it needs, and what to send back are in **`docs/ops/neon-staging-runbook.md`**. In short: create a Neon branch of production in the console, run `bash scripts/neon-rehearsal.sh` (it takes the branch's connection string at a hidden prompt, refuses a host equal to production's, runs the same 12 checks plus a final "left one migration behind" check, so 13 PASS lines), run it once more with the other kind of connection string (pooled or direct), send back the saved text (it holds no secret), and delete the branch. It has **not been run**: it needs the owner's Neon console access.
 
 ## Operational rollback, written down
 
@@ -80,7 +71,7 @@ drizzle has no down migrations; the second row is the "down". Do the last row on
 | | Local unit and integration | Staging copy (local PostgreSQL) | Neon branch | Production |
 | --- | --- | --- | --- | --- |
 | Migration SQL content (test) | yes | yes | not run | not run |
-| Apply through the real mechanism, 11 tables identical, idempotent, rollback | yes | **yes (12 of 12)** | **not yet: owner step above** | not run; must not be run before the branch passes |
+| Apply through the real mechanism, 11 tables identical, idempotent, rollback | yes | **yes (12 of 12; 13 of 13 with the helper's extra check, twice in a row)** | **not yet: owner step above** | not run; must not be run before the branch passes |
 | Product with analytics off and migration applied | yes (integration, e2e) | yes | not run | not applicable (code not deployed) |
 | Cookie secret present and usable | n/a | n/a | n/a | **yes, read-only probe** |
 | `/api/events` | yes | yes | not run | 404 (code not deployed), as expected |

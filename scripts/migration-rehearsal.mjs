@@ -4,12 +4,14 @@
 // run unless told, in two ways, that this is not production.
 //
 //   REHEARSAL_DATABASE_URL=<connection string of the BRANCH> \
-//     node scripts/migration-rehearsal.mjs --confirm-not-production --production-host <host of the production endpoint> [--rollback-test]
+//     node scripts/migration-rehearsal.mjs --confirm-not-production --production-host <host of the production endpoint> [--rollback-test] [--end-rolled-back]
 //
 // It: (1) snapshots every table that exists (row count and a hash of the content, plus column, index and constraint definitions), (2) runs
 // `scripts/vercel-build.mjs` with VERCEL_ENV=production and SKIP_NEXT_BUILD=1, which is exactly the step a production build runs before
 // `next build`, (3) snapshots again and compares, (4) checks what was added, (5) runs the mechanism a second time (idempotence), and with
-// --rollback-test (6) performs the documented rollback, checks the old tables are still identical, and re-applies. Exit 1 on any failed check.
+// --rollback-test (6) performs the documented rollback, checks the old tables are still identical, and re-applies. With --end-rolled-back it then rolls back once
+// more and leaves the copy one migration behind, so the same branch can be rehearsed again through another kind of connection string (pooled or direct).
+// Exit 1 on any failed check. A Neon endpoint that is asleep wakes on the first connection: the script waits and retries.
 // The connection string is never printed. Needs Node 24 and the repository's node_modules.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -36,7 +38,8 @@ function bail(msg) {
 
 const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")).entries;
 const last = journal[journal.length - 1].tag;
-const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 15, idle_timeout: 5 });
+const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 30, idle_timeout: 5 });
+const pooled = /-pooler\./.test(host);
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push(ok);
@@ -64,10 +67,25 @@ function mechanism() {
 }
 const same = (a, b) => Object.keys(a).every((t) => JSON.stringify(a[t]) === JSON.stringify(b[t]));
 
+async function connect() {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await sql`SELECT 1`;
+      return;
+    } catch (err) {
+      if (attempt >= 3) throw err;
+      console.log(`Waiting for the database to wake up (attempt ${attempt} of 3)...`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+}
+
 try {
+  await connect();
   const [{ version }] = await sql`SELECT version()`;
   const [{ db }] = await sql`SELECT current_database() AS db`;
-  console.log(`Rehearsal target: database "${db}", ${version.split(" on ")[0]}. Migration under test: ${last}.\n`);
+  console.log(`Rehearsal target: database "${db}", ${version.split(" on ")[0]}, ${pooled ? "a POOLED endpoint" : "a direct endpoint"}. Migration under test: ${last}.\n`);
+  if (pooled) console.log("Note: this is a pooled connection string. Production's build migrates with the DATABASE_URL stored in Vercel; rehearse with the same kind of string (run the rehearsal once with each kind if unsure).\n");
   const before = await tables();
   const hadIt = before.includes("analytics_events");
   const j0 = await journalRows();
@@ -106,6 +124,13 @@ try {
     check("after the rollback the database is as it was before: same tables, same content", JSON.stringify(await tables()) === JSON.stringify(before) && same(snapBefore, await snapshot(before)) && (await journalRows()) === j0);
     const run3 = mechanism();
     check("the migration applies again after a rollback", run3.ok && (await tables()).includes("analytics_events") && (await journalRows()) === j0 + 1);
+    if (flag("--end-rolled-back")) {
+      await sql.begin(async (tx) => {
+        await tx`DROP TABLE analytics_events`;
+        await tx`DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations)`;
+      });
+      check("left one migration behind again, as it was found (so the branch can be rehearsed again)", JSON.stringify(await tables()) === JSON.stringify(before) && same(snapBefore, await snapshot(before)) && (await journalRows()) === j0);
+    }
   }
 } catch (err) {
   console.error(`The rehearsal could not finish (${err?.code ?? err?.name ?? "error"}). Check the connection and that the database is a copy one migration behind.`);

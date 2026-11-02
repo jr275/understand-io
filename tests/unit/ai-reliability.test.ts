@@ -313,6 +313,36 @@ describe("a model that thinks before it answers", () => {
     expect(trailer.usage.cost).toBeGreaterThan(0);
   });
 
+  it("a structured operation whose provider reports no usage still costs something: the response and the ledger use an estimate, never zero", async () => {
+    const { ai } = await routes();
+    const { aiStore } = await import("@/lib/server/aiStore");
+    vi.stubGlobal("fetch", vi.fn(async () => completion(GOOD, { prompt_tokens: 0, completion_tokens: 0 })));
+    const res = await ai(post("/api/ai", aiBody()));
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j.usage.input).toBeGreaterThan(500);
+    expect(j.usage.output).toBeGreaterThan(0);
+    expect((await aiStore().usage(Date.now())).day).toMatchObject({ inputTokens: j.usage.input, outputTokens: j.usage.output });
+    expect((await aiStore().usage(Date.now())).day.spentMicro).toBeGreaterThan(1);
+  });
+
+  it("a long text that fails half-way is charged for the sections the provider already answered, not nothing", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { ai } = await routes();
+    const { aiStore } = await import("@/lib/server/aiStore");
+    const long = Array.from({ length: 12 }, (_, i) => ({ id: `p${i + 1}`, n: i + 1, type: "p", text: `Paragraph ${i + 1}. ${"The tide rises and falls with the moon. ".repeat(75)}` }));
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (++calls <= 3 ? completion(GOOD, { prompt_tokens: 1000, completion_tokens: 500 }) : new Response("{}", { status: 503 }))));
+    const pending = ai(post("/api/ai", aiBody({ variant: "study", blocks: long, totalParagraphs: 12 })));
+    await vi.advanceTimersByTimeAsync(120_000);
+    const res = await pending;
+    expect(res.status).toBe(502);
+    const day = (await aiStore().usage(Date.now())).day;
+    expect(day).toMatchObject({ inputTokens: 3000, outputTokens: 1500, requests: 1, errors: 1 });
+    expect(day.spentMicro).toBeGreaterThan(1);
+  });
+
   it("asks the model to think less only when the operator says so", async () => {
     const off = vi.fn(async () => completion(GOOD));
     vi.stubGlobal("fetch", off);

@@ -84,7 +84,8 @@ function warnUnavailable(step: string, err: unknown) {
 
 export type Outcome =
   | { kind: "ok"; inputTokens: number; outputTokens: number }
-  | { kind: "provider-error" }
+  /** The provider failed. `partial` is what earlier calls of the same request already used (a multi-call operation that fails half-way): that was billed, so it is charged and the question is not given back. */
+  | { kind: "provider-error"; partial?: { inputTokens: number; outputTokens: number } }
   /** The request was refused before anything reached the provider (bad input): free, and the question is given back. */
   | { kind: "rejected" }
   | { kind: "timeout" }
@@ -176,15 +177,23 @@ export async function admitAi(a: AdmitInput): Promise<Admission> {
     settled = true;
     if (server) {
       // What a failed request cost is not known (the provider may have billed it), so it is charged at what was set aside; only a plain provider failure is free.
+      const partial = o.kind === "provider-error" && o.partial && o.partial.inputTokens + o.partial.outputTokens > 0 ? o.partial : null;
       const charge: Charge =
         o.kind === "ok"
           ? { micro: costMicro({ inputTokens: o.inputTokens, outputTokens: o.outputTokens }, a.model), inputTokens: o.inputTokens, outputTokens: o.outputTokens, errors: 0 }
-          : o.kind === "provider-error" || o.kind === "rejected"
-            ? { micro: 0, inputTokens: 0, outputTokens: 0, errors: o.kind === "provider-error" ? 1 : 0 }
-            : { micro: reservedMicro, inputTokens: 0, outputTokens: 0, errors: o.kind === "timeout" ? 1 : 0 };
-      await store.settle(token, charge, Date.now()).catch((err) => warnUnavailable("settle", err));
-      // A provider failure or a refused request did not produce an answer: the reader keeps the question.
-      if (o.kind === "provider-error" || o.kind === "rejected") await Promise.all(quotaKeys.splice(0).map((k) => store.quotaRefund(k, DAY_MS, now).catch(() => {})));
+          : partial
+            ? { micro: costMicro(partial, a.model), inputTokens: partial.inputTokens, outputTokens: partial.outputTokens, errors: 1 }
+            : o.kind === "provider-error" || o.kind === "rejected"
+              ? { micro: 0, inputTokens: 0, outputTokens: 0, errors: o.kind === "provider-error" ? 1 : 0 }
+              : { micro: reservedMicro, inputTokens: 0, outputTokens: 0, errors: o.kind === "timeout" ? 1 : 0 };
+      // The write is one transaction, so a failed attempt wrote nothing: one more try before the spend goes unrecorded (the reservation then just expires).
+      // If the first attempt did commit and only the answer was lost, the retry counts it twice: an overcount, never a free answer.
+      await store.settle(token, charge, Date.now()).catch(async () => {
+        await new Promise((r) => setTimeout(r, 150));
+        await store.settle(token, charge, Date.now()).catch((err) => warnUnavailable("settle", err));
+      });
+      // A provider failure or a refused request did not produce an answer: the reader keeps the question (unless part of the work was already billed).
+      if ((o.kind === "provider-error" && !partial) || o.kind === "rejected") await Promise.all(quotaKeys.splice(0).map((k) => store.quotaRefund(k, DAY_MS, now).catch(() => {})));
     }
     await releaseLeases();
   };

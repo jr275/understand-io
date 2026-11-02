@@ -8,7 +8,7 @@ import { AiOpError, OP_LIMITS, runAiOp, type Generate } from "@/lib/ai/ops";
 import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
 import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
-import { worstCaseOp } from "@/lib/ai/budget";
+import { estimateStreamedUsage, worstCaseOp } from "@/lib/ai/budget";
 
 /** Long texts are read section by section and then combined (two rounds of provider calls); the deadline in `lib/ai/guard.ts` fires before this. */
 export const maxDuration = 300;
@@ -58,19 +58,37 @@ export async function POST(req: Request) {
   }
   const signal = deadlineSignal(req.signal, DEADLINE_MS.structured);
   const model = provider(key).chatModel(CHAT_MODEL);
+  // What the provider has already reported for this request, so an operation that fails half-way (several calls) is charged for the calls that were made.
+  const spent = { input: 0, output: 0 };
   const generate: Generate = async ({ system, prompt, maxOutputTokens, signal }) => {
     const r = await generateText({ model, system, prompt, temperature: 0.2, maxOutputTokens: withHeadroom(maxOutputTokens), abortSignal: signal, maxRetries: PROVIDER_RETRIES, providerOptions: providerOptions() });
-    return { text: r.text, inputTokens: r.usage?.inputTokens ?? 0, outputTokens: r.usage?.outputTokens ?? 0 };
+    const inputTokens = r.usage?.inputTokens ?? 0;
+    const outputTokens = r.usage?.outputTokens ?? 0;
+    spent.input += inputTokens;
+    spent.output += outputTokens;
+    return { text: r.text, inputTokens, outputTokens };
   };
   try {
-    const { result, usage } = await runAiOp(parsed.data, generate, signal);
+    const { result, usage: reported } = await runAiOp(parsed.data, generate, signal);
+    // A provider that reports no usage must not make the answer free: charge an estimate from what was sent and received.
+    const sentChars = parsed.data.title.length + (parsed.data.selection?.length ?? 0) + parsed.data.blocks.reduce((n, b) => n + b.text.length, 0);
+    const guess = estimateStreamedUsage(sentChars, JSON.stringify(result).length);
+    const usage = reported.input > 0 || reported.output > 0 ? reported : { input: guess.inputTokens, output: guess.outputTokens };
     const cost = estimateCost(CHAT_MODEL, usage.input, usage.output);
     logUsage("ai", `${parsed.data.op}${parsed.data.variant ? `:${parsed.data.variant}` : ""}`, source, CHAT_MODEL, { ...usage, cost });
     await admission.settle({ kind: "ok", inputTokens: usage.input, outputTokens: usage.output });
     return Response.json({ result, model: CHAT_MODEL, usage: { ...usage, cost } });
   } catch (err) {
     const outcome: Outcome =
-      err instanceof AiOpError ? (err.code === "bad-output" ? { kind: "bad-output" } : { kind: "rejected" }) : req.signal.aborted ? { kind: "client-gone" } : timedOut(signal, req.signal) ? { kind: "timeout" } : { kind: "provider-error" };
+      err instanceof AiOpError
+        ? err.code === "bad-output"
+          ? { kind: "bad-output" }
+          : { kind: "rejected" }
+        : req.signal.aborted
+          ? { kind: "client-gone" }
+          : timedOut(signal, req.signal)
+            ? { kind: "timeout" }
+            : { kind: "provider-error", partial: { inputTokens: spent.input, outputTokens: spent.output } };
     await admission.settle(outcome);
     if (err instanceof AiOpError) return Response.json({ error: err.code, message: err.message }, { status: err.code === "bad-output" ? 502 : 400 });
     if (req.signal.aborted) return new Response(null, { status: 499 });

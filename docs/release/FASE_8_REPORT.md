@@ -30,7 +30,35 @@ The brief's acceptance criteria, honestly: every event has a documented schema (
 
 ## Tests
 
-(see the table at the end of this file, filled with the results of the last run)
+Run 2026-11-02 on a disposable local PostgreSQL 16 (never the developer database `gloss`, still 538 documents), Node 24.12. Browser tests use the system Chrome (the Playwright browsers are not installed here); **WebKit, Firefox and mobile-safari were not run.**
+
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | clean |
+| `pnpm lint` | 0 errors, 1 warning (existing, `scripts/post-deploy-check.mjs:50`) |
+| Unit suite (`pnpm test`) | 68 files, **1106 tests passed** (the suite had 61 files and 1033 tests on `main`; 7 files, 73 tests are new: events, collector, metrics, database, SEO, routes, learn pages) |
+| Integration suite (real PostgreSQL, production build) | 5 files, 51 tests passed |
+| `pnpm build` with stand-in secrets and `APP_URL` set, then `scripts/scan-bundle.mjs` | build ok; "Nothing found" in 315 files |
+| Browser suite, Chrome, dev server (desktop + mobile) | **217 passed, 0 failed** (14 of them new: `analytics.spec.ts` 7, `seo.spec.ts` 7) |
+| `analytics.spec.ts` and `seo.spec.ts` on the production build | 14 passed |
+| Production build, by hand | `robots.txt`, `sitemap.xml` (landing and 3 samples only), canonical, hreflang, `og:image`, `noindex` on the library, `/learn/ai-pdf-reader` 404, `/api/events` answers 204 and `off` |
+| `GLOSS_ANALYTICS=full` against the database | an event with a forbidden property was stored without it; the pseudonym is in the row, the reader id, the title and the address are not; Do Not Track stored nothing; `growth-report.mjs` read it back |
+
+Two honest notes. A first full browser run had one failure (`annotations.spec.ts` ANNOT-13) while source files were being edited under the dev server; it passed three times alone and in the next two full runs, so it is recorded as interference from hot reload, not a defect, and not as proof it can never flake. `pnpm audit --prod` was not rerun: no dependency was added (`package.json` and the lockfile are unchanged).
+
+Not tested: any of this against production or against Neon (nothing was deployed or connected); analytics in `anonymous` mode against a database (unit-tested only); the OAuth callback that records a registration (unit-tested through the state and `recordServerEvent`; a real Google sign-in is not possible here).
+
+## Commits (branch `feature/growth-distribution`, local)
+
+```
+39699d0 Analytics: event taxonomy, attribution, growth metrics (pure, tested)
+4e6f75d Analytics: first-party collector (off by default), pseudonymous actors, instrumentation, migration 0007
+5a429be SEO layer, first learn page (draft), growth report and product docs
+7c53d6c Configuration guide: analytics and learn-preview variables
+c52d854 Collector refuses oversized bodies before reading; seo and analytics e2e valid on production builds
+```
+
+The branch is cut from `main` 57d9a76. It touches `tests/e2e/seo.spec.ts` with a local copy of `isProductionBuild` that the Mission 06 branch also adds to `tests/e2e/helpers.ts`; merging both is a trivial conflict at worst. The migration `drizzle/0007_analytics_events.sql` is additive and will be applied by the production build when this is merged (the table stays empty while analytics is `off`).
 
 ## Privacy implications
 

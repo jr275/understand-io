@@ -1,45 +1,75 @@
 #!/usr/bin/env node
 // Rehearse the pending migration on a COPY of the database, with the real production mechanism, and prove what it did. For the owner to run
 // against a Neon BRANCH of production (a branch is a copy; production is not touched). It changes the database it is given, so it refuses to
-// run unless told, in two ways, that this is not production.
+// run unless the guard (scripts/lib/rehearsal-guard.mjs) says yes. The guard is fail-closed and runs before anything else: no connection is
+// opened and no file is read until it has passed.
 //
-//   REHEARSAL_DATABASE_URL=<connection string of the BRANCH> \
-//     node scripts/migration-rehearsal.mjs --confirm-not-production --production-host <host of the production endpoint> [--rollback-test] [--end-rolled-back]
+//   REHEARSAL_DATABASE_URL=<connection string of the STAGING BRANCH> \
+//     node scripts/migration-rehearsal.mjs --confirm-not-production \
+//       --staging-branch staging-0007 --staging-endpoint <endpoint id of the branch> \
+//       --production-endpoint <production endpoint id or host> [--production-endpoint ...] \
+//       --confirm staging-0007@<endpoint id of the branch> [--rollback-test] [--end-rolled-back]
+//   --guard-only   check the inputs and stop: no connection, nothing touched (also accepts the .invalid test domain)
+//   --local        a disposable database on this machine instead (host localhost, database gloss_<tag>_<number> or rehearsal_<name>)
 //
 // It: (1) snapshots every table that exists (row count and a hash of the content, plus column, index and constraint definitions), (2) runs
 // `scripts/vercel-build.mjs` with VERCEL_ENV=production and SKIP_NEXT_BUILD=1, which is exactly the step a production build runs before
 // `next build`, (3) snapshots again and compares, (4) checks what was added, (5) runs the mechanism a second time (idempotence), and with
 // --rollback-test (6) performs the documented rollback, checks the old tables are still identical, and re-applies. With --end-rolled-back it then rolls back once
 // more and leaves the copy one migration behind, so the same branch can be rehearsed again through another kind of connection string (pooled or direct).
-// Exit 1 on any failed check. A Neon endpoint that is asleep wakes on the first connection: the script waits and retries.
+// It STOPS, having changed nothing, if the database is not exactly one migration behind (a database that already has the table is never touched).
+// The rollback drops only public.analytics_events, only if it is empty, and removes exactly one migration record, in one transaction.
+// Exit 1 on any failed check, 2 when the guard refuses. A Neon endpoint that is asleep wakes on the first connection: the script waits and retries.
 // The connection string is never printed. Needs Node 24 and the repository's node_modules.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import postgres from "postgres";
+import { DRY_RUN_SUFFIXES, GuardError, NEON_SUFFIXES, assertDriverMatches, checkLocalTarget, checkRehearsalTarget, cleanChildEnv, maskEndpoint } from "./lib/rehearsal-guard.mjs";
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
-const value = (n) => (args.includes(n) ? args[args.indexOf(n) + 1] : undefined);
-const url = process.env.REHEARSAL_DATABASE_URL;
-const productionHost = value("--production-host");
-if (!url) bail("REHEARSAL_DATABASE_URL is not set. Nothing was touched.");
-if (!flag("--confirm-not-production") || !productionHost) bail("Refusing to run without --confirm-not-production and --production-host <host of the production endpoint>. Nothing was touched.");
-let host;
-try {
-  host = new URL(url).hostname.toLowerCase();
-} catch {
-  bail("REHEARSAL_DATABASE_URL is not a connection string. Nothing was touched.");
-}
-if (host === productionHost.toLowerCase()) bail("This is the production host. Nothing was touched.");
+const values = (n) => args.flatMap((a, i) => (a === n ? [args[i + 1] ?? ""] : []));
+const value = (n) => values(n)[0];
 function bail(msg) {
   console.error(msg);
   process.exit(2);
 }
 
+// Fail closed, before anything else. A refusal here has touched nothing.
+if (flag("--production-host")) bail("--production-host is no longer accepted: a host string cannot identify production (the pooled and the direct form of one endpoint differ). Use --production-endpoint, --staging-branch, --staging-endpoint and --confirm (docs/ops/neon-staging-runbook.md). Nothing was touched.");
+if (!flag("--confirm-not-production")) bail("Refusing to run without --confirm-not-production. Nothing was touched.");
+const url = process.env.REHEARSAL_DATABASE_URL;
+let target;
+try {
+  target = flag("--local")
+    ? checkLocalTarget({ connectionString: url })
+    : checkRehearsalTarget(
+        { connectionString: url, branch: value("--staging-branch"), endpoint: value("--staging-endpoint"), productionEndpoints: values("--production-endpoint"), confirmation: value("--confirm") },
+        { suffixes: flag("--guard-only") ? DRY_RUN_SUFFIXES : NEON_SUFFIXES },
+      );
+} catch (err) {
+  bail(err instanceof GuardError ? `Refused (${err.code}): ${err.message} Nothing was touched.` : "Refused: the guard could not decide. Nothing was touched.");
+}
+const targetLabel = target.mode === "neon" ? `branch ${target.branch}, endpoint ${maskEndpoint(target.endpointId)}, ${target.pooled ? "pooled" : "direct"}` : `local database ${target.database}`;
+if (flag("--guard-only")) {
+  console.log(`Guard passed: ${targetLabel}. No connection was made and nothing was touched.`);
+  process.exit(0);
+}
+
 const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")).entries;
-const last = journal[journal.length - 1].tag;
+const lastEntry = journal[journal.length - 1];
+const last = lastEntry.tag;
+// The rollback below is written for this one migration. Any other last migration means this script is out of date: stop.
+if (last !== "0007_analytics_events") bail(`The last migration is ${last}, but this rehearsal's rollback is written only for 0007_analytics_events. Nothing was touched.`);
 const sql = postgres(url, { prepare: false, max: 1, connect_timeout: 30, idle_timeout: 5 });
-const pooled = /-pooler\./.test(host);
+try {
+  assertDriverMatches(sql.options, target);
+} catch (err) {
+  await sql.end({ timeout: 1 });
+  bail(`Refused (${err.code}): ${err.message}`);
+}
+const pooled = target.mode === "neon" && target.pooled;
+class Halt extends Error {}
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push(ok);
@@ -62,10 +92,27 @@ async function snapshot(names) {
 }
 const journalRows = async () => (await sql`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`)[0].n;
 function mechanism() {
-  const r = spawnSync(process.execPath, ["scripts/vercel-build.mjs"], { env: { ...process.env, DATABASE_URL: url, VERCEL_ENV: "production", SKIP_NEXT_BUILD: "1" }, encoding: "utf8", timeout: 240_000 });
+  const r = spawnSync(process.execPath, ["scripts/vercel-build.mjs"], { env: cleanChildEnv(process.env, { DATABASE_URL: url, VERCEL_ENV: "production", SKIP_NEXT_BUILD: "1" }), encoding: "utf8", timeout: 240_000 });
   return { ok: r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 const same = (a, b) => Object.keys(a).every((t) => JSON.stringify(a[t]) === JSON.stringify(b[t]));
+
+/**
+ * The documented operational rollback, on the copy. Written so it cannot do more than that: one named table in one named schema (no search path),
+ * only if it is empty, no CASCADE, and exactly one migration record (the one for this migration, by its journal timestamp) removed, all in one
+ * transaction that is abandoned if either condition fails. It is reachable only after the guard has passed and the database was found one migration behind.
+ */
+async function rollbackOnCopy() {
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL lock_timeout = '10s'`;
+    await tx`SET LOCAL statement_timeout = '60s'`;
+    const [{ n }] = await tx`SELECT count(*)::int AS n FROM public.analytics_events`;
+    if (n !== 0) throw new Halt("Refusing to drop public.analytics_events: it holds rows. Nothing was dropped.");
+    await tx`DROP TABLE public.analytics_events`;
+    const gone = await tx`DELETE FROM drizzle.__drizzle_migrations WHERE created_at = ${String(lastEntry.when)}::bigint RETURNING id`;
+    if (gone.length !== 1) throw new Halt(`Expected to remove exactly one migration record and found ${gone.length}; the transaction was rolled back.`);
+  });
+}
 
 async function connect() {
   for (let attempt = 1; ; attempt++) {
@@ -84,13 +131,15 @@ try {
   await connect();
   const [{ version }] = await sql`SELECT version()`;
   const [{ db }] = await sql`SELECT current_database() AS db`;
-  console.log(`Rehearsal target: database "${db}", ${version.split(" on ")[0]}, ${pooled ? "a POOLED endpoint" : "a direct endpoint"}. Migration under test: ${last}.\n`);
+  console.log(`Rehearsal target: ${targetLabel}, database "${db}", ${version.split(" on ")[0]}. Migration under test: ${last}.\n`);
   if (pooled) console.log("Note: this is a pooled connection string. Production's build migrates with the DATABASE_URL stored in Vercel; rehearse with the same kind of string (run the rehearsal once with each kind if unsure).\n");
   const before = await tables();
   const hadIt = before.includes("analytics_events");
   const j0 = await journalRows();
   console.log(`Before: ${before.length} tables, ${j0} migrations applied (the repository has ${journal.length}).`);
-  check("the database is one migration behind (otherwise this rehearsal proves nothing)", !hadIt && j0 === journal.length - 1, `applied ${j0} of ${journal.length}, table ${hadIt ? "present" : "absent"}`);
+  const oneBehind = !hadIt && j0 === journal.length - 1;
+  check("the database is one migration behind (otherwise this rehearsal proves nothing)", oneBehind, `applied ${j0} of ${journal.length}, table ${hadIt ? "present" : "absent"}`);
+  if (!oneBehind) throw new Halt("Stopped before changing anything: this database is not exactly one migration behind, so it is not a copy this rehearsal may touch. Nothing was applied, dropped or deleted.");
   const snapBefore = await snapshot(before);
 
   const run1 = mechanism();
@@ -117,23 +166,18 @@ try {
 
   if (flag("--rollback-test")) {
     console.log("\nRollback test (the documented operational rollback, on this copy):");
-    await sql.begin(async (tx) => {
-      await tx`DROP TABLE analytics_events`;
-      await tx`DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations)`;
-    });
+    await rollbackOnCopy();
     check("after the rollback the database is as it was before: same tables, same content", JSON.stringify(await tables()) === JSON.stringify(before) && same(snapBefore, await snapshot(before)) && (await journalRows()) === j0);
     const run3 = mechanism();
     check("the migration applies again after a rollback", run3.ok && (await tables()).includes("analytics_events") && (await journalRows()) === j0 + 1);
     if (flag("--end-rolled-back")) {
-      await sql.begin(async (tx) => {
-        await tx`DROP TABLE analytics_events`;
-        await tx`DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations)`;
-      });
+      await rollbackOnCopy();
       check("left one migration behind again, as it was found (so the branch can be rehearsed again)", JSON.stringify(await tables()) === JSON.stringify(before) && same(snapBefore, await snapshot(before)) && (await journalRows()) === j0);
     }
   }
 } catch (err) {
-  console.error(`The rehearsal could not finish (${err?.code ?? err?.name ?? "error"}). Check the connection and that the database is a copy one migration behind.`);
+  if (err instanceof Halt) console.error(err.message);
+  else console.error(`The rehearsal could not finish (${err?.code ?? err?.name ?? "error"}). Check the connection and that the database is a copy one migration behind.`);
   results.push(false);
 } finally {
   await sql.end({ timeout: 5 });

@@ -125,8 +125,13 @@ a93e11c Analytics: closed enumerations, attribution that cannot carry names, a f
 8957d89 Fase 8 report: revision after the independent review
 b49a8ea Analytics is off, and nothing throws, when the cookie secret is missing, short or the example value
 0c58fb5 Ops and design docs: cookie secret and rotation, data-subject requests (design), migration rehearsal; rehearsal script
+2052d7d Fase 8 report: verdicts A, B and C, one reconciled test table, Mission 06 dependencies, owner decisions
+4f0578f Neon staging runbook, hidden-prompt helper, rehearsal script that survives a sleeping endpoint and can be run twice
+3b3c686 Fase 8 report: production-build E2E investigation, Neon staging status, gate
 ```
 
-## Files changed against `main` (at `0c58fb5`)
+(The commit that adds this list and the counts below follows `3b3c686`; `git log` has the head.)
 
-**63 files: 38 added, 25 modified**: 34 under `src` (analytics, SEO, collector, beacons, routes, small edits to the landing, read, library and legal pages, the Reader, the library search, import, AI call sites, sign-in), 10 tests (8 unit, 2 end-to-end), 14 docs, 3 under `drizzle` (the migration, its snapshot and the journal), 2 scripts (`growth-report.mjs`, `migration-rehearsal.mjs`). `package.json`, `pnpm-lock.yaml`, `vercel.json` and `scripts/vercel-build.mjs` are not among them.
+## Files changed against `main` (at `3b3c686`)
+
+**66 files: 40 added, 26 modified** (+4,368 / -22 lines): 34 under `src` (analytics, SEO, collector, beacons, routes, small edits to the landing, read, library and legal pages, the Reader, the library search, import, AI call sites, sign-in), 10 tests (8 unit, 2 end-to-end), 15 docs, 3 under `drizzle` (the migration, its snapshot and the journal), 3 scripts (`growth-report.mjs`, `migration-rehearsal.mjs`, `neon-rehearsal.sh`), and `.gitignore` (the rehearsal's saved outputs). `package.json`, `pnpm-lock.yaml`, `vercel.json` and `scripts/vercel-build.mjs` are not among them.

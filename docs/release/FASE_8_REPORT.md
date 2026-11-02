@@ -48,6 +48,32 @@ Two honest notes. A first full browser run had one failure (`annotations.spec.ts
 
 Not tested: any of this against production or against Neon (nothing was deployed or connected); analytics in `daily` mode against a database (unit-tested only); the OAuth callback that records a registration (unit-tested through the state and `recordServerEvent`; a real Google sign-in is not possible here).
 
+## Revision after the independent review (2026-11-02)
+
+Three corrections and a full re-validation, all on this branch (no Mission 06 change is in it).
+
+1. **Strict schema.** `ai_question_asked.action` is now a closed list of 19 actions, checked by a test against the actions and summary variants the product defines; `plan` is a closed list (one reserved id until billing exists). Every property of every event is a closed enumeration (a test asserts it for each field). Attribution: the medium must be one of nine known values; `utm_source` and `utm_campaign` are kept only if the operator listed them (`GLOSS_ANALYTICS_SOURCES`, `GLOSS_ANALYTICS_CAMPAIGNS`), otherwise stored as `other`; the referral code is stored only as a keyed hash; the referrer must be a site name (an IP address or a bare word is dropped). New negative tests cover near-miss values (case, spaces, NUL, look-alike letters, SQL, HTML), wrong types, unlisted properties for every event, prototype-named keys, and unlisted attribution. **They found a real defect**: an event named `constructor`, `__proto__` or `toString` made the collector throw (a lookup by name reached the prototype); names are now looked up as own properties only, and a collector-level test fails on the old code.
+2. **Privacy classification.** The mode first called `anonymous` is `daily` and is documented as pseudonymisation with its limits (it singles out one browser within a day, it is derived from an IP address, the operator can recompute it with the secret, it relies on the secret and on request logs outside the table). The privacy policy drafts (EN and PT) gained section 3A, the retention drafts section 6, with owner-decision and legal-review markers (the legal gate stays closed); `docs/legal/OPEN_ITEMS.md` is regenerated (25 owner decisions and 19 legal review items, from 22 and 17); `docs/release/UNDERSTAND_FREEMIUM_LAUNCH.md` still quotes the earlier 22 and 17 as a dated snapshot and was not touched to avoid a conflict with Mission 06.
+3. **Migration safety.** `drizzle/0007_analytics_events.sql` is one CREATE TABLE and its CREATE INDEXes (a test fails if it ever contains DROP, ALTER, UPDATE, DELETE, INSERT, TRUNCATE, a foreign key or any existing table's name). Rehearsed through the real mechanism (`VERCEL_ENV=production SKIP_NEXT_BUILD=1 node scripts/vercel-build.mjs`) on a disposable database in production's state (migrations through 0006, a row or more in each of the 11 existing tables): counts and content hashes of all 11 tables identical before and after, the new table empty, run twice gives the same result, a preview build skips migrations. With the table missing, with analytics off and with analytics full, documents, reader bootstrap, text import, health, landing and `/api/events` all answered (200 or 204); with analytics off and the table present, 6 event posts wrote 0 rows (also a database test). `package.json`, the lockfile, `vercel.json` and `scripts/vercel-build.mjs` are unchanged against `main`; no environment variable is needed or set. Waits on the database from the collector and from the sign-in callback are bounded (1.5 s), so analytics cannot make signing in wait.
+
+Final validation, on a disposable local PostgreSQL 16 (never the developer database, still 538 documents), Node 24.12:
+
+| Command | Result |
+| --- | --- |
+| `pnpm typecheck` | exit 0 |
+| `pnpm lint` | 0 errors, 1 existing warning (`scripts/post-deploy-check.mjs:50`) |
+| `pnpm test` (unit) | 69 files, **1122 passed** |
+| DB-dependent unit files (accountMerge, importErrors, rateLimitShared, aiStoreDatabase, analyticsDatabase) | 5 files, 38 passed |
+| `pnpm start --port 3201` then `INTEGRATION_BASE_URL=http://localhost:3201 pnpm test:integration` | 5 files, 51 passed |
+| `playwright test --project=desktop --project=mobile` (system Chrome, dev server, fresh start) | **217 passed, 0 failed** |
+| `pnpm build` (stand-in secrets, `APP_URL` set) + `node scripts/scan-bundle.mjs` | build exit 0; "Nothing found" in 315 files |
+| `seo.spec.ts` + `analytics.spec.ts` on that production build | 14 passed; robots.txt, canonical and `/api/events` `off` re-checked by hand |
+| `pnpm audit --prod` | No known vulnerabilities found |
+
+An honest note on the browser run: the first attempt of this round failed from its first test on, because the dev server had fallen into a hot-reload loop (the landing page navigated every few milliseconds: `Compiled in 2ms` over and over) after the production build, the integration server and the migration rehearsal had run beside it. It was environment, not code (a fresh dev server loaded the page with two navigations and the suite then passed 217 of 217). Not run: WebKit, Firefox and mobile-safari on this branch; `GLOSS_ANALYTICS` against Neon or production.
+
+Remaining limitations: the `full` pseudonym links a reader's events across days and is personal data, so its consent wording is the owner's; a script to answer access or deletion requests in `full` mode does not exist; `GLOSS_ANALYTICS_SOURCES` and `_CAMPAIGNS` must be set by the operator before channel names appear (until then every source and campaign is `other`); the referrer host is a site name, which can in rare cases identify a personal site; platform request logs (Vercel) see addresses and are outside this table.
+
 ## Commits (branch `feature/growth-distribution`, local)
 
 ```

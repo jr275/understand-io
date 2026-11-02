@@ -103,7 +103,7 @@ test.describe("product analytics, as the browser sends it", () => {
     expect(odd.status()).toBe(204);
     // With analytics off the endpoint answers 204 before it reads anything; otherwise a body that is not JSON is refused.
     const mode = ok.headers()["x-gloss-analytics"];
-    expect((await request.post("/api/events", { data: "not json", headers: { "content-type": "application/json" } })).status()).toBe(mode === "off" ? 204 : 400);
+    expect((await request.post("/api/events", { data: Buffer.from("{not json"), headers: { "content-type": "application/json" } })).status()).toBe(mode === "off" ? 204 : 400);
     const dnt = await request.post("/api/events", { data: { events: [{ event: "landing_viewed", props: {} }] }, headers: { dnt: "1" } });
     expect(dnt.headers()["x-gloss-analytics"]).toBe("off");
   });

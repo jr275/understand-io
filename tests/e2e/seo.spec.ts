@@ -1,10 +1,14 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 /**
  * What a search engine or a social card sees: the head of each kind of page, robots.txt and the sitemap. Canonical and hreflang addresses need the
  * public origin (`APP_URL`), which the test server does not have; they are covered by tests/unit/seoRoutes.test.ts, which sets it.
  */
-const meta = (page: Page, sel: string) => page.locator(`head meta[${sel}]`).first().getAttribute("content");
+// Not `head meta`: a production build streams metadata to a browser (it may arrive in the body) and puts it in the head only for crawlers.
+const meta = (page: Page, sel: string) => page.locator(`meta[${sel}]`).first().getAttribute("content");
+
+/** True when the server under test is a production build (the dev server answers `development`). */
+const isProductionBuild = async (request: APIRequestContext) => ((await (await request.get("/api/health")).json()) as { environment?: string }).environment === "production";
 
 test.describe("search and social presentation", () => {
   test("the landing page has its own title, description and social card, and structured data that claims no rating or price", async ({ page }) => {
@@ -15,7 +19,7 @@ test.describe("search and social presentation", () => {
     expect(await meta(page, 'property="og:site_name"')).toBe("Understand.io");
     expect(await meta(page, 'name="twitter:card"')).toBe("summary_large_image");
     expect(await meta(page, 'property="og:image"')).toContain("/opengraph-image");
-    expect(await page.locator("head meta[name=robots][content*=noindex]").count()).toBe(0);
+    expect(await page.locator("meta[name=robots][content*=noindex]").count()).toBe(0);
     const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent()) ?? "{}");
     expect(ld).toMatchObject({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Understand.io" });
     expect(ld).not.toHaveProperty("aggregateRating");
@@ -50,16 +54,23 @@ test.describe("search and social presentation", () => {
     await page.goto("/read/on-a-piece-of-chalk");
     await expect(page).toHaveTitle("On a Piece of Chalk, glossed");
     expect(await meta(page, 'name="description"')).toMatch(/Huxley[\s\S]*margin/);
-    expect(await page.locator("head meta[name=robots][content*=noindex]").count()).toBe(0);
+    expect(await page.locator("meta[name=robots][content*=noindex]").count()).toBe(0);
 
     const saved = await page.request.post("/api/import/text", { data: { text: `A private note that is nobody else's business.\n\nSecond paragraph of it, long enough to count.`, title: "Private thing" } });
     const slug = (await saved.json()).document.slug as string;
     await page.goto(`/read/${slug}`);
     expect(await meta(page, 'name="robots"')).toMatch(/noindex/);
-    expect(await page.locator('head meta[property="og:title"]').count()).toBe(0);
+    // The site-wide card is all a crawler could ever get: the text's own title is in no social tag.
+    expect((await meta(page, 'property="og:title"')) ?? "").not.toContain("Private thing");
+    expect((await meta(page, 'name="description"')) ?? "").not.toContain("nobody else");
   });
 
-  test("a learn page that is still a draft can be previewed here, says noindex, and its demonstration opens a real text", async ({ page }) => {
+  test("a learn page that is still a draft: a 404 in production, previewable in development, noindex either way, and its demonstration opens a real text", async ({ page, request }) => {
+    if (await isProductionBuild(request)) {
+      // Nothing is published until the owner says so (GLOSS_LEARN_PREVIEW shows drafts, and the test server does not set it).
+      expect((await request.get("/learn/ai-pdf-reader")).status()).toBe(404);
+      return;
+    }
     await page.goto("/learn/ai-pdf-reader");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("AI PDF reader");
     await expect(page).toHaveTitle("An AI PDF reader that answers in the margin");

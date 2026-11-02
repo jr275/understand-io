@@ -139,6 +139,7 @@ async function underDailyCap(now: number): Promise<boolean> {
 export async function handleEvents(req: Request, now: number = Date.now()): Promise<Response> {
   const mode = analyticsMode();
   if (mode === "off" || optedOut(req)) return noContent("dropped");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return Response.json({ error: "bad-request" }, { status: 400 }); // refused before it is read
   const raw = await req.text().catch(() => "");
   if (!raw || raw.length > MAX_BODY) return Response.json({ error: "bad-request" }, { status: 400 });
   let body: { events?: unknown; attribution?: unknown };

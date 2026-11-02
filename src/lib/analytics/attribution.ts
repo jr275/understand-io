@@ -21,11 +21,14 @@ const token = (v: string | null | undefined, max = 48): string | null => {
 /** A referral code is 6 to 24 characters of letters and digits, so an address, a name or a sentence put there is refused. */
 const refCode = (v: string | null | undefined): string | null => (v && /^[A-Za-z0-9]{6,24}$/.test(v.trim()) ? v.trim() : null);
 
+/** A name a website can have: labels of letters, digits and hyphens, a dot and a top-level domain. No address literal (an IP names a machine, often a person's), no port, no credentials. */
+const SITE_HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$/;
+
 export function referrerHostOf(referrer: string | null | undefined, ownHost?: string | null): string | null {
   if (!referrer) return null;
   try {
     const host = new URL(referrer).hostname.toLowerCase().replace(/^www\./, "");
-    if (!host || host.length > 80) return null;
+    if (!host || host.length > 80 || !SITE_HOST.test(host)) return null;
     if (ownHost && host === ownHost.toLowerCase().replace(/^www\./, "")) return null;
     return host;
   } catch {
@@ -57,9 +60,31 @@ export function channelOf(a: Pick<Attribution, "source" | "medium" | "referrerHo
   return "direct";
 }
 
-/** Re-validates what a browser sent as attribution (it is untrusted): the same rules as `parseAttribution`, applied to an object. */
-export function cleanAttribution(raw: unknown): Attribution {
+/** The campaign mediums that are recognised; anything else a link says is recorded as "other". */
+export const MEDIUMS = ["email", "newsletter", "social", "cpc", "affiliate", "referral", "organic", "qr", "other"] as const;
+
+const allowed = (list: string | undefined) => new Set((list ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+
+/**
+ * What the server keeps of attribution a browser sent (untrusted: anyone can write anything in a link). A tag that merely looks tidy can still
+ * be a name, a phone number or an e-mail local part, so none is stored as written: the medium must be one of `MEDIUMS`, and the source and the
+ * campaign must be ones the operator listed (`GLOSS_ANALYTICS_SOURCES`, `GLOSS_ANALYTICS_CAMPAIGNS`, comma separated); every other value is stored
+ * as "other". The referral code is format-checked here and stored only as a keyed hash (see `lib/server/analytics.ts`). The referrer is a site name.
+ */
+export function cleanAttribution(raw: unknown, env: Record<string, string | undefined> = process.env): Attribution {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const s = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : null);
-  return { source: token(s("source")), medium: token(s("medium")), campaign: token(s("campaign")), ref: refCode(s("ref")), referrerHost: s("referrerHost") ? referrerHostOf(`https://${s("referrerHost")}`) : null };
+  const pick = (v: string | null, ok: (t: string) => boolean) => {
+    const t = token(v);
+    return t === null ? null : ok(t) ? t : "other";
+  };
+  const sources = allowed(env.GLOSS_ANALYTICS_SOURCES);
+  const campaigns = allowed(env.GLOSS_ANALYTICS_CAMPAIGNS);
+  return {
+    source: pick(s("source"), (t) => sources.has(t)),
+    medium: pick(s("medium"), (t) => (MEDIUMS as readonly string[]).includes(t)),
+    campaign: pick(s("campaign"), (t) => campaigns.has(t)),
+    ref: refCode(s("ref")),
+    referrerHost: s("referrerHost") ? referrerHostOf(`https://${s("referrerHost")}`) : null,
+  };
 }

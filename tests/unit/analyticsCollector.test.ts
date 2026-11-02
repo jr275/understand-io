@@ -34,13 +34,15 @@ describe("modes", () => {
     expect(kept).toEqual([]);
   });
 
-  it("understands anonymous and full, and treats anything else as off", () => {
+  it("understands daily and full, and treats anything else (including the old name \"anonymous\", which it was not) as off", () => {
     vi.stubEnv("GLOSS_ANALYTICS", "FULL");
     expect(analyticsMode()).toBe("full");
-    vi.stubEnv("GLOSS_ANALYTICS", "anonymous");
-    expect(analyticsMode()).toBe("anonymous");
-    vi.stubEnv("GLOSS_ANALYTICS", "yes please");
-    expect(analyticsMode()).toBe("off");
+    vi.stubEnv("GLOSS_ANALYTICS", "daily");
+    expect(analyticsMode()).toBe("daily");
+    for (const v of ["anonymous", "yes please", "1", "true", "on", ""]) {
+      vi.stubEnv("GLOSS_ANALYTICS", v);
+      expect(analyticsMode(), v).toBe("off");
+    }
   });
 
   it("records nothing for a browser that sends Do Not Track or Global Privacy Control, in any mode", async () => {
@@ -79,8 +81,8 @@ describe("what is stored", () => {
     expect(anon(NOW).actor).toBe(anon(NOW + 3_600_000).actor);
   });
 
-  it("never follows a person in anonymous mode, even with a reader cookie", async () => {
-    vi.stubEnv("GLOSS_ANALYTICS", "anonymous");
+  it("never follows a person in daily mode, even with a reader cookie", async () => {
+    vi.stubEnv("GLOSS_ANALYTICS", "daily");
     const cookie = `gloss_reader=${readerCookieValue("r_abc")}`;
     await post([landing], { headers: { cookie } });
     expect(kept[0].actorKind).toBe("daily");
@@ -103,6 +105,12 @@ describe("what is stored", () => {
     expect(JSON.stringify(kept)).not.toMatch(/wrong with me|secret|divorce/);
   });
 
+  it("answers 204 and stores nothing for event names that are built-in property names (a lookup by name must not reach the prototype)", async () => {
+    const res = await post([{ event: "constructor", props: {} }, { event: "__proto__", props: {} }, { event: "toString", props: {} }, { event: "hasOwnProperty", props: {} }, { event: 42, props: {} }, null, "landing_viewed"]);
+    expect(res.status).toBe(204);
+    expect(kept).toEqual([]);
+  });
+
   it("takes from a browser only the events a browser can witness: it cannot claim a registration or a payment", async () => {
     await post([
       { event: "account_registered", props: { method: "google" } },
@@ -112,17 +120,31 @@ describe("what is stored", () => {
     expect(kept).toEqual([]);
   });
 
-  it("attaches attribution to the landing view only, re-validated, as a channel plus campaign and referral code", async () => {
+  it("attaches attribution to the landing view only, re-validated: the operator's listed source and campaign, a known medium, the referral code only as a hash", async () => {
+    vi.stubEnv("GLOSS_ANALYTICS_SOURCES", "newsletter");
+    vi.stubEnv("GLOSS_ANALYTICS_CAMPAIGNS", "launch-1");
     await post([landing, { event: "highlight_created", props: { mark: "highlight" } }], { attribution: { source: "newsletter", medium: "email", campaign: "launch-1", ref: "AbC123xyz", referrerHost: "jane@example.com" } });
-    expect(kept[0]).toMatchObject({ event: "landing_viewed", channel: "referral", campaign: "launch-1", ref: "AbC123xyz" });
+    expect(kept[0]).toMatchObject({ event: "landing_viewed", channel: "referral", campaign: "launch-1" });
+    expect(kept[0].ref).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(JSON.stringify(kept)).not.toContain("AbC123xyz");
     expect(kept[1]).toMatchObject({ event: "highlight_created", channel: null, campaign: null, ref: null });
+    kept.length = 0;
+    await post([landing], { attribution: { source: "newsletter", medium: "email", campaign: "launch-1" } });
+    expect(kept[0]).toMatchObject({ channel: "newsletter/email", campaign: "launch-1", ref: null });
+
+  });
+
+  it("stores a source, medium or campaign it was not told about as \"other\", so a tidy-looking name or number cannot travel in them", async () => {
+    await post([landing], { attribution: { source: "joao.mendes", medium: "5511999990000", campaign: "anna-smith-2026" } });
+    expect(kept[0]).toMatchObject({ channel: "other/other", campaign: "other" });
+    expect(JSON.stringify(kept)).not.toMatch(/joao|5511|anna/);
     kept.length = 0;
     await post([landing], { attribution: { source: "<script>alert(1)</script>", ref: "has spaces" } });
     expect(kept[0]).toMatchObject({ channel: "direct", ref: null });
   });
 
   it("ignores attribution outside full mode", async () => {
-    vi.stubEnv("GLOSS_ANALYTICS", "anonymous");
+    vi.stubEnv("GLOSS_ANALYTICS", "daily");
     await post([landing], { attribution: { source: "newsletter" } });
     expect(kept[0]).toMatchObject({ channel: null, campaign: null });
   });
@@ -185,7 +207,9 @@ describe("events the server records itself", () => {
 
 describe("attribution through sign-in", () => {
   it("keeps tidy attribution in the sign-in state and drops junk", () => {
+    vi.stubEnv("GLOSS_ANALYTICS_SOURCES", "newsletter");
     expect(newOAuthState("/library", { source: "newsletter", ref: "AbC123xyz" }).attr).toMatchObject({ source: "newsletter", ref: "AbC123xyz" });
+    expect(newOAuthState("/library", { source: "joao.mendes" }).attr).toMatchObject({ source: "other" });
     expect(newOAuthState("/library", { source: "jane@example.com" }).attr).toBeUndefined();
     expect(newOAuthState("/library").attr).toBeUndefined();
   });

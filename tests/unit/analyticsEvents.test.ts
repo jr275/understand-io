@@ -27,10 +27,10 @@ describe("the event taxonomy", () => {
       ["document_opened", { kind: "text", via: "library", age: "0d", slug: "my-medical-results" }],
     ];
     for (const [name, props] of attempts) expect(parseEvent(name, props), `${name} ${JSON.stringify(props)}`).toBeNull();
-    // Every string property in every schema is an enumeration or a short token pattern: none is open text.
+    // Every property of every event is a closed enumeration: not a pattern, not a free string.
     for (const n of EVENT_NAMES) {
       const shape = (EVENT_SCHEMAS[n] as unknown as { shape: Record<string, { def: { type: string }; _def?: unknown }> }).shape;
-      for (const [key, field] of Object.entries(shape)) expect(["enum", "string"], `${n}.${key}`).toContain(field.def.type);
+      for (const [key, field] of Object.entries(shape)) expect(field.def.type, `${n}.${key}`).toBe("enum");
     }
     expect(parseEvent("ai_question_asked", { action: "x".repeat(40), key: "own" })).toBeNull();
   });
@@ -103,5 +103,95 @@ describe("attribution", () => {
   it("re-validates what a browser claims (it is untrusted)", () => {
     expect(cleanAttribution({ source: "<script>", medium: "email", campaign: 5, ref: "bad ref", referrerHost: "example.org", extra: "x" })).toEqual({ source: null, medium: "email", campaign: null, ref: null, referrerHost: "example.org" });
     expect(cleanAttribution(null)).toEqual({ source: null, medium: null, campaign: null, ref: null, referrerHost: null });
+  });
+});
+
+import { AI_ACTIONS, PLAN_IDS } from "@/lib/analytics/events";
+import { GLOSS_ACTIONS } from "@/lib/ai/requestLimits";
+import { VARIANT_TOKENS } from "@/lib/ai/ops";
+import { MEDIUMS } from "@/lib/analytics/attribution";
+
+describe("closed enumerations", () => {
+  it("the AI action list is exactly what the product can ask: every margin action, every summary variant, and the other operations", () => {
+    const expected = [...GLOSS_ACTIONS, "summarize", ...Object.keys(VARIANT_TOKENS).map((v) => `summarize:${v}`), "concepts", "questions", "translate"];
+    expect([...AI_ACTIONS].sort()).toEqual(expected.sort());
+    for (const action of AI_ACTIONS) expect(parseEvent("ai_question_asked", { action, key: "own" }), action).not.toBeNull();
+  });
+
+  it("there is one reserved plan id until billing exists", () => {
+    expect([...PLAN_IDS]).toEqual(["paid"]);
+    expect(parseEvent("subscription_started", { plan: "paid", interval: "month" })).not.toBeNull();
+    expect(parseEvent("subscription_started", { plan: "jane-smith-gold", interval: "month" })).toBeNull();
+    expect(parseEvent("subscription_cancelled", { plan: "pro", tenure: "<30d" })).toBeNull();
+  });
+});
+
+describe("negative cases: values, manipulated strings and unexpected properties are refused", () => {
+  const good = { action: "explain", key: "shared" };
+
+  it("refuses values that are not in the list, however close", () => {
+    for (const action of ["Explain", "EXPLAIN", " explain", "explain ", "explain\n", "explain\0", "explаin" /* Cyrillic а */, "explain:quick", "summarize:", "summarize:quick:extra", "summarize:Quick", "what does my diagnosis mean", "a@b.co", "5511999990000", "", "x".repeat(5000), "../../etc/passwd", "<script>alert(1)</script>", "'; DROP TABLE analytics_events;--"]) {
+      expect(parseEvent("ai_question_asked", { ...good, action }), JSON.stringify(action)).toBeNull();
+    }
+  });
+
+  it("refuses values of the wrong type", () => {
+    for (const action of [null, undefined, 0, 1, true, [], ["explain"], {}, { toString: () => "explain" }, Symbol.for("explain")]) {
+      expect(parseEvent("ai_question_asked", { ...good, action }), String(action)).toBeNull();
+    }
+    for (const props of [null, "explain", 5, [], [good], true]) expect(parseEvent("ai_question_asked", props as never), JSON.stringify(props)).toBeNull();
+  });
+
+  it("refuses any property that is not listed, for every event, including ones named like built-ins", () => {
+    const valid: Record<string, Record<string, unknown>> = {
+      landing_viewed: {},
+      account_registered: { method: "google" },
+      document_saved: { kind: "pdf", via: "file" },
+      document_opened: { kind: "pdf", via: "library", age: "0d" },
+      highlight_created: { mark: "note" },
+      ai_question_asked: good,
+      library_searched: { scope: "library", results: "1-3" },
+      import_completed: { source: "link", outcome: "ok" },
+      extension_installed: { browser: "chrome" },
+      subscription_started: { plan: "paid", interval: "month" },
+      subscription_cancelled: { plan: "paid", tenure: "<30d" },
+    };
+    for (const name of EVENT_NAMES) {
+      expect(parseEvent(name, valid[name]), `${name} valid`).not.toBeNull();
+      for (const extra of ["email", "title", "url", "text", "query", "question", "note", "quote", "userId", "readerId", "ip", "constructor", "toString"]) {
+        expect(parseEvent(name, { ...valid[name], [extra]: "x" }), `${name} + ${extra}`).toBeNull();
+      }
+      const rest = JSON.stringify(valid[name]).slice(1, -1);
+      expect(parseEvent(name, JSON.parse(`{"__proto__":{"polluted":true}${rest ? `,${rest}` : ""}}`)), `${name} proto`).toBeNull();
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      expect(parseEvent(name, { ...valid[name], nested: { a: 1 } }), `${name} nested`).toBeNull();
+    }
+  });
+
+  it("refuses a property that is missing", () => {
+    expect(parseEvent("ai_question_asked", { action: "explain" })).toBeNull();
+    expect(parseEvent("document_saved", { kind: "pdf" })).toBeNull();
+  });
+
+  it("does not let an event name smuggle a value: only the listed names exist", () => {
+    for (const name of ["__proto__", "constructor", "toString", "hasOwnProperty", "landing_viewed ", "LANDING_VIEWED", "landing_viewed\n", ""]) expect(parseEvent(name, {}), JSON.stringify(name)).toBeNull();
+  });
+
+  it("attribution: only the operator's listed sources and campaigns and the known mediums are kept; the rest is \"other\"", () => {
+    const env = { GLOSS_ANALYTICS_SOURCES: "newsletter, Hacker-News", GLOSS_ANALYTICS_CAMPAIGNS: "launch-1" };
+    expect(cleanAttribution({ source: "Newsletter", medium: "EMAIL", campaign: "launch-1" }, env)).toMatchObject({ source: "newsletter", medium: "email", campaign: "launch-1" });
+    expect(cleanAttribution({ source: "hacker-news" }, env).source).toBe("hacker-news");
+    expect(cleanAttribution({ source: "john.doe", medium: "dm", campaign: "john" }, env)).toMatchObject({ source: "other", medium: "other", campaign: "other" });
+    expect(cleanAttribution({ source: "newsletter", campaign: "launch-1" }, {})).toMatchObject({ source: "other", campaign: "other" }); // nothing listed: nothing kept
+    expect(cleanAttribution({ source: "a@b.co", medium: "<x>", campaign: "two words and more words in a row that is far too long to be a tag" }, env)).toMatchObject({ source: null, medium: null, campaign: null });
+    expect((MEDIUMS as readonly string[]).includes("other")).toBe(true);
+  });
+
+  it("the referrer is a site name: an address, a port, credentials or a bare word are dropped", () => {
+    for (const bad of ["http://192.168.1.4/x", "http://[::1]/x", "http://10.0.0.1:8080/", "http://localhost/", "http://intranet/"]) {
+      expect(referrerHostOf(bad), bad).toBeNull();
+    }
+    expect(referrerHostOf("http://user:pass@example.org:8080/private/path?q=secret")).toBe("example.org"); // credentials, port, path and query are discarded, only the site name is kept
+    expect(referrerHostOf("https://news.ycombinator.com/item?id=1")).toBe("news.ycombinator.com");
   });
 });

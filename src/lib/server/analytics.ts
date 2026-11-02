@@ -12,8 +12,10 @@ import { SlidingWindowLimiter, clientIp } from "./rateLimit";
  * The collector behind `POST /api/events` and the server-side `recordServerEvent`. Three modes, set by the operator with `GLOSS_ANALYTICS`:
  *
  *   off        (the default) nothing is recorded and nothing is stored; the endpoint answers 204 and says so.
- *   anonymous  events are recorded against a hash that changes every day (address + browser + day + secret): no cookie, no storage on the
- *              device, nothing that can follow a person from one day to the next. Counts only: no retention, no WAU/MAU.
+ *   daily      events are recorded against a hash that changes every day (address + browser + UTC day + the server's secret). It is a
+ *              pseudonym, not anonymous data: within one day it singles out one browser, and whoever holds the secret could recompute it
+ *              for a known address and browser. No cookie, no storage on the device, and it cannot follow a person from one day to the
+ *              next. Counts only: no retention, no WAU/MAU.
  *   full       events are recorded against a stable pseudonym of the reader (an HMAC of the reader id, so the table holds no reader id) and
  *              first-touch attribution is kept in the tab's sessionStorage. Needed for retention, WAU/MAU and the funnel. The owner decides
  *              when this is switched on (consent wording, `docs/product/analytics.md`).
@@ -21,11 +23,11 @@ import { SlidingWindowLimiter, clientIp } from "./rateLimit";
  * In every mode a browser that sends Do Not Track or Global Privacy Control is not recorded. Nothing a reader reads or writes is in an event
  * (see `lib/analytics/events.ts`); a malformed or over-rich event is dropped whole.
  */
-export type AnalyticsMode = "off" | "anonymous" | "full";
+export type AnalyticsMode = "off" | "daily" | "full";
 
 export function analyticsMode(): AnalyticsMode {
   const v = process.env.GLOSS_ANALYTICS?.trim().toLowerCase();
-  return v === "anonymous" || v === "full" ? v : "off";
+  return v === "daily" || v === "full" ? v : "off"; // anything else, including a mode that does not exist, is off
 }
 
 const DAY_MS = 86_400_000;
@@ -126,6 +128,10 @@ const PER_MINUTE = 120;
 const MAX_BODY = 8 * 1024;
 const MAX_BATCH = 10;
 
+/** The longest a request waits for analytics to be stored. */
+const STORE_MS = 1500;
+const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise((resolve) => setTimeout(resolve, ms))]);
+
 const noContent = (mode: AnalyticsMode | "dropped") => new Response(null, { status: 204, headers: { "x-gloss-analytics": mode === "dropped" ? "off" : mode, "cache-control": "no-store" } });
 
 async function underDailyCap(now: number): Promise<boolean> {
@@ -167,10 +173,11 @@ export async function handleEvents(req: Request, now: number = Date.now()): Prom
       props: parsed.props,
       channel: withAttribution ? channelOf(attribution) : null,
       campaign: withAttribution ? attribution.campaign : null,
-      ref: withAttribution ? attribution.ref : null,
+      ref: withAttribution && attribution.ref ? pseudonym("ref", attribution.ref) : null, // never the code itself
     });
   }
-  if (rows.length && (await underDailyCap(now))) await sink().insert(rows).catch(() => {});
+  // Bounded: a slow database never holds this answer (the browser does not wait for it, but the function should not either).
+  if (rows.length && (await underDailyCap(now))) await within(sink().insert(rows).catch(() => {}), STORE_MS);
   return noContent(mode);
 }
 
@@ -183,7 +190,9 @@ export async function recordServerEvent(name: EventName, props: Record<string, u
   if (mode !== "full") return; // without a stable pseudonym there is nothing meaningful to say about one person's registration
   const parsed = parseEvent(name, props);
   if (!parsed || !(await underDailyCap(now))) return;
-  await sink()
+  // Bounded: this runs inside the sign-in callback, and analytics must never make signing in wait.
+  await within(
+    sink()
     .insert([
       {
         at: now,
@@ -194,10 +203,12 @@ export async function recordServerEvent(name: EventName, props: Record<string, u
         props: parsed.props,
         channel: attribution ? channelOf(attribution) : null,
         campaign: attribution?.campaign ?? null,
-        ref: attribution?.ref ?? null,
+        ref: attribution?.ref ? pseudonym("ref", attribution.ref) : null,
       },
     ])
-    .catch(() => {});
+    .catch(() => {}),
+    STORE_MS,
+  );
 }
 
 /** Test hook. */

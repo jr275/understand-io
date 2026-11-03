@@ -161,7 +161,7 @@ describe("what the assistant is told about language", () => {
     const pt = systemPrompt("normal", "pt-BR");
     expect(pt).toMatch(/Brazilian Portuguese, the language the reader's interface is set to/);
     expect(pt).toMatch(/even when the text or the question is in another language/);
-    expect(pt).toMatch(/asks? for a different language.*use that one instead/s);
+    expect(pt).toMatch(/asks? for a different language[\s\S]*use that one instead/);
     expect(systemPrompt("normal", "en")).toMatch(/Write plainly in English/);
     expect(languageRule("pt-BR")).toMatch(/responda em inglês/);
   });

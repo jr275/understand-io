@@ -13,7 +13,8 @@ import { Pop } from "@/components/ui/Pop";
 import { AppearancePanel } from "./AppearancePanel";
 import { KeyPanel } from "./KeyPanel";
 import { AccountControl } from "./AccountControl";
-import { useT } from "@/i18n/client";
+import { useI18n } from "@/i18n/client";
+import { localePath } from "@/i18n/config";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface Props {
@@ -33,7 +34,7 @@ interface Props {
 }
 
 export function Topbar({ variant = "landing", tools, center, after, progress, onAdd, className = "" }: Props) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState<"aa" | "key" | null>(null);
@@ -45,7 +46,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
   const inner = (
     <>
       <div className="flex h-9 items-center gap-3.5 max-[380px]:gap-2.5">
-        <Link aria-label={t("topbar.home")} className="rounded-md" href="/">
+        <Link aria-label={t("topbar.home")} className="rounded-md" href={localePath("/", locale)}>
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
             <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[340px]:sr-only"}`}>Understand.io</span>

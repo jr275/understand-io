@@ -46,7 +46,9 @@ export function I18nProvider({ locale: initial, children }: { locale: Locale; ch
       setLoc(l);
       const { path } = splitLocalePath(location.pathname);
       const isPublic = path === "/" || path.startsWith("/learn") || path.startsWith("/legal") || path === "/privacy" || path === "/terms";
-      if (isPublic) router.push(`${localePath(path, l)}${location.search}`);
+      // The two languages of an indexed page are one route to the router (the language is only in the address), so a soft navigation would keep the old
+      // words: the move is a real page load, which is also what a search engine's link does. The app's own pages have no such address: they refresh in place.
+      if (isPublic) window.location.assign(`${localePath(path, l)}${location.search}`);
       else router.refresh(); // the server-rendered words follow; nothing the reader is doing is lost
     },
     [router, setLoc],

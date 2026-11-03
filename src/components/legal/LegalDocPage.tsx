@@ -30,9 +30,10 @@ export async function LegalDocPage({ doc, lang }: { doc: LegalDoc; lang: LegalLa
                 {LANG_NAME[l]}
               </span>
             ) : (
-              <Link key={l} href={localePath(here.route, l === "pt" ? "pt-BR" : "en")} className="underline underline-offset-2" hrefLang={l === "pt" ? "pt-BR" : "en"}>
+              // a plain link: the two languages are one route to the router, so only a real page load shows the other text
+              <a key={l} href={localePath(here.route, l === "pt" ? "pt-BR" : "en")} className="underline underline-offset-2" hrefLang={l === "pt" ? "pt-BR" : "en"}>
                 {LANG_NAME[l]}
-              </Link>
+              </a>
             ),
           )}
         </nav>

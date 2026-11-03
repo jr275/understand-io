@@ -24,7 +24,7 @@ export function LanguageSwitcher({ className = "" }: { className?: string }) {
             type="button"
             lang={l}
             aria-pressed={on}
-            aria-label={t(NAME[l])}
+            aria-label={`${SHORT[l]} – ${t(NAME[l])}`}
             data-tip={t(NAME[l])}
             onClick={() => (on ? undefined : setLocale(l))}
             className={`h-8 min-w-8 rounded-full px-2 leading-none transition-colors ${on ? "bg-ink text-bg" : "text-ink-3 hover:bg-sunk hover:text-ink"}`}

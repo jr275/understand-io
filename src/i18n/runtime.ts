@@ -7,3 +7,15 @@ import { translate, type Translator } from "./translate";
  * Anything that is part of what a component draws uses `useT()` instead.
  */
 export const tNow: Translator = (key, vars) => translate(typeof document === "undefined" ? DEFAULT_LOCALE : (normalizeLocale(document.documentElement.lang) ?? DEFAULT_LOCALE), key, vars);
+
+/** The current page language, for the same kind of code (see `tNow`). */
+export const currentLocale = () => (typeof document === "undefined" ? DEFAULT_LOCALE : (normalizeLocale(document.documentElement.lang) ?? DEFAULT_LOCALE));
+
+/** The name of a language (`pt`, `es`, `ja`...) in the page's own language: "Portuguese" or "português". */
+export function languageDisplay(code: string): string {
+  try {
+    return new Intl.DisplayNames(currentLocale() === "pt-BR" ? "pt-BR" : "en", { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}

@@ -6,6 +6,7 @@ import type { Anchor, Annotation, Block, Gloss, GlossDocument } from "@/lib/cont
 import type { Resolved } from "@/lib/anchors";
 import { renderGlossBody } from "./glossMarkdown";
 import { notebookMarkdown } from "./notebookMarkdown";
+import { tNow } from "@/i18n/runtime";
 
 interface Props {
   open: boolean;
@@ -183,11 +184,11 @@ function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: nu
 
 export function ago(t: number) {
   const s = Math.max(1, Math.round((Date.now() - t) / 1000));
-  if (s < 60) return "just now";
+  if (s < 60) return tNow("time.justNow");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return tNow("time.minAgo", { n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return tNow("time.hAgo", { n: h });
   const d = Math.round(h / 24);
-  return `${d} d ago`;
+  return tNow("time.dAgo", { n: d });
 }

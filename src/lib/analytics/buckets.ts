@@ -22,4 +22,3 @@ export function routePattern(path: string | undefined): string | null {
   if (["/library", "/privacy", "/terms"].includes(clean.replace(/\/$/, ""))) return clean.replace(/\/$/, "");
   return "/other";
 }
-

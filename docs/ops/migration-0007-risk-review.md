@@ -26,7 +26,7 @@
 | R2 | Two production builds migrate at once (two merges close together) | low | one build fails ("already exists") and the old deployment stays; a redeploy then succeeds because the journal row now exists | gate G3: one production merge at a time | build log of the second build |
 | R3 | `analytics_events` already exists (someone created it by hand, or a restored copy) | very low | the migration fails, as R1 | the G1 query `to_regclass('public.analytics_events')` must be NULL | same |
 | R4 | A later migration is **silently skipped** because its journal timestamp is older than 0007's (the Mission 06 draft, named `0007_...draft`, if promoted) | medium if promoted carelessly | the migration never runs and nothing says so | renumber to 0008 **and** make its journal `when` greater than 0007's; a rehearsal on a branch must show 9 journal rows | the journal row count after the build |
-| R5 | Storage growth | low | the cap is 5,000 events a day and retention 120 days, about 200 MB at most against the plan's storage limit; `/api/health` warns at 70% and reports a reason at 85% | analytics stays off until the owner decides | `storage.level` in health |
+| R5 | Storage growth | low | the cap is 5,000 events a day and retention 120 days, about 200 MB at most against the plan's storage limit (the cap now counts events stored, atomically; before 2026-11-03 it counted requests and could have allowed up to ten times more); `/api/health` warns at 70% and reports a reason at 85% | analytics stays off until the owner decides | `storage.level` in health |
 | R6 | Pooler behaviour (transaction mode) | very low | DDL works through the pooled endpoint; migrations already ran through it on 2026-10-19 and in every production build | rehearse with the pooled **and** the direct string | rehearsal output |
 | R7 | A rollback or a restore needs access to the database and a backup | depends on operations | an inert table causes no outage, but without access it cannot be removed and data cannot be restored | gates G1 and G2 before merging | n/a |
 | R8 | The provider's restore window is limited by the plan | certain | a mistake noticed after the window cannot be undone by the provider | the logical backup of gate G2 | n/a |
@@ -60,3 +60,27 @@ The collector inserts with errors swallowed and never throws; the daily-cap coun
 - **Code:** Vercel "Promote" of the previous deployment. The table stays and is inert.
 - **Table (only if the owner decides):** in one transaction, `DROP TABLE analytics_events;` and `DELETE FROM drizzle.__drizzle_migrations WHERE created_at = <the "when" of 0007 in drizzle/meta/_journal.json>;`. After this, rebuilding the code that contains 0007 would apply it again.
 - **Data:** nothing existing is touched, so there is nothing to restore; the G2 backup covers an unforeseen error.
+
+## 8. Locking analysis (measured 2026-11-03, disposable PostgreSQL 16; not a substitute for the staging rehearsal)
+
+Method: a local PostgreSQL 16 with `log_statement=all` and `log_lock_waits=on`, the production mechanism itself (`drizzle-kit migrate`, as `scripts/vercel-build.mjs` runs it), and several concurrent sessions. The script is reproducible from the statements below.
+
+**What the mechanism executes** (server log): `CREATE SCHEMA IF NOT EXISTS "drizzle"`; `CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations"`; `SELECT id, hash, created_at FROM "drizzle"."__drizzle_migrations" ORDER BY created_at DESC LIMIT 1`; `BEGIN`; `CREATE TABLE "analytics_events"`; three `CREATE INDEX` statements on it; `INSERT INTO "drizzle"."__drizzle_migrations"`; `COMMIT`. Nothing else, and nothing that names an existing application table.
+
+**Locks held by the DDL transaction before it commits** (`pg_locks` of the migrating backend):
+
+| Object | Mode | Meaning |
+| --- | --- | --- |
+| `analytics_events`, its three indexes and primary key, its id sequence | `ACCESS EXCLUSIVE` (also `SHARE` on the table for the index builds) | objects created in this transaction: no other session can see them until it commits, so nobody can wait on them |
+| `drizzle.__drizzle_migrations` and its sequence | `ROW EXCLUSIVE` | the journal insert; conflicts only with `SHARE` or stronger on that table, i.e. another migrator |
+| five system catalogs | `ACCESS SHARE` | reads only |
+| any of the application tables | none (0 relations) | |
+
+**Measurements:**
+- With the DDL transaction held open, 55 statements (`SELECT`, `SELECT ... FOR SHARE`, `UPDATE`, `DELETE` shapes) on every existing table finished in at most 24 ms each (the time of starting a client): ordinary traffic is not delayed by the migration.
+- With `ACCESS EXCLUSIVE`, the strongest lock, held on all 11 existing tables, the migration finished in under a second and the server logged no lock wait: the migration does not wait for the application tables either.
+- **What it does wait for:** the journal table. With that table locked for 8 s the migration waited until the lock was released. In practice only another migrator holds it.
+- **Two migrators at once** (no advisory lock exists): in three rounds exactly one succeeded and the other exited with an error; the final state was always one journal row, the table and its four indexes; no deadlock, no partial state. A build that loses this race fails loudly and a redeploy finds nothing to do.
+- The DDL transaction itself takes about 20 ms on an empty new table (including opening a connection).
+
+**Limits of this evidence.** Lock modes and their conflicts are PostgreSQL's, but these runs used a local PostgreSQL 16 with default settings, one user, no replication and no pooler. They do not show: the server version and settings of the production database (for example a role-level `lock_timeout` or `idle_in_transaction_session_timeout`), the behaviour of its connection pooler in transaction mode (a `BEGIN ... COMMIT` runs on one connection there, which is why it is expected to work, as the earlier migrations did), compute start-up time after an idle period (the build allows 180 s), or the privileges of the production role. Only the rehearsal on an isolated copy of the production database (`docs/ops/neon-staging-runbook.md`) closes those gaps.

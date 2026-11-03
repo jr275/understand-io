@@ -302,7 +302,7 @@ describe("when the allowances cannot be read", () => {
     const down = async () => {
       throw new Error("connection refused");
     };
-    return { quotaHit: down, quotaRefund: down, acquireLease: down, releaseLease: down, reserve: down, settle: down, usage: down, ping: down };
+    return { quotaHit: down, quotaRefund: down, quotaReserve: down, quotaRelease: down, acquireLease: down, releaseLease: down, reserve: down, settle: down, usage: down, ping: down };
   };
   it("the operator's key is not spent: the request is refused with a plain message", async () => {
     const r = await refusal(await admit({ account: "acc_1" }, { store: broken() }));

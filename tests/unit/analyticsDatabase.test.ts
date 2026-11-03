@@ -16,6 +16,7 @@ describe.skipIf(!db)("analytics events (real PostgreSQL)", () => {
     vi.stubEnv("GLOSS_ANALYTICS", "full");
     vi.stubEnv("GLOSS_COOKIE_SECRET", "x".repeat(40));
     vi.stubEnv("GLOSS_ANALYTICS_DAILY_CAP", "100000");
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", "off"); // this file prunes rows it inserts itself: no hourly run may take them first
     resetAnalyticsLimits();
   });
   afterAll(async () => {

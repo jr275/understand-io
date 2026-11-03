@@ -198,7 +198,7 @@ describe("limits", () => {
   });
 
   it("records nothing when the counter that enforces the cap cannot be read", async () => {
-    setAiStore({ ...createMemoryAiStore(), quotaHit: async () => Promise.reject(new Error("db down")) });
+    setAiStore({ ...createMemoryAiStore(), quotaReserve: async () => Promise.reject(new Error("db down")) });
     await post([landing]);
     expect(kept).toEqual([]);
   });

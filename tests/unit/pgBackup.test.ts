@@ -226,6 +226,13 @@ describe("the commands, before they touch anything", () => {
     expect(r.out).toMatch(/TARGET_DATABASE_URL is not set/);
   });
 
+  it("--prompt-password without a terminal is exit 2 (it never reads a password from a pipe or a file), and a URL without a password is otherwise used as it is", () => {
+    const r = run("db-backup.mjs", { BACKUP_DATABASE_URL: "postgres://u@127.0.0.1:1/x" }, ["--out", out, "--prompt-password"]);
+    expect(r.code).toBe(EXIT.USAGE);
+    expect(r.out).toMatch(/no terminal to ask on/);
+    expect(run("db-backup.mjs", { BACKUP_DATABASE_URL: "postgres://u@127.0.0.1:1/x" }, ["--out", out]).code).toBe(EXIT.CONNECT);
+  });
+
   it("restore: a missing dump, manifest or checksum is exit 2, naming the file that is missing", () => {
     const r = run("db-restore-verify.mjs", { TARGET_DATABASE_URL: "postgres://u:p@127.0.0.1:1/d" }, [join(out, "nothing.dump")]);
     expect(r.code).toBe(EXIT.USAGE);

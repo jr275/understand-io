@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Restores a backup made by scripts/db-backup.mjs into a NEW EMPTY database and proves the restore against the manifest. It never touches the source.
 //
-//   TARGET_DATABASE_URL='<DIRECT connection string of an empty database>' node scripts/db-restore-verify.mjs <understand-....dump> [--pg-bin <dir>]
+//   TARGET_DATABASE_URL='<DIRECT connection string of an empty database>' node scripts/db-restore-verify.mjs <understand-....dump> [--pg-bin <dir>] [--prompt-password]
+//   (--prompt-password: give a URL without the password and type it at a hidden prompt, so it never enters the shell history)
 //
 // It refuses (and changes nothing) when:
 //   7  the dump does not match its checksum, or the manifest is unreadable            (nothing is restored)
@@ -25,9 +26,9 @@ let url = process.env.TARGET_DATABASE_URL ?? "";
 try {
   if (!url) throw new BackupError(EXIT.USAGE, "TARGET_DATABASE_URL is not set (DATABASE_URL is deliberately not used here: a restore must never default to the live database).");
   const c = parseConnection(url);
-  if (!c.password && !process.env.PGPASSWORD) {
+  if (args.includes("--prompt-password")) {
     const u = new URL(url);
-    u.password = await promptHidden(`password for ${c.user}: `);
+    u.password = await promptHidden(`password for ${c.user} (hidden): `);
     url = u.toString();
   }
   const r = await runRestoreVerify({ file, targetUrl: url, explicitBin: value("--pg-bin") || process.env.PG_BIN || "", log: (m) => console.log(`  ${m}`) });

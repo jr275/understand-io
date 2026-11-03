@@ -153,6 +153,15 @@ describe("it is deterministic: once an hour, across every instance", () => {
     expect(await maybeRunRetention(NOW + DAY, deps)).not.toBeNull();
     expect(runs()).toBe(3);
   });
+  it("can be switched off by the operator: nothing runs and the shared claim is left untouched", async () => {
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", "off");
+    const deps = { deleteBatch: fake(5).deleteBatch };
+    expect(await maybeRunRetention(NOW, deps)).toBeNull();
+    expect(runs()).toBe(0);
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", "");
+    expect(await maybeRunRetention(NOW, deps)).not.toBeNull(); // the claim was never spent, so switching it back on runs at once
+    expect(runs()).toBe(1);
+  });
   it("does not delete anything when the claim cannot be made (the database is struggling)", async () => {
     setAiStore({ ...createMemoryAiStore(), quotaReserve: async () => Promise.reject(new Error("down")) });
     expect(await maybeRunRetention(NOW, { deleteBatch: fake(5).deleteBatch })).toBeNull();

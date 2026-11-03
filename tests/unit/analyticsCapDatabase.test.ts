@@ -21,7 +21,8 @@ const SCHEMA = `cap_${run}`.toLowerCase();
 const EMPTY_SCHEMA = `${SCHEMA}_empty`;
 
 const q = async <T = Record<string, unknown>>(text: ReturnType<typeof sql>) => (await db!.execute(text)) as unknown as T[];
-const countAt = async (ws: number) => Number((await q<{ count: number }>(sql`SELECT count FROM rate_hits WHERE window_start = ${ws}`))[0]?.count ?? 0);
+// A day window and an hour window can start at the same instant (the hourly retention claim), so take the largest: the day's counter.
+const countAt = async (ws: number) => Number((await q<{ count: number }>(sql`SELECT coalesce(max(count), 0)::int AS count FROM rate_hits WHERE window_start = ${ws}`))[0]?.count ?? 0);
 
 /** A database that runs everything inside the private schema (search_path is transaction-local, so it also works through a pooler). */
 const scoped = (schema: string) => ({
@@ -110,6 +111,7 @@ describe.skipIf(!db)("the event cap against real PostgreSQL", () => {
     vi.stubEnv("GLOSS_ANALYTICS", "full");
     vi.stubEnv("GLOSS_COOKIE_SECRET", "x".repeat(40));
     vi.stubEnv("GLOSS_ANALYTICS_DAILY_CAP", "200");
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", "off"); // the hourly run would delete every older row of the shared table, other tests' rows included
     resetAnalyticsLimits();
     try {
       const body = JSON.stringify({ events: Array.from({ length: 5 }, () => ({ event: "landing_viewed", props: {}, path: "/" })) });
@@ -206,6 +208,7 @@ describe.skipIf(!db)("retention against real PostgreSQL, in a private schema", (
     vi.stubEnv("GLOSS_ANALYTICS", "full");
     vi.stubEnv("GLOSS_COOKIE_SECRET", "x".repeat(40));
     vi.stubEnv("GLOSS_ANALYTICS_DAILY_CAP", "1000000");
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", "off");
     resetAnalyticsLimits();
     await seed(SCHEMA, 60_000, 0, OLD, T);
     const live = Date.UTC(2101, 0, 1) + Math.floor(Math.random() * 1000) * DAY; // a unique timestamp for the collector's rows in the real table
@@ -228,6 +231,33 @@ describe.skipIf(!db)("retention against real PostgreSQL, in a private schema", (
     await db!.execute(sql`DELETE FROM rate_hits WHERE window_start = ${Math.floor(live / DAY) * DAY}`);
     resetAnalyticsLimits();
   }, 120_000);
+
+  it("a batch never waits for rows another transaction holds: it takes other rows and leaves the held ones alone", async () => {
+    await reset();
+    await seed(SCHEMA, 3000, 0, OLD, T);
+    let release!: () => void;
+    let held!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const holding = new Promise<void>((r) => (held = r));
+    // Another transaction (say, a slow reader that locked rows, or a second run in the middle of a batch) holds the oldest thousand expired rows.
+    const holder = db!.transaction(async (tx) => {
+      await tx.execute(sql.raw(`SELECT id FROM ${SCHEMA}.analytics_events WHERE at < ${cutoff} ORDER BY at LIMIT 1000 FOR UPDATE`));
+      held();
+      await gate;
+    });
+    await holding;
+    try {
+      const t0 = Date.now();
+      const n = await deleteExpiredBatch(scoped(SCHEMA), cutoff, 500, 500); // a 500 ms statement timeout: waiting for the held rows would exceed it
+      expect(n).toBe(500);
+      expect(Date.now() - t0).toBeLessThan(450);
+      expect(await rows(SCHEMA)).toBe(2500);
+    } finally {
+      release();
+      await holder;
+    }
+    expect(await rows(SCHEMA, `at < ${OLD + 1001}`)).toBe(1000); // the thousand oldest, the ones that were held, are all still there
+  }, 60_000);
 
   it("a batch that runs past its statement timeout is cancelled whole: nothing is half deleted, and the run reports a timeout", async () => {
     await reset();
@@ -255,6 +285,7 @@ describe.skipIf(!db)("retention against real PostgreSQL, in a private schema", (
 
   it("the hourly claim is shared: of several instances only one runs it, and the next hour is open again", async () => {
     vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.stubEnv("GLOSS_ANALYTICS_AUTO_RETENTION", ""); // earlier tests switched it off; this one is about it being on
     const hourNow = Date.UTC(2102, 0, 1) + Math.floor(Math.random() * 5000) * DAY;
     const results: unknown[] = [];
     for (let instance = 0; instance < 4; instance++) {

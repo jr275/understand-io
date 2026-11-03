@@ -13,7 +13,7 @@ import { aiStore } from "./aiStore";
  *  - The `at` index (`analytics_events_at_idx`) serves the selection; no scan of the table.
  *  - It never throws. A failure is classified (`missing-table`, `timeout`, `error`), logged without any content, and returned.
  *  - Who runs it: an hourly claim made by whichever instance records an event (exactly one instance per hour, across all of them: see
- *    `maybeRunRetention`), the operator's `scripts/analytics-prune.mjs`, and the token-guarded maintenance endpoint for an external scheduler. When
+ *    `maybeRunRetention`; `GLOSS_ANALYTICS_AUTO_RETENTION=off` turns it off), the operator's `scripts/analytics-prune.mjs`, and the token-guarded maintenance endpoint for an external scheduler. When
  *    analytics is off nothing runs by itself and the collector stays inert; run the script or the endpoint once to clear what an earlier period left.
  */
 
@@ -138,6 +138,9 @@ export async function runRetention(now: number = Date.now(), deps: RetentionDeps
   return result;
 }
 
+/** `GLOSS_ANALYTICS_AUTO_RETENTION=off` (or `0`) stops the hourly run that recorded events trigger, for an operator who schedules retention themselves. */
+const autoRetentionOff = () => ["off", "0", "false", "no"].includes((process.env.GLOSS_ANALYTICS_AUTO_RETENTION ?? "").trim().toLowerCase());
+
 const CLAIM_KEY = "analytics:retention";
 let lastClaimHour = -1;
 
@@ -146,6 +149,7 @@ let lastClaimHour = -1;
  * that caps events), everyone else gets `null` at once. An instance that already knows the hour is taken does not even ask the database.
  */
 export async function maybeRunRetention(now: number = Date.now(), deps: RetentionDeps = {}): Promise<RetentionResult | null> {
+  if (autoRetentionOff()) return null; // the operator runs retention from a scheduler or by hand: no claim is made, nothing runs by itself
   const hour = Math.floor(now / HOUR_MS);
   if (hour === lastClaimHour) return null;
   lastClaimHour = hour;

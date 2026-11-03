@@ -1,18 +1,4 @@
 [
   "src/app/learn/[slug]/page.tsx",
-  "src/app/opengraph-image.tsx",
-  "src/components/reader/Composer.tsx",
-  "src/components/reader/FindBar.tsx",
-  "src/components/reader/InsightsPanel.tsx",
-  "src/components/reader/Lens.tsx",
-  "src/components/reader/LinkPage.tsx",
-  "src/components/reader/ListenBar.tsx",
-  "src/components/reader/MarginGlosses.tsx",
-  "src/components/reader/Notebook.tsx",
-  "src/components/reader/QuickAdd.tsx",
-  "src/components/reader/Rail.tsx",
-  "src/components/reader/Reader.tsx",
-  "src/components/reader/ReaderLoader.tsx",
-  "src/components/reader/VoiceSearch.tsx",
-  "src/components/reader/glossMarkdown.tsx"
+  "src/app/opengraph-image.tsx"
 ]

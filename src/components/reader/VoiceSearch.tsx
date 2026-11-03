@@ -9,6 +9,8 @@ import { createIndex, parseSpokenQuery, type Hit, type SearchResult } from "@/li
 import { tokenize } from "@/lib/search/tokenize";
 import { FAILOVER_CODES, describeMicError, getRecognitionCtor, recordAudio, startRecognition } from "@/lib/speech/recognition";
 import { getUserKey } from "@/lib/store/library";
+import { useT } from "@/i18n/client";
+import { tNow } from "@/i18n/runtime";
 
 interface Props {
   open: boolean;
@@ -49,6 +51,7 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], [tabin
  * the microphone is released.
  */
 export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onListenStart, serverKey, initialMode = "find", onAsk, conversation = null, onNewConversation, onShowAnswer, onCite, voice, onAnswerSpeak }: Props) {
+  const tx = useT();
   const [mode, setMode] = useState<"find" | "ask">(initialMode);
   const modeRef = useRef(mode);
   const [speakOn, setSpeakOn] = useState(true);
@@ -208,7 +211,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
           res = await fetch("/api/speech/transcribe", { method: "POST", headers: key ? { "x-gloss-key": key } : undefined, body: fd });
         } catch {
           if (live()) {
-            setError("Could not reach the transcription service. Check your connection and try again.");
+            setError(tNow("voice.unreachable"));
             setPhase("idle");
           }
           return;
@@ -217,7 +220,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
         if (!live()) return;
         const text = (j.text ?? "").trim();
         if (!res.ok || !text) {
-          setError(!res.ok ? j.message || "Transcription failed." : "No speech was heard. Try again, a little closer to the microphone.");
+          setError(!res.ok ? j.message || tNow("voice.transcriptionFailed") : tNow("voice.noSpeech"));
           setPhase("idle");
           return;
         }
@@ -299,7 +302,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
           abortRef.current = null;
           stopRef.current = null;
           setPhase((ph) => (ph === "listening" || ph === "starting" ? "idle" : ph));
-          if (!heard && !reported) setError("Listening stopped before anything was heard. Tap the microphone to try again.");
+          if (!heard && !reported) setError(tNow("voice.stoppedEarly"));
         },
       });
       if (!session) {
@@ -311,7 +314,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       return;
     }
     if (!canServerTranscribe) {
-      setError("This browser has no speech recognition, and server transcription needs a Together AI key. Type your question instead.");
+      setError(tNow("voice.noRecognition"));
       return;
     }
     await startServerCapture(mine);
@@ -348,7 +351,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
       if (!document.hidden) return;
       abortSession();
       setPhase("idle");
-      setError("Listening stopped because the page was hidden. Tap the microphone to try again.");
+      setError(tNow("voice.pageHidden"));
     };
     document.addEventListener("visibilitychange", onHide);
     return () => document.removeEventListener("visibilitychange", onHide);
@@ -394,45 +397,45 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
   const status =
     mode === "ask" && conversation && phase === "done"
       ? conversation.status === "streaming"
-        ? "Writing the answer"
+        ? tx("voice.sWriting")
         : conversation.status === "error"
-          ? "The answer failed"
+          ? tx("voice.sFailed")
           : speakState === "speaking"
-            ? "Reading the answer aloud"
-            : "The answer is ready"
+            ? tx("voice.sReading")
+            : tx("voice.sReady")
       : phase === "starting"
-      ? "Waiting for the microphone"
+      ? tx("voice.sWaiting")
       : phase === "listening"
-        ? "Listening"
+        ? tx("voice.sListening")
         : phase === "transcribing"
-          ? "Transcribing"
+          ? tx("voice.sTranscribing")
           : phase === "searching"
-            ? "Searching"
+            ? tx("voice.sSearching")
             : phase === "done" && result
               ? result.confidence === "none"
-                ? "No passage matches"
-                : `${Math.min(result.hits.length, 6)} passage${result.hits.length === 1 ? "" : "s"} found${result.confidence === "low" ? ", none is a confident match" : ""}`
+                ? tx("voice.sNoMatch")
+                : tx("voice.sFound", { n: Math.min(result.hits.length, 6), low: result.confidence === "low" ? tx("voice.sLow") : "" })
               : "";
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-start justify-center p-4 pt-[calc(var(--topbar-h)+20px)]">
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--bg)_55%,transparent)] backdrop-blur-[3px]" style={{ animation: "fade .25s var(--ease-out)" }} onPointerDown={onClose} />
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ask by voice" className="pop relative w-full max-w-[560px] p-5" style={{ ["--origin" as string]: "top center" }}>
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label={tx("voice.dialog")} className="pop relative w-full max-w-[560px] p-5" style={{ ["--origin" as string]: "top center" }}>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-serif text-[21px] leading-tight text-ink">{mode === "ask" ? "Ask about this text" : "Where does it talk about…"}</p>
-            <p className="mt-1 text-[13px] text-ink-3">{mode === "ask" ? "Ask aloud, or type. The answer is written from this text, with references you can check, and can be read to you." : "Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches."}</p>
+            <p className="font-serif text-[21px] leading-tight text-ink">{mode === "ask" ? tx("voice.titleAsk") : tx("voice.titleFind")}</p>
+            <p className="mt-1 text-[13px] text-ink-3">{mode === "ask" ? tx("voice.helpAsk") : tx("voice.helpFind")}</p>
           </div>
-          <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
+          <button type="button" aria-label={tx("common.close")} data-tip={tx("common.close")} data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />
           </button>
         </div>
 
-        <div role="group" aria-label="What to do" className="mt-3 inline-flex rounded-[10px] bg-sunk p-[3px]">
+        <div role="group" aria-label={tx("voice.whatToDo")} className="mt-3 inline-flex rounded-[10px] bg-sunk p-[3px]">
           {(
             [
-              ["find", "Find a passage"],
-              ["ask", "Ask a question"],
+              ["find", tx("voice.modeFind")],
+              ["ask", tx("voice.modeAsk")],
             ] as const
           ).map(([m, label]) => (
             <button
@@ -458,7 +461,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
           <button
             type="button"
             aria-pressed={busy}
-            aria-label={phase === "starting" ? "Cancel" : phase === "listening" ? "Stop listening" : "Start listening"}
+            aria-label={phase === "starting" ? tx("voice.cancel") : phase === "listening" ? tx("voice.stopListening") : tx("voice.startListening")}
             className={`relative grid size-12 shrink-0 place-items-center rounded-full transition-colors ${busy ? "bg-[var(--rubric)] text-white" : "bg-ink text-bg hover:opacity-90"}`}
             onClick={() => {
               if (phase === "starting") {
@@ -492,8 +495,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                 if (busy) typedWhileListening.current = true;
                 setDraft(e.target.value);
               }}
-              placeholder={phase === "starting" ? "Waiting for the microphone…" : phase === "listening" ? "Listening…" : phase === "transcribing" ? "Transcribing…" : mode === "ask" ? "Ask about this text…" : "Find the part that talks about…"}
-              aria-label={mode === "ask" ? "Your question about the text" : "What to look for"}
+              placeholder={phase === "starting" ? tx("voice.phStarting") : phase === "listening" ? tx("voice.phListening") : phase === "transcribing" ? tx("voice.phTranscribing") : mode === "ask" ? tx("voice.phAsk") : tx("voice.phFind")}
+              aria-label={mode === "ask" ? tx("voice.labelAsk") : tx("voice.labelFind")}
               className="h-11 min-w-0 flex-1 bg-transparent font-serif text-[16px] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none"
             />
             {!supported && phase === "listening" ? (
@@ -503,7 +506,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                 ))}
               </span>
             ) : null}
-            <button type="submit" aria-label={mode === "ask" ? "Ask" : "Search"} className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-ink text-bg">
+            <button type="submit" aria-label={mode === "ask" ? tx("voice.ask") : tx("voice.search")} className="grid size-8 shrink-0 place-items-center rounded-[9px] bg-ink text-bg">
               {mode === "ask" ? <ArrowUp size={14} aria-hidden="true" /> : <Search size={14} aria-hidden="true" />}
             </button>
           </form>
@@ -522,24 +525,24 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
           </p>
         ) : null}
         {!supported && phase === "idle" && !error ? (
-          <p className="mt-2 text-[12px] text-ink-4">{canServerTranscribe ? "This browser has no built-in speech recognition; your voice is transcribed on the server." : "This browser has no built-in speech recognition. Type your question, or add a Together key for server transcription."}</p>
+          <p className="mt-2 text-[12px] text-ink-4">{canServerTranscribe ? tx("voice.noRecServer") : tx("voice.noRecType")}</p>
         ) : null}
 
-        {phase === "searching" ? <div className="loading-bar mt-5" aria-label="Searching" /> : null}
+        {phase === "searching" ? <div className="loading-bar mt-5" aria-label={tx("voice.searching")} /> : null}
 
         {mode === "find" && result && phase === "done" ? (
           <div className="mt-4">
             <p className="text-[12.5px] text-ink-3">
               {result.confidence === "none" ? (
                 <>
-                  No passage in this text matches <span className="text-ink">“{result.topic}”</span>. Try other words, or ask about the whole text instead.
+                  {tx("voice.noneBefore")}<span className="text-ink">“{result.topic}”</span>{tx("voice.noneAfter")}
                 </>
               ) : (
                 <>
-                  {result.confidence === "low" ? "Possible matches for " : "Matches for "}
+                  {result.confidence === "low" ? tx("voice.possible") : tx("voice.matches")}
                   <span className="text-ink">“{result.topic}”</span>
-                  {result.confidence === "low" ? " — none is a confident hit." : ""}
-                  <span className="text-ink-4"> · {result.mode === "hybrid" ? "words + meaning" : result.semanticFailed ? "words only (meaning search unavailable)" : "words only"}</span>
+                  {result.confidence === "low" ? tx("voice.notConfident") : ""}
+                  <span className="text-ink-4"> · {result.mode === "hybrid" ? tx("voice.hybrid") : result.semanticFailed ? tx("voice.wordsNoMeaning") : tx("voice.wordsOnly")}</span>
                 </>
               )}
             </p>
@@ -566,8 +569,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                     </button>
                     <button
                       type="button"
-                      aria-label="Read this passage aloud"
-                      data-tip="Read aloud"
+                      aria-label={tx("voice.readPassage")}
+                      data-tip={tx("voice.readTip")}
                       className="grid size-8 shrink-0 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink"
                       onClick={() => {
                         onRead(h);
@@ -578,8 +581,8 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                     </button>
                     <button
                       type="button"
-                      aria-label="Go to this passage"
-                      data-tip="Go there"
+                      aria-label={tx("voice.goPassage")}
+                      data-tip={tx("voice.goTip")}
                       className="grid size-8 shrink-0 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink"
                       onClick={() => {
                         onJump(h);
@@ -597,7 +600,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
         {mode === "ask" ? (
           <div className="mt-4" data-conversation>
             {!conversation ? (
-              <p className="text-[13px] leading-relaxed text-ink-3">Ask anything about this text, for example “what does the author mean by that term?” or “what is the main argument?”. Nothing is sent until you ask.</p>
+              <p className="text-[13px] leading-relaxed text-ink-3">{tx("voice.askHelp")}</p>
             ) : (
               <div aria-busy={conversation.status === "streaming"} className="space-y-4">
                 {conversation.turns.map((t, i) =>
@@ -607,13 +610,13 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                     </p>
                   ) : (
                     <div key={i} className="gloss-body !text-[14.5px]">
-                      {t.content ? renderGlossBody(t.content, (n) => { onCite?.(n); onClose(); }, conversation.status === "streaming" && i === conversation.turns.length - 1, conversation.cites) : conversation.status === "streaming" ? <p className="text-ink-3">Writing…</p> : null}
+                      {t.content ? renderGlossBody(t.content, (n) => { onCite?.(n); onClose(); }, conversation.status === "streaming" && i === conversation.turns.length - 1, conversation.cites) : conversation.status === "streaming" ? <p className="text-ink-3">{tx("voice.writing")}</p> : null}
                     </div>
                   ),
                 )}
                 {conversation.status === "error" ? (
                   <p role="alert" className="rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
-                    {conversation.error ?? "That did not work."}
+                    {conversation.error ?? tx("reader.didNotWork")}
                   </p>
                 ) : null}
                 {speakState === "error" && speaker.error ? (
@@ -648,7 +651,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                       onClose();
                     }}
                   >
-                    Show in the margin
+                    {tx("voice.showInMargin")}
                   </button>
                   <button
                     type="button"
@@ -660,25 +663,25 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                       onNewConversation?.();
                     }}
                   >
-                    New question
+                    {tx("voice.newQuestion")}
                   </button>
                   <button type="button" className="h-8 rounded-full px-3 font-medium text-ink-2 hover:bg-sunk hover:text-ink" onClick={onClose}>
-                    Back to reading
+                    {tx("voice.backToReading")}
                   </button>
                 </div>
-                <p className="text-[12px] leading-snug text-ink-3">Ask again below to follow up on this answer.</p>
+                <p className="text-[12px] leading-snug text-ink-3">{tx("voice.followUp")}</p>
               </div>
             )}
             <label className="mt-3 flex items-center gap-2 text-[12.5px] text-ink-2">
               <input type="checkbox" checked={speakOn} onChange={(e) => setSpeakOn(e.target.checked)} />
-              Read answers aloud when they are ready
+              {tx("voice.readAnswers")}
             </label>
           </div>
         ) : null}
-        {mode === "find" ? <p className="mt-4 text-[11.5px] leading-snug text-ink-4">Try: “find the part about the sea floor” · “where does the author explain the main argument” · “encontre a conclusão e leia esse trecho”.</p> : null}
+        {mode === "find" ? <p className="mt-4 text-[11.5px] leading-snug text-ink-4">{tx("voice.tryFind")}</p> : null}
         <p className="mt-2 text-[11.5px] leading-snug text-ink-4">
-          {supported ? "Your voice is processed by your browser's speech service (Chrome, Edge and Safari send the audio to their provider)." : canServerTranscribe ? "Your voice is sent to Together AI to be transcribed." : "Voice needs a speech service this browser does not have; typing works everywhere."}
-          {mode === "ask" ? " Asking sends your question and the paragraphs most relevant to it to Together AI, which writes the answer. The microphone only runs after you press its button, and no audio is kept by this app." : hasKey ? " Ranking by meaning sends your question and a few short excerpts of this text to Together AI." : ""}
+          {supported ? tx("voice.privBrowser") : canServerTranscribe ? tx("voice.privServer") : tx("voice.privNone")}
+          {mode === "ask" ? tx("voice2.privAsk") : hasKey ? tx("voice2.privRank") : ""}
         </p>
       </section>
     </div>

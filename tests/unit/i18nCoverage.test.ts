@@ -22,7 +22,7 @@ const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort
 const EN = flatten(en);
 const PT = flatten(ptBR as unknown as Record<string, unknown>);
 /** Values that are the same in both languages on purpose: a name, a code, a punctuation mark. */
-const SAME = new Set(["lang.en", "lang.pt-BR", "meta.appCategory", "landing.heroDot", "appearance.web", "topics.design", "topics.startups", "library.minutes", "add.linkCount"]);
+const SAME = new Set(["lang.en", "lang.pt-BR", "meta.appCategory", "landing.heroDot", "appearance.web", "topics.design", "topics.startups", "library.minutes", "add.linkCount", "reader.kindPdf", "composer.web", "insights.original", "insights.literal", "insights.mdOriginal", "notebook.summary", "listen.online"]);
 
 describe("the dictionaries", () => {
   it("have exactly the same keys in English and Portuguese (the compiler also enforces it)", () => {
@@ -77,7 +77,7 @@ export function hardCoded(source: string): string[] {
       return;
     }
     if (!line || line.startsWith("//") || line.startsWith("*") || line.startsWith("import ") || line.startsWith("export type") || line.startsWith("{/*")) return;
-    for (const m of line.matchAll(/\b(?:aria-label|aria-description|title|placeholder|alt|data-tip|label)=\"([^\"{}]*[A-Za-z]{3}[^\"{}]*)\"/g)) if (!BRAND.test(m[1])) found.push(`${i + 1}: ${m[0]}`);
+    for (const m of line.matchAll(/\b(?:aria-label|aria-description|title|placeholder|alt|data-tip|label)=\"([^\"{}]*[A-Za-z]{3}[^\"{}]*)\"/g)) if (!BRAND.test(m[1]) && !/^(https?:\/\/|[\w-]*[./:][\w./:-]*)$/.test(m[1])) found.push(`${i + 1}: ${m[0]}`);
     // text between a tag and the next tag: a sentence or a label (starts with a capital; generics such as `Set<string>` and expressions are not text)
     for (const m of line.matchAll(/>\s*([A-Z][A-Za-z’'.,!?\- ]*)\s*</g)) {
       const text = m[1].trim();
@@ -85,7 +85,7 @@ export function hardCoded(source: string): string[] {
       found.push(`${i + 1}: >${text}<`);
     }
     // a line that is nothing but words, between tags (multi-line JSX text)
-    if (/^[A-Z][A-Za-z’'.,!?:\- ]{3,}$/.test(line) && !/^(return|const|let|import|export|default|break|case|else|try|catch|finally|await|async|function|type|interface)\b/.test(line) && /\s/.test(line)) found.push(`${i + 1}: ${line}`);
+    if (/^[A-Z][A-Za-z’'.,!?:\- ]{3,}$/.test(line) && !BRAND.test(line) && !/^(return|const|let|import|export|default|break|case|else|try|catch|finally|await|async|function|type|interface)\b/.test(line) && /\s/.test(line)) found.push(`${i + 1}: ${line}`);
   });
   return found;
 }

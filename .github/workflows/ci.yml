@@ -86,6 +86,10 @@ jobs:
       # refuses to restore), so the 16 client is installed and put first on the PATH: the backup tests then run client and server of the same version, as in production.
       - name: Use the PostgreSQL 16 client tools
         run: |
+          # The runner's own package lists do not carry version 16 (its default client is newer): add the PostgreSQL project's apt repository.
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-16
           echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"

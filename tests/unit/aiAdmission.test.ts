@@ -247,6 +247,40 @@ describe("the global budget", () => {
     for (let i = 0; i < 18; i++) granted(await ask({ account: "acc_1" }));
     expect((await admit({ account: "acc_1" })).ok).toBe(false);
   });
+  it("a request that fails half-way is charged for the calls the provider already billed, and the question is not given back", async () => {
+    const half = granted(await admit({ account: "acc_1" }));
+    await half.settle({ kind: "provider-error", partial: { inputTokens: 4000, outputTokens: 1500 } });
+    expect((await store.usage(T0)).day).toMatchObject({ spentMicro: costMicro({ inputTokens: 4000, outputTokens: 1500 }, "openai/gpt-oss-120b"), inputTokens: 4000, outputTokens: 1500, requests: 1, errors: 1 });
+    // Twenty a day and this one was kept: nineteen more fit, the twentieth is refused.
+    for (let i = 0; i < 19; i++) granted(await ask({ account: "acc_1" }));
+    expect((await admit({ account: "acc_1" })).ok).toBe(false);
+  });
+  it("a provider failure with nothing billed yet still costs nothing and returns the question", async () => {
+    const none = granted(await admit({ account: "acc_1" }));
+    await none.settle({ kind: "provider-error", partial: { inputTokens: 0, outputTokens: 0 } });
+    expect((await store.usage(T0)).day).toMatchObject({ spentMicro: 0, errors: 1 });
+    for (let i = 0; i < 20; i++) granted(await ask({ account: "acc_1" }));
+  });
+  it("a spend that cannot be written the first time is written the second, so it is not lost", async () => {
+    const real = store.settle.bind(store);
+    let failures = 1;
+    store.settle = async (...args) => {
+      if (failures-- > 0) throw new Error("connection reset");
+      return real(...args);
+    };
+    const a = granted(await admit({ account: "acc_1" }));
+    await a.settle({ kind: "ok", inputTokens: 1000, outputTokens: 1000 });
+    expect((await store.usage(T0)).day).toMatchObject({ requests: 1, inputTokens: 1000, outputTokens: 1000 });
+  });
+  it("when the spend cannot be written at all, the request still ends cleanly: the lease is freed and a warning is logged", async () => {
+    store.settle = async () => {
+      throw new Error("down");
+    };
+    const a = granted(await admit({ account: "acc_1" }));
+    await expect(a.settle({ kind: "ok", inputTokens: 1000, outputTokens: 1000 })).resolves.toBeUndefined();
+    expect((await admit({ account: "acc_1" })).ok).toBe(true); // not "busy": the lease was released
+    expect(console.warn).toHaveBeenCalled();
+  });
   it("settling twice charges once", async () => {
     const a = granted(await admit({ account: "acc_1" }));
     await a.settle({ kind: "ok", inputTokens: 1000, outputTokens: 1000 });

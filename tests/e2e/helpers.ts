@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 export const SAMPLE = "/read/on-a-piece-of-chalk";
 
@@ -52,8 +52,23 @@ export function collectErrors(page: Page) {
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("requestfailed", (r) => errors.push(`request failed: ${r.url()}`));
+  // A production build prefetches the `<Link>` targets in view and Next cancels a prefetch it no longer needs (`?_rsc=`, net::ERR_ABORTED):
+  // normal, not an app error (the dev server never prefetches). Any other failed request still counts.
+  page.on("requestfailed", (r) => {
+    if (/[?&]_rsc=/.test(r.url()) && r.failure()?.errorText === "net::ERR_ABORTED") return;
+    errors.push(`request failed: ${r.url()}`);
+  });
   return errors;
+}
+
+/** True when the server under test is a production build (the dev server answers `development`). */
+export async function isProductionBuild(request: APIRequestContext): Promise<boolean> {
+  return ((await (await request.get("/api/health")).json()) as { environment?: string }).environment === "production";
+}
+
+/** Waits until nothing on the page is animating, so a measurement (a contrast check, say) does not sample a half-faded element. */
+export async function settleAnimations(page: Page) {
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
 }
 
 export interface FakeSpeechOptions {

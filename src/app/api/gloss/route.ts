@@ -80,9 +80,9 @@ export async function POST(req: Request) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        let outChars = 0;
         try {
           let answered = false;
-          let outChars = 0;
           for await (const part of result.textStream) {
             if (part.trim()) answered = true;
             outChars += part.length;
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
           controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ model: CHAT_MODEL, usage: { input, output, cost } })));
         } catch (err) {
           const empty = err instanceof Error && err.message === "empty answer";
-          const outcome: Outcome = req.signal.aborted ? { kind: "client-gone" } : timedOut(signal, req.signal) ? { kind: "timeout" } : empty && !providerError ? { kind: "bad-output" } : { kind: "provider-error" };
+          const outcome: Outcome = req.signal.aborted ? { kind: "client-gone" } : timedOut(signal, req.signal) ? { kind: "timeout" } : empty && !providerError ? { kind: "bad-output" } : { kind: "provider-error", partial: outChars > 0 ? estimateStreamedUsage(chars, outChars) : undefined };
           await admission.settle(outcome);
           controller.enqueue(encoder.encode(SENTINEL + JSON.stringify({ error: timedOut(signal, req.signal) ? TIMEOUT_MESSAGE : providerError || !(err instanceof Error && err.message === "empty answer") ? describe(providerError ?? err, source) : NO_ROOM_MESSAGE })));
         } finally {

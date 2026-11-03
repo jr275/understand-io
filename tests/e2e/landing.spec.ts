@@ -180,10 +180,11 @@ test.describe("landing", () => {
     });
     await page.goto("/");
     // The paint entry is added when the browser paints, which on a fast production build can be just after the load event.
-    await page.waitForFunction(() => performance.getEntriesByType("paint").some((p) => p.name === "first-paint"));
+    // Firefox and WebKit do not report "first-paint", only "first-contentful-paint", which is never earlier: the order checked below holds for either.
+    await page.waitForFunction(() => performance.getEntriesByType("paint").some((p) => p.name === "first-paint" || p.name === "first-contentful-paint"));
     const timing = await page.evaluate(() => ({
       themeAt: (window as unknown as { __themeAt?: number }).__themeAt,
-      firstPaint: performance.getEntriesByType("paint").find((p) => p.name === "first-paint")?.startTime,
+      firstPaint: (performance.getEntriesByType("paint").find((p) => p.name === "first-paint") ?? performance.getEntriesByType("paint").find((p) => p.name === "first-contentful-paint"))?.startTime,
     }));
     // The inline boot script runs while the HTML is parsed, so the dark theme is in place before anything is painted.
     expect(timing.themeAt).toBeDefined();

@@ -5,20 +5,24 @@ import { useMemo, useState } from "react";
 import { Highlighter, NotebookPen, Trash2, Underline } from "lucide-react";
 import { markHref } from "@/lib/search/library";
 import { removeAnnotation } from "@/lib/store/library";
-import { kindLabel, markCounts, reviewMarks, type MarkFilter, type MarkStatus, type ReviewDoc } from "@/lib/store/marksReview";
+import { markCounts, reviewMarks, type MarkFilter, type MarkStatus, type ReviewDoc } from "@/lib/store/marksReview";
 import type { Annotation } from "@/lib/content/types";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n/translate";
 
-const FILTERS: { id: MarkFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "highlight", label: "Highlights" },
-  { id: "underline", label: "Underlines" },
-  { id: "note", label: "Notes" },
+const FILTERS: { id: MarkFilter; label: MessageKey }[] = [
+  { id: "all", label: "marks.all" },
+  { id: "highlight", label: "marks.highlights" },
+  { id: "underline", label: "marks.underlines" },
+  { id: "note", label: "marks.notes" },
 ];
 
-const STATUS_NOTE: Partial<Record<MarkStatus, string>> = {
-  missing: "This passage is no longer in the text. You can still open the text or remove the mark.",
-  moved: "The passage moved; it was found again.",
+const STATUS_NOTE: Partial<Record<MarkStatus, MessageKey>> = {
+  missing: "marks.missing",
+  moved: "marks.moved",
 };
+
+const KIND: Record<Annotation["kind"], MessageKey> = { highlight: "marks.kindHighlight", underline: "marks.kindUnderline", note: "marks.kindNote" };
 
 /** Most texts listed before "Show all": a long shelf stays a quick glance. */
 const FIRST = 6;
@@ -34,6 +38,7 @@ function Icon({ kind }: { kind: Annotation["kind"] }) {
  * removable. It reads the same store as the Reader, so a mark made or removed in either shows in both.
  */
 export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotations: Record<string, Annotation[]> }) {
+  const t = useT();
   const [filter, setFilter] = useState<MarkFilter>("all");
   const [all, setAll] = useState(false);
   const [confirm, setConfirm] = useState<string | null>(null);
@@ -45,9 +50,9 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
     <section className="marks-review mt-10" aria-labelledby="marks-heading" data-marks-review="">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <h2 id="marks-heading" className="lib-label">
-          Your marks <span className="tabular-nums text-ink-4">{counts.all}</span>
+          {t("marks.heading")} <span className="tabular-nums text-ink-4">{counts.all}</span>
         </h2>
-        <div role="radiogroup" aria-label="Show marks" className="flex flex-wrap gap-1.5">
+        <div role="radiogroup" aria-label={t("marks.show")} className="flex flex-wrap gap-1.5">
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -58,13 +63,13 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
               className="rounded-full border border-rule px-3 py-1 text-[12.5px] text-ink-2 hover:bg-sunk disabled:opacity-40 aria-checked:border-ink aria-checked:text-ink"
               onClick={() => setFilter(f.id)}
             >
-              {f.label} <span className="tabular-nums text-ink-4">{counts[f.id]}</span>
+              {t(f.label)} <span className="tabular-nums text-ink-4">{counts[f.id]}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {!groups.length ? <p className="mt-3 text-[13px] text-ink-3">No marks of this kind yet.</p> : null}
+      {!groups.length ? <p className="mt-3 text-[13px] text-ink-3">{t("marks.none")}</p> : null}
       <ul className="mt-3 space-y-5">
         {shown.map((g) => (
           <li key={g.id} data-marks-doc={g.slug}>
@@ -73,26 +78,26 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
                 {g.title}
               </Link>{" "}
               <span className="text-[12px] text-ink-4">
-                {g.marks.length} mark{g.marks.length === 1 ? "" : "s"}
+                {t("marks.nMarks", { n: g.marks.length })}
               </span>
             </h3>
             <ul className="mt-2 space-y-2">
               {g.marks.map(({ annotation: a, status }) => (
                 <li key={a.id} className="rounded-[12px] border border-rule bg-bg px-3.5 py-3" data-mark-kind={a.kind} data-mark-status={status}>
                   <p className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                    <Icon kind={a.kind} /> {kindLabel(a)}
+                    <Icon kind={a.kind} /> {t(KIND[a.kind])}
                   </p>
                   <blockquote className="mt-1.5 border-l-2 border-rule-strong pl-3 font-serif text-[14.5px] leading-[1.5] text-ink-2">
                     {a.anchor.quote.length > 280 ? `${a.anchor.quote.slice(0, 277)}…` : a.anchor.quote}
                   </blockquote>
                   {a.note ? <p className="mt-1.5 text-[13px] leading-snug text-ink">{a.note}</p> : null}
-                  {STATUS_NOTE[status] ? <p className="mt-1.5 text-[12px] leading-snug text-ink-3">{STATUS_NOTE[status]}</p> : null}
+                  {STATUS_NOTE[status] ? <p className="mt-1.5 text-[12px] leading-snug text-ink-3">{t(STATUS_NOTE[status]!)}</p> : null}
                   <div className="mt-2 flex items-center gap-4 text-[12.5px]">
                     <Link href={markHref(g.slug, a.id)} className="font-medium text-ink underline decoration-rule-strong underline-offset-4">
-                      Open at this passage
+                      {t("marks.openAt")}
                     </Link>
                     {confirm === a.id ? (
-                      <span className="flex items-center gap-3" role="group" aria-label="Confirm removing this mark">
+                      <span className="flex items-center gap-3" role="group" aria-label={t("marks.confirm")}>
                         <button
                           type="button"
                           className="font-medium text-rubric-text underline underline-offset-4"
@@ -101,15 +106,15 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
                             setConfirm(null);
                           }}
                         >
-                          Remove mark
+                          {t("marks.removeMark")}
                         </button>
                         <button type="button" className="text-ink-3 underline underline-offset-4" onClick={() => setConfirm(null)}>
-                          Keep
+                          {t("marks.keep")}
                         </button>
                       </span>
                     ) : (
-                      <button type="button" className="inline-flex items-center gap-1 text-ink-3 hover:text-ink" onClick={() => setConfirm(a.id)} aria-label={`Remove this ${kindLabel(a).toLowerCase()}`}>
-                        <Trash2 size={13} aria-hidden="true" /> Remove
+                      <button type="button" className="inline-flex items-center gap-1 text-ink-3 hover:text-ink" onClick={() => setConfirm(a.id)} aria-label={t("marks.removeThis", { kind: t(KIND[a.kind]).toLowerCase() })}>
+                        <Trash2 size={13} aria-hidden="true" /> {t("marks.remove")}
                       </button>
                     )}
                   </div>
@@ -121,10 +126,10 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
       </ul>
       {groups.length > FIRST ? (
         <button type="button" className="mt-4 text-[13px] font-medium text-ink underline underline-offset-4" onClick={() => setAll((v) => !v)}>
-          {all ? "Show fewer texts" : `Show all ${groups.length} texts`}
+          {all ? t("marks.showFewer") : t("marks.showAll", { n: groups.length })}
         </button>
       ) : null}
-      <p className="mt-4 text-[12px] leading-snug text-ink-4">Removing a mark removes only the mark; the text and your other marks stay as they are.</p>
+      <p className="mt-4 text-[12px] leading-snug text-ink-4">{t("marks.footnote")}</p>
     </section>
   );
 }

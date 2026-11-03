@@ -1,12 +1,6 @@
 [
   "src/app/learn/[slug]/page.tsx",
   "src/app/opengraph-image.tsx",
-  "src/components/library/AddPanel.tsx",
-  "src/components/library/BackupPanel.tsx",
-  "src/components/library/LibraryPage.tsx",
-  "src/components/library/LibrarySearch.tsx",
-  "src/components/library/MarksReview.tsx",
-  "src/components/library/OpenBook.tsx",
   "src/components/reader/Composer.tsx",
   "src/components/reader/FindBar.tsx",
   "src/components/reader/InsightsPanel.tsx",

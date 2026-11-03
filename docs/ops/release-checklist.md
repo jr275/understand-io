@@ -21,8 +21,8 @@ Run in order. Nothing in production changes until the last section, which needs 
 
 1. Merge the pull request into `main` (fast-forward or merge commit). Vercel builds Production; the build applies pending migrations before `next build` (additive only).
 2. Wait for the deployment to be Ready.
-3. `GET /api/health`: `commit` is the merged commit, `status` is `ok`, `database` is `ok`.
+3. `GET /api/health`: `commit` is the merged commit, `status` is `ok` (liveness). Then `GET /api/health/ready?fresh=1` with `Authorization: Bearer <GLOSS_HEALTH_TOKEN>`: `database` is `ok` (the token is typed at a hidden prompt, never in the URL or a shared shell history).
 4. `node scripts/ai-smoke.mjs https://<site>` (8 checks against the real provider; costs a fraction of a cent).
 5. In a browser: open the site, sign in with Google, import a text, ask one question, run Study notes.
-6. Watch `/api/health` and the **Health** workflow for the next hour.
+6. Watch `/api/health`, `/api/health/ready` and the **Health** workflow for the next hour.
 7. If anything is wrong: `docs/ops/rollback-and-recovery.md`.

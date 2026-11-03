@@ -46,7 +46,7 @@ const fixture = (url: string, n: number) => ({
 
 async function fill(page: Page, lang: Lang, text: string) {
   await page.goto(L[lang].path);
-  await expect(readButton(page, lang)).toBeVisible();
+  await expect(box(page, lang)).toHaveAttribute("data-hydrated", ""); // typing before the page has hydrated is lost on slower engines
   await box(page, lang).fill(text);
 }
 
@@ -173,11 +173,14 @@ for (const lang of ["en", "pt"] as const) {
         if (r.method() === "POST" && u.pathname === "/api/import") events.push("import");
       });
       await page.goto(T.path); // a visitor with no cookie yet
-      expect((await context.cookies()).length).toBeGreaterThanOrEqual(0);
+      const reader = async () => (await context.cookies()).filter((c) => c.name === "gloss_reader");
+      expect(await reader()).toHaveLength(0);
+      await expect(box(page, lang)).toHaveAttribute("data-hydrated", "");
       await box(page, lang).fill([priv("keep-1"), priv("keep-2"), priv("keep-3")].join("\n"));
       await readButton(page, lang).click();
       await expect(results(page).getByText(T.finished)).toBeVisible();
       expect(events.filter((e) => e === "reader")).toHaveLength(1);
+      expect(await reader()).toHaveLength(1); // one reader for the whole list, not one per link
       expect(events.indexOf("reader")).toBeLessThan(events.indexOf("import"));
       expect(events.filter((e) => e === "import")).toHaveLength(3);
       await page.goto(T.library);
@@ -197,17 +200,18 @@ for (const lang of ["en", "pt"] as const) {
       await expect(count(page, "total")).toHaveText("3");
     });
 
-    test("a list pasted anywhere on the page (not in the box) is read as links, not saved as one text", async ({ page }) => {
+    test("a list pasted anywhere on the page (not in the box) is read as links, not saved as one text", async ({ page, browserName }) => {
+      test.skip(browserName === "firefox", "Firefox does not let a script build a paste event that carries clipboard data; the handler is the same code on every engine");
       const seen = await watchImports(page);
       await page.goto(T.path);
-      await expect(readButton(page, lang)).toBeVisible();
+      await expect(box(page, lang)).toHaveAttribute("data-hydrated", "");
       await page.evaluate((text) => {
         const dt = new DataTransfer();
         dt.setData("text/plain", text);
-        document.body.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+        document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
       }, [priv("paste-1"), priv("paste-2")].join("\n"));
       await expect(results(page).getByText(T.finished)).toBeVisible();
-      expect(seen.urls).toEqual([priv("paste-1"), priv("paste-2")]);
+      expect(seen.urls).toEqual([priv("paste-1"), priv("paste-2")]); // read as two links, never saved as one text
     });
 
     test("13. no accessibility violations: ready hints, running list and finished list", async ({ page }) => {
@@ -233,6 +237,7 @@ test.describe("12. a phone", () => {
       const b = await box(page, lang).boundingBox();
       expect(b!.y + b!.height).toBeLessThan(844);
       await expect(page.getByText(L[lang].hint)).toBeInViewport();
+      await expect(box(page, lang)).toHaveAttribute("data-hydrated", "");
       await box(page, lang).fill([priv("ph-1"), "nope", priv("ph-2")].join("\n"));
       await readButton(page, lang).click();
       await expect(results(page).getByText(L[lang].finished)).toBeVisible();

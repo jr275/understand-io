@@ -166,6 +166,12 @@ export const LinksField = forwardRef(function LinksField({ source, links, waitin
     else if (ref) ref.current = el;
   };
   const { url: text, setUrl, busy, setTouched } = source;
+  // Set once the page has hydrated: before that the box is only server-rendered markup, and anything typed into it is lost when React takes over.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const working = busy === "url" || busy === "page" || !!waiting;
   const locked = working || links.running;
   const lines = lineCount(text);
@@ -202,6 +208,7 @@ export const LinksField = forwardRef(function LinksField({ source, links, waitin
     if (parsed.over) hints.push(t("ingest.linksOver", { n: parsed.over, max: MAX_LINKS }));
   }
   const singleProblem = !multi ? undefined : null; // several lines are judged line by line, never as one address
+  const invalidNow = !multi && !!source.problem && (source.touched || text.trim().length > 6);
 
   return (
     <div className="w-full text-left">
@@ -231,11 +238,13 @@ export const LinksField = forwardRef(function LinksField({ source, links, waitin
           }}
           placeholder={waiting ? t("landing.linkWaiting") : (placeholder ?? "https://example.com/article-1\nhttps://example.com/article-2")}
           aria-label={t("ingest.linksLabel")}
+          aria-invalid={invalidNow ? true : undefined}
           aria-describedby={`${hintId} ${statusId}`}
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}
           data-links-input
+          data-hydrated={hydrated ? "" : undefined}
           disabled={locked}
           className="min-h-[72px] min-w-0 flex-1 resize-none bg-transparent py-3 pl-[46px] pr-2 text-[16px] leading-[1.5] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none disabled:text-ink-2"
         />

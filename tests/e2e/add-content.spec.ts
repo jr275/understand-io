@@ -41,6 +41,7 @@ test.describe("home: the link field is the first thing on the page", () => {
       await page.route("**/api/import", (r) => (sent++, r.continue()));
       await page.goto(L.path);
       const field = linkField(page, L.field);
+      await expect(field).toHaveAttribute("data-hydrated", ""); // typing before the page has hydrated is lost on slower engines
       await page.getByRole("button", { name: /^(Read|Ler)/ }).click();
       await expect(field).toBeFocused();
       await field.fill("not a link at all");
@@ -58,6 +59,7 @@ test.describe("home: the link field is the first thing on the page", () => {
       let calls = 0;
       await page.route("**/api/import", (r) => (calls++ === 0 ? r.abort("connectionfailed") : r.continue()));
       await page.goto(L.path);
+      await expect(linkField(page, L.field)).toHaveAttribute("data-hydrated", "");
       await linkField(page, L.field).fill(UNREADABLE);
       await linkField(page, L.field).press("Enter");
       await expect(status(page)).toContainText(L.offline);

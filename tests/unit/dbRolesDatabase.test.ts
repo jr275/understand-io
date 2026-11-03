@@ -79,7 +79,8 @@ describe.skipIf(!admin)("the owner, migration and runtime roles against real Pos
     globalThis.__glossDb = undefined;
     await Promise.allSettled(open.map((c) => c.end({ timeout: 2 })));
     for (const d of [db1, db2]) await admin!.unsafe(`DROP DATABASE IF EXISTS ${d} WITH (FORCE)`).catch(() => {});
-    for (const r of Object.values(role)) await admin!.unsafe(`DROP ROLE IF EXISTS ${r}`).catch(() => {});
+    // the login that ran the script granted the memberships, so it can only be dropped after the roles it granted
+    for (const r of [role.app, role.mig, role.owner, role.boot]) await admin!.unsafe(`DROP ROLE IF EXISTS ${r}`).catch(() => {});
     await admin!.end({ timeout: 2 });
   }, 60_000);
 
@@ -100,7 +101,6 @@ describe.skipIf(!admin)("the owner, migration and runtime roles against real Pos
     });
 
     it("the verification script fails (exit 3) when a role has been widened", async () => {
-      await admin!.unsafe(`GRANT TRUNCATE ON readers TO ${role.app}`).catch(() => {});
       const c = as("boot", db1);
       const owner = (await c`SELECT pg_get_userbyid(relowner) AS o FROM pg_class WHERE relname = 'readers'`)[0].o;
       expect(owner).toBe(role.owner);

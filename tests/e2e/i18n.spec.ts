@@ -172,3 +172,18 @@ test.describe("layout and accessibility in both languages", () => {
     await expect(page).toHaveURL(/\/$/);
   });
 });
+
+test.describe("the social card follows the page's language", () => {
+  test("/pt-BR names its own card, English keeps the default one, and only known languages have a card", async ({ page, request }) => {
+    await page.goto("/pt-BR");
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\/pt-BR$/);
+    await page.goto("/");
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/opengraph-image/);
+    for (const l of ["pt-BR", "en"]) {
+      const r = await request.get(`/og/${l}`);
+      expect(r.status(), l).toBe(200);
+      expect(r.headers()["content-type"]).toContain("image/png");
+    }
+    expect((await request.get("/og/xx")).status()).toBe(404);
+  });
+});

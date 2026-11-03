@@ -146,3 +146,27 @@ test.describe("the top bar keeps every control on screen on a phone", () => {
     }
   }
 });
+
+test("the Portuguese title stays on two lines, so the link field is still in the first screen", async ({ page }) => {
+  for (const size of [{ width: 1440, height: 900 }, { width: 1280, height: 720 }]) {
+    await page.setViewportSize(size);
+    await page.goto("/pt-BR");
+    const lines = await page.evaluate(() => {
+      const h = document.querySelector("h1")!;
+      return Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight));
+    });
+    expect(lines, `${size.width}px`).toBe(2);
+    const box = await page.getByRole("textbox", { name: "Link do artigo" }).boundingBox();
+    expect(box!.y + box!.height).toBeLessThan(size.height * 0.65);
+  }
+});
+
+test("a link that fails or is added inside the panel is said once, next to the field, without a second toast", async ({ page }) => {
+  await page.goto("/library");
+  await page.getByRole("button", { name: /Add a source/ }).click();
+  const dialog = page.getByRole("dialog");
+  await linkField(dialog, "Article link").fill("http://127.0.0.1/no-toast");
+  await linkField(dialog, "Article link").press("Enter");
+  await expect(status(dialog)).toContainText("Saved as a link only");
+  await expect(page.locator('[role="status"]:not([data-url-status])').filter({ hasText: /Saved the link|Shelved/ })).toHaveCount(0);
+});

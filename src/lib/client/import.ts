@@ -53,7 +53,9 @@ async function post(path: string, body: BodyInit, json = true, signal?: AbortSig
 }
 
 /** Imports a URL, pasted text, a file or captured page HTML, remembers the document locally and opens the reader. */
-export function useImport(defaultAfter: After = "read") {
+export function useImport(defaultAfter: After = "read", opts: { inline?: boolean } = {}) {
+  // `inline`: the screen shows the outcome next to its own field (see `UrlField`), so no toast repeats it where the reader stays on the page.
+  const inline = !!opts.inline;
   const router = useRouter();
   const [busy, setBusy] = useState<null | "url" | "text" | "file" | "page">(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,14 +67,14 @@ export function useImport(defaultAfter: After = "read") {
       setLast({ kind: r.duplicate ? "duplicate" : r.linkOnly ? "link" : "added", document: r.document, reason: r.reason });
       if (r.duplicate) {
         // The server recognised the text: it is the one already on the shelf, so say so and open that one.
-        toast(tNow("srv.alreadyInLibrary", { title: r.document.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.alreadyInLibrary", { title: r.document.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         return;
       }
       if (r.linkOnly) {
         // Saved, but not readable here: say so and why, and go where the link's own page explains what can be done.
-        toast(tNow("srv.savedLinkReason", { reason: r.reason ? localizeServerMessage(r.reason) : tNow("srv.pageNotReadHere") }), { ttl: 9000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.savedLinkReason", { reason: r.reason ? localizeServerMessage(r.reason) : tNow("srv.pageNotReadHere") }), { ttl: 9000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         else void syncRemoteLibrary();
@@ -83,11 +85,11 @@ export function useImport(defaultAfter: After = "read") {
         toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         router.push("/library");
       } else {
-        toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         void syncRemoteLibrary();
       }
     },
-    [router],
+    [router, inline],
   );
 
   const run = useCallback(
@@ -107,13 +109,13 @@ export function useImport(defaultAfter: After = "read") {
         track("import_completed", { source, outcome: "failed" });
         const msg = e instanceof Error ? e.message : "Import failed.";
         setError(msg);
-        toast(localizeServerMessage(msg), { ttl: 8000 });
+        if (!inline) toast(localizeServerMessage(msg), { ttl: 8000 });
         return false;
       } finally {
         setBusy(null);
       }
     },
-    [finish],
+    [finish, inline],
   );
 
   /** The text is already on the shelf: say so and open it, instead of keeping a second copy. */
@@ -121,11 +123,11 @@ export function useImport(defaultAfter: After = "read") {
     (d: GlossDocument, after: After) => {
       setError(null);
       setLast({ kind: "duplicate", document: d });
-      toast(tNow("srv.alreadyInLibrary", { title: d.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${d.slug}`) } });
+      if (!(inline && after === "stay")) toast(tNow("srv.alreadyInLibrary", { title: d.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${d.slug}`) } });
       if (after === "read") router.push(`/read/${d.slug}`);
       return true;
     },
-    [router],
+    [router, inline],
   );
 
   const importUrl = useCallback(

@@ -13,7 +13,7 @@ import { localizeServerMessage as lm } from "@/i18n/serverMessages";
  * home page also listens for pastes anywhere) can share one `useImport`.
  */
 export function useUrlSource(after: After, initial = "") {
-  const imp = useImport(after);
+  const imp = useImport(after, { inline: true });
   const [url, setUrlState] = useState(initial);
   // An address is only called wrong once the reader has stopped typing it (blur) or tried to send it: no red text while they are still typing.
   const [touched, setTouched] = useState(false);

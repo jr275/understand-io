@@ -1,4 +1,3 @@
 [
-  "src/app/learn/[slug]/page.tsx",
-  "src/app/opengraph-image.tsx"
+  "src/app/learn/[slug]/page.tsx"
 ]

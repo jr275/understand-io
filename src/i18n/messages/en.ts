@@ -28,6 +28,7 @@ export const en = {
   },
   meta: {
     siteDescription: "Highlight any line and ask it anything. An open model writes the answer in the margin, beside the words, citing the paragraphs it used.",
+    ogSub: "The answer is written in the margin, beside the words, citing the paragraphs it used.",
     landingTitle: "Understand.io: highlight any line and ask it anything",
     landingDescription: "Read articles, PDFs and your own text, select a line and ask. The answer is written in the margin beside the words, citing the paragraphs it used.",
     appCategory: "EducationalApplication",

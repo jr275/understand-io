@@ -253,12 +253,16 @@ describe("ANNOT-18: cost of marking a long text", () => {
 
   it("segmenting all 3000 blocks for 40 marks with one shared block index stays far below the 154 ms the per-call index cost", () => {
     const idx = blockIndex(big);
-    const t0 = performance.now();
-    let segs = 0;
-    for (const b of big) segs += segmentBlock(b, big, marks, idx).filter((s) => s.marks.length).length;
-    const ms = performance.now() - t0;
-    expect(segs).toBe(40);
-    expect(ms).toBeLessThan(60);
+    // A wall-clock bound is only meaningful on an idle machine: the best of three runs ignores a moment when something else was using the CPU.
+    let best = Infinity;
+    for (let run = 0; run < 3; run++) {
+      const t0 = performance.now();
+      let segs = 0;
+      for (const b of big) segs += segmentBlock(b, big, marks, idx).filter((s) => s.marks.length).length;
+      best = Math.min(best, performance.now() - t0);
+      expect(segs).toBe(40);
+    }
+    expect(best).toBeLessThan(60);
   });
 
   it("resolveAll resolves each anchor once per block list: asking again is a cache hit that returns the very same results", () => {

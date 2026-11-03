@@ -25,6 +25,7 @@ export const ptBR: Messages = {
   },
   meta: {
     siteDescription: "Destaque qualquer trecho e pergunte o que quiser. Um modelo aberto escreve a resposta na margem, ao lado das palavras, citando os parágrafos que usou.",
+    ogSub: "A resposta é escrita na margem, ao lado das palavras, citando os parágrafos usados.",
     landingTitle: "Understand.io: destaque qualquer trecho e pergunte o que quiser",
     landingDescription: "Leia artigos, PDFs e seus próprios textos, selecione um trecho e pergunte. A resposta é escrita na margem, ao lado das palavras, citando os parágrafos que usou.",
     appCategory: "EducationalApplication",

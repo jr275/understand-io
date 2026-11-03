@@ -1,0 +1,13 @@
+title = "understand-io"
+
+[extend]
+useDefault = true
+
+# Recognisable stand-ins that CI puts in secret variables so the bundle scan can prove none of them is served to the browser,
+# and a sequential test fixture for the cookie secret. None of these is a credential.
+[[allowlists]]
+description = "CI sentinel values and test fixtures"
+regexes = [
+  '''SENTINEL[A-Za-z0-9_-]*''',
+  '''0123456789abcdef0123456789abcdef0123456789abcdef''',
+]

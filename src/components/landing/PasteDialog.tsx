@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 import { useT } from "@/i18n/client";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 /**
  * `onRead` resolves true when the text was saved (the parent then closes the dialog); on false the dialog stays open with
@@ -61,7 +62,7 @@ export function PasteDialog({
           </div>
           {error ? (
             <p role="alert" className="mt-3 rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
-              {error}
+              {lm(error)}
             </p>
           ) : null}
           <textarea data-autofocus value={pasted} onChange={(e) => setPasted(e.target.value)} rows={9} placeholder={t("landing.pastePlaceholder")} aria-label={t("landing.pasteLabel")} className="add-text font-serif text-[15px]" />

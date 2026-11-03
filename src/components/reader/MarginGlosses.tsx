@@ -7,6 +7,7 @@ import { clampNote, rangeForAnchor } from "@/lib/anchors";
 import { plainAnswer, renderGlossBody } from "./glossMarkdown";
 import { useT } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 export interface MarginItem {
   id: string;
@@ -259,7 +260,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
           </p>
           {n ? <span className="shrink-0 text-[11px] tabular-nums text-ink-4">¶{n}</span> : null}
         </div>
-        <p className="mt-1 line-clamp-2 text-[13px] leading-[1.45] text-ink-3">{g.error ? g.error : plainAnswer(answer) || (streaming ? t("glosses.writing") : "")}</p>
+        <p className="mt-1 line-clamp-2 text-[13px] leading-[1.45] text-ink-3">{g.error ? lm(g.error) : plainAnswer(answer) || (streaming ? t("glosses.writing") : "")}</p>
       </div>
     );
   }
@@ -281,7 +282,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
       {question ? <p className="mb-2 font-serif text-[16px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{question}</p> : null}
       <div className="gloss-body">
         {g.error ? (
-          <p className="text-rubric-text">{g.error}</p>
+          <p className="text-rubric-text">{lm(g.error)}</p>
         ) : answer ? (
           renderGlossBody(answer, p.onCite, streaming, p.citeSet?.(g) ?? null)
         ) : streaming ? (

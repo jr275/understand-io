@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import chalk from "@/content/samples/on-a-piece-of-chalk.json";
 import type { Block } from "@/lib/content/types";
 import { VoiceSearch } from "@/components/reader/VoiceSearch";
+import { I18nProvider } from "@/i18n/client";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => "/" }));
 
 /*
  * Lifecycle tests for the voice panel with fake browser speech and media APIs (no real microphone, no network).
@@ -117,7 +120,7 @@ async function mount(props: Record<string, unknown> = {}) {
     const [tick, setTick] = useState(0);
     rerender = () => act(async () => setTick((t) => t + 1));
     // Same shape as Reader.tsx: inline callbacks with a new identity on every parent render.
-    return createElement(VoiceSearch, {
+    return createElement(I18nProvider, { locale: "en" }, createElement(VoiceSearch, {
       open: true,
       onClose: () => void calls.close++,
       blocks,
@@ -128,7 +131,7 @@ async function mount(props: Record<string, unknown> = {}) {
       serverKey: false,
       ...props,
       "data-tick": tick,
-    } as never);
+    } as never));
   }
   await act(async () => root.render(createElement(App)));
 }

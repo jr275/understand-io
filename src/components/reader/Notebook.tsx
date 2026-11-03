@@ -9,6 +9,7 @@ import { notebookMarkdown } from "./notebookMarkdown";
 import { tNow } from "@/i18n/runtime";
 import { useT } from "@/i18n/client";
 import type { MessageKey } from "@/i18n/translate";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 interface Props {
   open: boolean;
@@ -169,7 +170,7 @@ function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: nu
           <div className="mt-2 grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-ink-4">A</span>
             <div className="min-w-0">
-              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{g.error}</p> : renderGlossBody(a, onCite, false, valid)}</div>
+              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{lm(g.error)}</p> : renderGlossBody(a, onCite, false, valid)}</div>
               {!full && a.length > 240 ? (
                 <button type="button" className="mt-1.5 text-[12.5px] font-medium text-ink-3 transition-colors hover:text-ink" onClick={() => setFull(true)}>
                   {t("notebook.readWhole")}

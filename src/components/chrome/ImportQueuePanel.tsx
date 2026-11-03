@@ -13,6 +13,7 @@ import {
 import { importQueue, useImportQueue } from "@/lib/client/importQueue";
 import type { QueueItem } from "@/lib/store/importQueue";
 import { useI18n, useT } from "@/i18n/client";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 const size = (n: number, num: (x: number, o?: Intl.NumberFormatOptions) => string) =>
   n >= 1024 * 1024
@@ -61,7 +62,7 @@ function Status({ item }: { item: QueueItem }) {
             className="mt-[3px] shrink-0"
             aria-hidden="true"
           />{" "}
-          <span>{t("importQueue.failed", { error: item.error ?? "" })}</span>
+          <span>{t("importQueue.failed", { error: lm(item.error) })}</span>
         </span>
       );
   }

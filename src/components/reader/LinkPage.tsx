@@ -10,6 +10,7 @@ import { Topbar } from "@/components/chrome/Topbar";
 import { Toasts } from "@/components/chrome/Toasts";
 import { useT } from "@/i18n/client";
 import { tNow } from "@/i18n/runtime";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 /**
  * The page of a saved link whose own page could not be read. It keeps the address, what the page says about itself and the reason,
@@ -28,13 +29,13 @@ export function LinkPage({ doc }: { doc: GlossDocument }) {
       const res = await fetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url }) });
       const j = (await res.json().catch(() => ({}))) as { document?: GlossDocument; persisted?: boolean; error?: string };
       if (!res.ok || !j.document) {
-        toast(j.error || tNow("linkPage.stillFailed", { status: res.status }), { ttl: 8000 });
+        toast(j.error ? lm(j.error) : tNow("linkPage.stillFailed", { status: res.status }), { ttl: 8000 });
         return;
       }
       // Read this time: the readable text replaces the link card.
       rememberDocument(j.document, j.persisted ?? false);
       removeDocument(doc.slug);
-      toast(`Read “${j.document.title}”.`, { ttl: 4000 });
+      toast(tNow("srv.readTitle", { title: j.document.title }), { ttl: 4000 });
       router.replace(`/read/${j.document.slug}`);
     } finally {
       setBusy(false);

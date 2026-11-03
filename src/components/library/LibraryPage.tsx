@@ -23,6 +23,7 @@ import { layoutShelf, shortAuthor, spineFor, type Sort } from "./shelf";
 import { useT } from "@/i18n/client";
 import { topicName } from "@/i18n/topics";
 import type { MessageKey } from "@/i18n/translate";
+import { tNow } from "@/i18n/runtime";
 
 type Meta = Omit<GlossDocument, "blocks">;
 
@@ -456,7 +457,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
             if (openDoc.kind === "sample") hideSample(openDoc.slug);
             removeDocument(openDoc.slug);
             setOpen(null);
-            toast(`Removed “${openDoc.title}”.`, { ttl: 3000 });
+            toast(tNow("srv.removedTitle", { title: openDoc.title }), { ttl: 3000 });
           }}
         />
       ) : null}
@@ -464,7 +465,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
         <AddPanel
           onClose={() => setAdding(false)}
           onSaved={(n) => {
-            if (n) toast(`${n} article${n === 1 ? "" : "s"} shelved.`);
+            if (n) toast(tNow("topbar.shelved", { n }));
             void syncRemoteLibrary();
           }}
         />

@@ -9,6 +9,7 @@ import { handleFiles } from "@/lib/client/importQueue";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 import { useT } from "@/i18n/client";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string; note?: string };
 
@@ -126,8 +127,8 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                   <li key={r.url} data-state={r.state}>
                     <span className="add-dot">{r.state === "saved" ? <Check size={12} aria-hidden="true" /> : r.state === "failed" ? <X size={12} aria-hidden="true" /> : <span className="size-2 animate-pulse rounded-full bg-current" />}</span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{r.title ?? r.url}</span>
-                    {r.error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{r.error}</span> : null}
-                    {r.note ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-ink-3">{r.note}</span> : null}
+                    {r.error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{lm(r.error)}</span> : null}
+                    {r.note ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-ink-3">{lm(r.note)}</span> : null}
                   </li>
                 ))}
               </ul>

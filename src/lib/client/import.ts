@@ -7,6 +7,8 @@ import { ensureReader, getLibrary, rememberDocument, syncRemoteLibrary } from "@
 import { findDuplicate } from "@/lib/store/duplicates";
 import { toast } from "@/lib/store/toast";
 import { track } from "@/lib/client/analytics";
+import { tNow } from "@/i18n/runtime";
+import { localizeServerMessage } from "@/i18n/serverMessages";
 
 export interface ImportResult {
   document: GlossDocument;
@@ -49,14 +51,14 @@ export function useImport(defaultAfter: After = "read") {
       rememberDocument(r.document, r.persisted);
       if (r.duplicate) {
         // The server recognised the text: it is the one already on the shelf, so say so and open that one.
-        toast(`“${r.document.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        toast(tNow("srv.alreadyInLibrary", { title: r.document.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         return;
       }
       if (r.linkOnly) {
         // Saved, but not readable here: say so and why, and go where the link's own page explains what can be done.
-        toast(`Saved the link. ${r.reason ?? "The page could not be read here."}`, { ttl: 9000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        toast(tNow("srv.savedLinkReason", { reason: r.reason ? localizeServerMessage(r.reason) : tNow("srv.pageNotReadHere") }), { ttl: 9000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         else void syncRemoteLibrary();
@@ -64,10 +66,10 @@ export function useImport(defaultAfter: After = "read") {
       }
       if (after === "read") router.push(`/read/${r.document.slug}`);
       else if (after === "library") {
-        toast(`Shelved “${r.document.title}”.`, { action: { label: "Read", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         router.push("/library");
       } else {
-        toast(`Shelved “${r.document.title}”.`, { action: { label: "Read", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         void syncRemoteLibrary();
       }
     },
@@ -102,7 +104,7 @@ export function useImport(defaultAfter: After = "read") {
   /** The text is already on the shelf: say so and open it, instead of keeping a second copy. */
   const alreadyHere = useCallback(
     (d: GlossDocument, after: After) => {
-      toast(`“${d.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${d.slug}`) } });
+      toast(tNow("srv.alreadyInLibrary", { title: d.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${d.slug}`) } });
       if (after === "read") router.push(`/read/${d.slug}`);
       return true;
     },

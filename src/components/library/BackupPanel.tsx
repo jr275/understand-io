@@ -8,6 +8,7 @@ import { allNotesMarkdown, buildBackup, parseBackup, planRestore, type RestorePl
 import { applyRestore, getLibrary, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
 import { useT } from "@/i18n/client";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 function save(name: string, text: string, type: string) {
   const a = document.createElement("a");
@@ -77,7 +78,7 @@ export function BackupPanel() {
       </div>
       {error ? (
         <p className="lib-backup-error" role="alert">
-          {error}
+          {lm(error)}
         </p>
       ) : null}
       {plan && c ? (

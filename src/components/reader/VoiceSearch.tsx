@@ -11,6 +11,7 @@ import { FAILOVER_CODES, describeMicError, getRecognitionCtor, recordAudio, star
 import { getUserKey } from "@/lib/store/library";
 import { useT } from "@/i18n/client";
 import { tNow } from "@/i18n/runtime";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 interface Props {
   open: boolean;
@@ -521,7 +522,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
         ) : null}
         {error ? (
           <p role="alert" className="mt-3 rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
-            {error}
+            {lm(error)}
           </p>
         ) : null}
         {!supported && phase === "idle" && !error ? (
@@ -616,7 +617,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
                 )}
                 {conversation.status === "error" ? (
                   <p role="alert" className="rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
-                    {conversation.error ?? tx("reader.didNotWork")}
+                    {conversation.error ? lm(conversation.error) : tx("reader.didNotWork")}
                   </p>
                 ) : null}
                 {speakState === "error" && speaker.error ? (

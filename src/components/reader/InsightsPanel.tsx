@@ -9,6 +9,7 @@ import { ago } from "./Notebook";
 import { useI18n, useT } from "@/i18n/client";
 import { tNow } from "@/i18n/runtime";
 import type { MessageKey } from "@/i18n/translate";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 export interface InsightsProps {
   open: boolean;
@@ -297,7 +298,7 @@ function InsightCard({ g, doc, version, onRegenerate, open, onToggle, onJump, on
       ) : null}
       {g.status === "error" ? (
         <div role="alert" className="mt-3 text-[13px] leading-snug text-rubric-text">
-          {g.error ?? t("reader.didNotWork")}
+          {g.error ? lm(g.error) : t("reader.didNotWork")}
           <button type="button" className="ml-2 font-medium underline underline-offset-2" onClick={onRetry}>
             {t("glosses.tryAgain")}
           </button>

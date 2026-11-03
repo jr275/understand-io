@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { analyticsDayStart, handleEvents, recordServerEvent, resetAnalyticsLimits, setAnalyticsSink, type StoredEvent } from "@/lib/server/analytics";
 import { createMemoryAiStore, setAiStore, type AiStore } from "@/lib/server/aiStore";
 
+// These tests use the in-memory store and an injected sink: whatever DATABASE_URL is in the environment, they must never touch a database.
+vi.mock("@/lib/db/client", () => ({ getDb: () => null }));
+
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 10, 2, 12);
 const landing = { event: "landing_viewed", props: {}, path: "/" };

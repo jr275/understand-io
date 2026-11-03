@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "@/app/api/maintenance/analytics-retention/route";
 import { resetRetentionState } from "@/lib/server/analyticsRetention";
 
+// These tests use the in-memory store and an injected sink: whatever DATABASE_URL is in the environment, they must never touch a database.
+vi.mock("@/lib/db/client", () => ({ getDb: () => null }));
+
 const TOKEN = "t".repeat(20) + "OK" + "9".repeat(22); // 44 characters, a throwaway value for this test only
 let nth = 0;
 const req = (method: "GET" | "POST", auth?: string, ip?: string) =>

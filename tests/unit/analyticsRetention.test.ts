@@ -5,6 +5,9 @@ import { classifyFailure, lastRetentionResult, maybeRunRetention, resetRetention
 import { handleEvents, resetAnalyticsLimits, setAnalyticsSink } from "@/lib/server/analytics";
 import { createMemoryAiStore, setAiStore } from "@/lib/server/aiStore";
 
+// These tests use the in-memory store and an injected sink: whatever DATABASE_URL is in the environment, they must never touch a database.
+vi.mock("@/lib/db/client", () => ({ getDb: () => null }));
+
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const NOW = Date.UTC(2026, 10, 2, 12);

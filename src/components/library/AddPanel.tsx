@@ -5,6 +5,7 @@ import { BookOpen, BookmarkPlus, Check, Copy, FileUp, Link2, TextCursorInput, X 
 import { TopicGlyph } from "./TopicGlyph";
 import { rememberDocument } from "@/lib/store/library";
 import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
+import { UrlField, useUrlSource } from "@/components/ingest/UrlField";
 import { handleFiles } from "@/lib/client/importQueue";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 import { useModalFocus } from "@/lib/client/useModalFocus";
@@ -26,6 +27,8 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const docRef = useRef<HTMLInputElement>(null);
   const [origin, setOrigin] = useState("");
   const imp = useImport("read");
+  // The panel is opened from the library and from the top bar: a link added here stays on this page and shows up on the shelf.
+  const source = useUrlSource("stay");
   useEffect(() => setOrigin(window.location.origin), []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -105,6 +108,34 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
           </div>
         ) : (
           <div className="mt-5">
+            <p className="font-serif text-[21px] leading-tight text-ink">{t("ingest.heading")}</p>
+            <section className="mt-4" aria-labelledby="add-link-h">
+              <p id="add-link-h" className="lib-label">
+                {t("ingest.linkHeading")}
+              </p>
+              <div className="mt-2">
+                <UrlField source={source} size="panel" autoFocus showSupport placeholder={t("ingest.linkShort")} />
+              </div>
+            </section>
+            <section className="mt-3" aria-labelledby="add-file-h">
+              <p id="add-file-h" className="lib-label">
+                {t("ingest.fileHeading")}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-[14px] border border-dashed border-rule-strong px-4 py-3.5">
+                <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rule bg-raised px-3.5 text-[13.5px] text-ink-2 transition-colors hover:border-rule-strong hover:text-ink" onClick={() => docRef.current?.click()}>
+                  <FileUp size={15} aria-hidden="true" /> {t("ingest.uploadButton")}
+                </button>
+                <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rule bg-raised px-3.5 text-[13.5px] text-ink-2 transition-colors hover:border-rule-strong hover:text-ink" onClick={() => setPasteOpen(true)}>
+                  <TextCursorInput size={15} aria-hidden="true" /> {t("common.pasteText")}
+                </button>
+                <p className="min-w-0 basis-full text-[12.5px] leading-snug text-ink-4">
+                  {t("ingest.fileHelp")}
+                </p>
+              </div>
+            </section>
+            <details className="mt-4 text-[13px]">
+              <summary className="cursor-pointer select-none text-ink-3 hover:text-ink-2">{t("ingest.severalLinks")}</summary>
+              <div className="mt-3">
             <p className="font-serif text-[19px] leading-tight text-ink">{t("add.linksTitle")}</p>
             <p className="mt-1 text-[13px] text-ink-3">
               {t("add.linksHelp")}{" "}
@@ -133,14 +164,8 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
                 ))}
               </ul>
             ) : null}
-            <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13.5px] text-ink-3">
-              <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => docRef.current?.click()}>
-                <FileUp size={15} aria-hidden="true" /> {t("common.openFiles")}
-              </button>
-              <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => setPasteOpen(true)}>
-                <TextCursorInput size={15} aria-hidden="true" /> {t("common.pasteText")}
-              </button>
-            </div>
+              </div>
+            </details>
             <input
               ref={docRef}
               type="file"

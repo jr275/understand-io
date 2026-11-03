@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { ImportQueue, QUEUE_LIMITS, type BatchSummary, type QueueItem } from "@/lib/store/importQueue";
 import { rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
-import { FORMATS_LABEL, isImportableFile, sendFile } from "./import";
+import { isImportableFile, sendFile } from "./import";
 import { tNow } from "@/i18n/runtime";
 
 function localizedSummary(s: BatchSummary): string {
@@ -26,7 +26,7 @@ export const importQueue = new ImportQueue(
     },
   },
   QUEUE_LIMITS.concurrent,
-  (file) => (isImportableFile(file) ? null : tNow("srv.onlyFormats", { formats: FORMATS_LABEL })),
+  (file) => (isImportableFile(file) ? null : tNow("srv.onlyFormats", { formats: tNow("ingest.formats") })),
 );
 
 const NONE: QueueItem[] = [];

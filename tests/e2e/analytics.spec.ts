@@ -72,7 +72,7 @@ test.describe("product analytics, as the browser sends it", () => {
     const marker = `zebrafishmarker${stamp()}`;
     const title = `Private diary ${stamp()}`;
     await page.goto("/library");
-    await page.getByRole("button", { name: "Add a link, PDF or text" }).click();
+    await page.getByRole("button", { name: "Add content" }).click();
     const dialog = page.getByRole("dialog", { name: "Add to the library" });
     await dialog.locator('input[type="file"][aria-label="Open PDF, text, Word, EPUB or HTML files"]').setInputFiles({
       name: `${title.replace(/\s+/g, "-")}.txt`,

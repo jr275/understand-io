@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, FileUp, Link2, TextCursorInput } from "lucide-react";
-import { ACCEPT, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { FileUp, TextCursorInput } from "lucide-react";
+import { ACCEPT, looksLikeUrl, normaliseUrl } from "@/lib/client/import";
+import { UrlField, useUrlSource } from "@/components/ingest/UrlField";
 import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
 import { PasteDialog } from "./PasteDialog";
@@ -34,13 +35,19 @@ export function ImportBar({ initialUrl, capture }: Props) {
   useEffect(() => {
     tRef.current = t;
   }, [t]);
-  const [url, setUrl] = useState(initialUrl ?? "");
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasted, setPasted] = useState("");
   const [waiting, setWaiting] = useState(!!capture);
+  // The shortcut key is named after the reader's system; the server cannot know it, so the first paint says Ctrl and a Mac then says ⌘.
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setIsMac(/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { busy, error, importUrl, importText, importFile, importPage } = useImport();
+  const source = useUrlSource("read", initialUrl ?? "");
+  const { busy, error, importUrl, importText, importFile, importPage, setUrl } = source;
   const started = useRef(false);
 
   // A link that arrives with a URL (`/?url=…`, `/?save=…`) is only a suggestion: it must never fetch or import on its own
@@ -100,7 +107,7 @@ export function ImportBar({ initialUrl, capture }: Props) {
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
     };
-  }, [capture, initialUrl, importPage]);
+  }, [capture, initialUrl, importPage, setUrl]);
 
   // ⌘V / Ctrl+V anywhere: a URL opens it, longer text becomes a document.
   useEffect(() => {
@@ -128,57 +135,33 @@ export function ImportBar({ initialUrl, capture }: Props) {
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [importFile, importText, importUrl]);
-
-  const canRead = looksLikeUrl(url) && !busy && !waiting;
-  const working = !!busy || waiting;
+  }, [importFile, importText, importUrl, setUrl]);
 
   return (
-    <div className="mt-10 w-full max-w-[600px] text-left sm:mt-12">
-      <form
-        className={`import-bar relative flex items-center gap-2 overflow-hidden rounded-[18px] border bg-raised p-1.5 pl-[18px] shadow-card transition-[border-color,box-shadow] duration-300 focus-within:border-rule-strong focus-within:shadow-pop ${
-          working ? "border-rule-strong" : "border-rule"
-        }`}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (canRead) void importUrl(normaliseUrl(url));
-        }}
-      >
-        <Link2 size={18} aria-hidden="true" className="shrink-0 text-ink-3" />
-        <input
-          ref={inputRef}
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder={waiting ? t("landing.linkWaiting") : t("landing.linkPlaceholder")}
-          aria-label={t("landing.linkLabel")}
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
-          disabled={busy === "url" || busy === "page" || waiting}
-          className="h-12 min-w-0 flex-1 bg-transparent text-[16px] text-ink outline-none placeholder:text-ink-3 focus-visible:outline-none disabled:text-ink-2"
-        />
-        <button
-          type="submit"
-          disabled={!canRead}
-          aria-label={t("common.read")}
-          className="inline-flex h-12 shrink-0 items-center gap-2 rounded-[13px] bg-ink px-4 text-[14.5px] font-medium text-bg transition-[opacity,transform] focus-visible:outline-offset-[-4px] focus-visible:outline-bg active:scale-[0.97] disabled:opacity-30 sm:px-5"
-        >
-          <span className="hidden sm:inline">{busy === "url" || busy === "page" || waiting ? t("common.reading") : t("common.read")}</span> <ArrowRight size={16} aria-hidden="true" />
+    <div className="mt-9 w-full max-w-[640px] text-left sm:mt-12">
+      <UrlField
+        ref={inputRef}
+        source={source}
+        size="hero"
+        action={t("common.read")}
+        busyAction={t("common.reading")}
+        placeholder={waiting ? t("landing.linkWaiting") : t("landing.linkPlaceholder")}
+        waiting={waiting}
+        showSupport
+      />
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[13.5px] text-ink-2">
+        <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rule bg-raised px-3.5 transition-colors hover:border-rule-strong hover:text-ink" onClick={() => fileRef.current?.click()}>
+          <FileUp size={15} aria-hidden="true" /> {t("ingest.uploadButton")}
         </button>
-        {working ? <span className="import-progress" aria-hidden="true" /> : null}
-      </form>
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13.5px] text-ink-3">
-        <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => fileRef.current?.click()}>
-          <FileUp size={15} aria-hidden="true" /> {t("common.openFiles")}
-        </button>
-        <button type="button" className="inline-flex items-center gap-1.5 transition-colors hover:text-ink" onClick={() => setPasteOpen(true)}>
+        <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rule bg-raised px-3.5 transition-colors hover:border-rule-strong hover:text-ink" onClick={() => setPasteOpen(true)}>
           <TextCursorInput size={15} aria-hidden="true" /> {t("common.pasteText")}
         </button>
-        <span className="hidden items-center gap-1.5 text-ink-4 sm:inline-flex">
-          or press <kbd>⌘</kbd>
-          <kbd>V</kbd>{t("landing.hintAnywhere")}
-        </span>
       </div>
+      <p className="mt-3 hidden items-center justify-center gap-1.5 text-center text-[12.5px] text-ink-4 sm:flex">
+        {t("ingest.pressKey")} <kbd>{isMac ? "⌘" : "Ctrl"}</kbd>
+        <kbd>V</kbd>
+        {t("landing.hintAnywhere")}
+      </p>
       <input
         ref={fileRef}
         type="file"

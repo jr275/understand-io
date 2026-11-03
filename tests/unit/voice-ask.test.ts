@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, useState } from "react";
+import { act, createElement, useState, type ComponentType, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import chalk from "@/content/samples/on-a-piece-of-chalk.json";
 import type { Block, GlossTurn } from "@/lib/content/types";
 import { VoiceSearch } from "@/components/reader/VoiceSearch";
 import { I18nProvider } from "@/i18n/client";
+
+// The provider's children are optional for the test: the component under test is passed as the third argument.
+const Provider = I18nProvider as unknown as ComponentType<{ locale: "en"; children?: ReactNode }>;
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {}, push() {}, replace() {} }), usePathname: () => "/" }));
 
@@ -93,7 +96,7 @@ async function mount(initial: Conv | null = null, props: Record<string, unknown>
   function App() {
     const [conversation, set] = useState<Conv | null>(initial);
     setConv = (c) => act(async () => set(c));
-    return createElement(I18nProvider, { locale: "en" }, createElement(VoiceSearch, {
+    return createElement(Provider, { locale: "en" }, createElement(VoiceSearch, {
       open: true,
       onClose: () => void calls.close++,
       blocks,

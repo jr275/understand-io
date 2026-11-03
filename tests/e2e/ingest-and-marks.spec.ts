@@ -26,7 +26,7 @@ const wordFile = (title: string) => ({
 
 async function openAddPanel(page: Page) {
   await page.goto("/library");
-  await page.getByRole("button", { name: "Add a link, PDF or text" }).click();
+  await page.getByRole("button", { name: "Add content" }).click();
   const dialog = page.getByRole("dialog", { name: "Add to the library" });
   await expect(dialog).toBeVisible();
   return dialog;

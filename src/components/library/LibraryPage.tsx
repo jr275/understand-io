@@ -419,7 +419,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   <p className="starter-title">{t("library.classicsTitle")}</p>
                   <p className="starter-body">{t("library.classicsBody")}</p>
                   <Link href="/read/on-a-piece-of-chalk" className="starter-btn">
-                    Open one <ArrowRight size={15} aria-hidden="true" />
+                    {t("library.openOne")} <ArrowRight size={15} aria-hidden="true" />
                   </Link>
                 </div>
               </div>

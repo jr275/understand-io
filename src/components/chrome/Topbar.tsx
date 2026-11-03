@@ -49,7 +49,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
         <Link aria-label={t("topbar.home")} className="rounded-md" href={localePath("/", locale)}>
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
-            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[340px]:sr-only"}`}>Understand.io</span>
+            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[430px]:sr-only"}`}>Understand.io</span>
           </span>
         </Link>
       </div>
@@ -66,9 +66,25 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
             <span className="max-sm:hidden">{t("common.library")}</span>
           </Link>
         )}
-        <IconButton aria-label={t("topbar.add")} data-tip={t("topbar.addTip")} aria-haspopup="dialog" aria-expanded={onAdd ? undefined : adding} onClick={() => (onAdd ? onAdd() : setAdding(true))}>
-          <Plus size={17} strokeWidth={2.1} aria-hidden="true" />
-        </IconButton>
+        {reader ? (
+          <IconButton aria-label={t("topbar.add")} data-tip={t("topbar.addTip")} aria-haspopup="dialog" aria-expanded={onAdd ? undefined : adding} onClick={() => (onAdd ? onAdd() : setAdding(true))}>
+            <Plus size={17} strokeWidth={2.1} aria-hidden="true" />
+          </IconButton>
+        ) : (
+          // Adding content is the first thing a visitor does here, so it has a word, not only an icon (the word drops out on a phone).
+          <button
+            type="button"
+            aria-label={t("ingest.heading")}
+            data-tip={t("topbar.addTip")}
+            aria-haspopup="dialog"
+            aria-expanded={onAdd ? undefined : adding}
+            className="mr-1 inline-flex h-9 items-center gap-1.5 rounded-full border border-rule-strong px-3.5 text-[14px] font-medium text-ink transition-colors hover:bg-sunk max-sm:w-9 max-sm:justify-center max-sm:px-0"
+            onClick={() => (onAdd ? onAdd() : setAdding(true))}
+          >
+            <Plus size={16} strokeWidth={2.1} aria-hidden="true" />
+            <span className="max-sm:hidden">{t("ingest.heading")}</span>
+          </button>
+        )}
         {tools}
         <div className="relative">
           <IconButton ref={aaRef} aria-label={t("topbar.appearance")} data-tip={t("topbar.appearanceTip")} aria-expanded={open === "aa"} aria-haspopup="dialog" onClick={() => setOpen(open === "aa" ? null : "aa")}>

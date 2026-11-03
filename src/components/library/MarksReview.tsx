@@ -24,6 +24,14 @@ const STATUS_NOTE: Partial<Record<MarkStatus, MessageKey>> = {
 
 const KIND: Record<Annotation["kind"], MessageKey> = { highlight: "marks.kindHighlight", underline: "marks.kindUnderline", note: "marks.kindNote" };
 
+const COLOUR: Record<string, MessageKey> = { yellow: "appearance.markYellow", green: "appearance.markGreen", blue: "appearance.markBlue", pink: "appearance.markPink" };
+
+/** What a mark is called: a highlight also names its colour, so colour is never the only way to tell marks apart. */
+function kindText(t: (k: MessageKey, v?: Record<string, string | number>) => string, a: Annotation): string {
+  const colour = a.kind === "highlight" && a.color ? COLOUR[a.color] : undefined;
+  return colour ? t("marks.kindHighlightColour", { colour: t(colour).toLowerCase() }) : t(KIND[a.kind]);
+}
+
 /** Most texts listed before "Show all": a long shelf stays a quick glance. */
 const FIRST = 6;
 
@@ -85,7 +93,7 @@ export function MarksReview({ docs, annotations }: { docs: ReviewDoc[]; annotati
               {g.marks.map(({ annotation: a, status }) => (
                 <li key={a.id} className="rounded-[12px] border border-rule bg-bg px-3.5 py-3" data-mark-kind={a.kind} data-mark-status={status}>
                   <p className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-                    <Icon kind={a.kind} /> {t(KIND[a.kind])}
+                    <Icon kind={a.kind} /> {kindText(t, a)}
                   </p>
                   <blockquote className="mt-1.5 border-l-2 border-rule-strong pl-3 font-serif text-[14.5px] leading-[1.5] text-ink-2">
                     {a.anchor.quote.length > 280 ? `${a.anchor.quote.slice(0, 277)}…` : a.anchor.quote}

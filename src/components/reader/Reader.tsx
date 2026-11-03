@@ -1081,7 +1081,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 </div>
                 {doc.sourceUrl ? (
                   <a href={doc.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-rule px-3.5 text-[13px] font-medium text-ink-2 transition-[border-color,color,transform] hover:border-rule-strong hover:text-ink active:scale-[0.97]">
-                    Original <ArrowUpRight size={14} aria-hidden="true" />
+                    {t("insights.original")} <ArrowUpRight size={14} aria-hidden="true" />
                   </a>
                 ) : null}
               </div>

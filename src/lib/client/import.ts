@@ -20,12 +20,17 @@ export interface ImportResult {
   duplicate?: boolean;
 }
 
+/** What the last import of a `useImport` did, for the screen that started it to say so next to its own field. */
+export interface ImportOutcome {
+  kind: "added" | "duplicate" | "link";
+  document: GlossDocument;
+  /** For `link`: why the page itself could not be read. */
+  reason?: string;
+}
+
 /** File types the import endpoints accept. */
 export const ACCEPT =
   ".pdf,.txt,.md,.markdown,.docx,.epub,.html,.htm,.xhtml,application/pdf,text/plain,text/markdown,text/html,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-/** The formats the file import reads, as the reader should be told. */
-export const FORMATS_LABEL = "PDF, text (.txt), markdown (.md), Word (.docx), EPUB and HTML";
 
 /** Where to go once a document has been imported. */
 export type After = "read" | "library" | "stay";
@@ -34,9 +39,16 @@ async function post(path: string, body: BodyInit, json = true, signal?: AbortSig
   // A new visitor has no reader cookie yet. Two imports sent together (a batch) would each be given a different reader by the server, and
   // the one the browser does not keep would vanish from the library. One shared request settles the cookie first.
   await ensureReader();
-  const res = await fetch(path, { method: "POST", body, signal, headers: json ? { "content-type": "application/json" } : undefined });
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", body, signal, headers: json ? { "content-type": "application/json" } : undefined });
+  } catch (e) {
+    // A cancelled batch stays a cancellation; any other failure to get an answer (offline, the server down) is said in words, not as the browser's "Failed to fetch".
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new Error("Could not reach the server. Check your connection and try again.");
+  }
   const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
-  if (!res.ok || !data.document) throw new Error(data.error || `Import failed (${res.status}).`);
+  if (!res.ok || !data.document) throw new Error(data.error || `Request failed (${res.status}).`);
   return data as ImportResult;
 }
 
@@ -45,10 +57,12 @@ export function useImport(defaultAfter: After = "read") {
   const router = useRouter();
   const [busy, setBusy] = useState<null | "url" | "text" | "file" | "page">(null);
   const [error, setError] = useState<string | null>(null);
+  const [last, setLast] = useState<ImportOutcome | null>(null);
 
   const finish = useCallback(
     (r: ImportResult, after: After) => {
       rememberDocument(r.document, r.persisted);
+      setLast({ kind: r.duplicate ? "duplicate" : r.linkOnly ? "link" : "added", document: r.document, reason: r.reason });
       if (r.duplicate) {
         // The server recognised the text: it is the one already on the shelf, so say so and open that one.
         toast(tNow("srv.alreadyInLibrary", { title: r.document.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
@@ -80,6 +94,7 @@ export function useImport(defaultAfter: After = "read") {
     async (kind: NonNullable<typeof busy>, task: () => Promise<ImportResult>, after: After) => {
       setBusy(kind);
       setError(null);
+      setLast(null);
       const source = kind === "url" ? "link" : kind === "text" ? "paste" : kind;
       try {
         const r = await task();
@@ -92,7 +107,7 @@ export function useImport(defaultAfter: After = "read") {
         track("import_completed", { source, outcome: "failed" });
         const msg = e instanceof Error ? e.message : "Import failed.";
         setError(msg);
-        toast(msg, { ttl: 8000 });
+        toast(localizeServerMessage(msg), { ttl: 8000 });
         return false;
       } finally {
         setBusy(null);
@@ -104,6 +119,8 @@ export function useImport(defaultAfter: After = "read") {
   /** The text is already on the shelf: say so and open it, instead of keeping a second copy. */
   const alreadyHere = useCallback(
     (d: GlossDocument, after: After) => {
+      setError(null);
+      setLast({ kind: "duplicate", document: d });
       toast(tNow("srv.alreadyInLibrary", { title: d.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${d.slug}`) } });
       if (after === "read") router.push(`/read/${d.slug}`);
       return true;
@@ -136,7 +153,12 @@ export function useImport(defaultAfter: After = "read") {
     [run, defaultAfter],
   );
 
-  return { busy, error, importUrl, importText, importFile, importPage };
+  const reset = useCallback(() => {
+    setError(null);
+    setLast(null);
+  }, []);
+
+  return { busy, error, last, reset, importUrl, importText, importFile, importPage };
 }
 
 export function looksLikeUrl(s: string) {
@@ -144,6 +166,17 @@ export function looksLikeUrl(s: string) {
   if (/\s/.test(t)) return false;
   // Any address with a scheme counts (an IP address, a port, a local name), and so does a bare domain.
   return /^https?:\/\/\S+$/i.test(t) || /^([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(t);
+}
+
+/**
+ * Why a typed address cannot be opened, for saying so before anything is sent: `scheme` for an address that names another protocol (mailto:, ftp:,
+ * javascript:), `invalid` for text that is not an address at all. Null when it can be tried (or when nothing was typed yet).
+ */
+export function urlProblem(s: string): null | "scheme" | "invalid" {
+  const t = s.trim();
+  if (!t) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) && !/^[\w.-]+:\d+/.test(t)) return "scheme";
+  return looksLikeUrl(t) ? null : "invalid";
 }
 
 export function normaliseUrl(s: string) {

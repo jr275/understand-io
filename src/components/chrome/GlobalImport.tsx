@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FileDown } from "lucide-react";
-import { FORMATS_LABEL, isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
 import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
 import { useT } from "@/i18n/client";
@@ -64,7 +64,7 @@ export function GlobalImport() {
         return;
       }
       if (files.length) {
-        toast(t("drop.onlyFormats", { formats: FORMATS_LABEL }));
+        toast(t("drop.onlyFormats", { formats: t("ingest.formats") }));
         return;
       }
       const uri = (dt.getData("text/uri-list") || dt.getData("text/plain")).split(/\r?\n/).find((l) => l && !l.startsWith("#"));

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Pause, Play, RotateCcw, SkipBack, SkipForward, Square } from "lucide-react";
 import type { SpeechSnapshot } from "@/lib/speech/controller";
+import { useT } from "@/i18n/client";
+import type { Translator } from "@/i18n/translate";
 
 interface Props {
   snap: SpeechSnapshot;
@@ -20,11 +22,11 @@ const RATES = [0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
 const BTN = "grid size-9 place-items-center rounded-full text-lens-fg/80 transition-colors hover:bg-lens-hover hover:text-lens-fg disabled:pointer-events-none disabled:opacity-35";
 
 /** What a screen reader should hear for the current state (derived, so there is no state to keep in sync). */
-function announcementFor(snap: SpeechSnapshot) {
-  if (snap.state === "playing") return "Reading aloud";
-  if (snap.state === "paused") return "Paused";
-  if (snap.state === "error") return snap.error ?? "Reading stopped because of an error";
-  if (snap.state === "idle") return snap.endedBy === "completed" ? "Finished reading" : snap.endedBy === "stopped" ? "Stopped reading" : "";
+function announcementFor(snap: SpeechSnapshot, t: Translator) {
+  if (snap.state === "playing") return t("listen.playing");
+  if (snap.state === "paused") return t("listen.paused");
+  if (snap.state === "error") return snap.error ?? t("listen.errorDefault");
+  if (snap.state === "idle") return snap.endedBy === "completed" ? t("listen.finished") : snap.endedBy === "stopped" ? t("listen.stopped") : "";
   return "";
 }
 
@@ -34,11 +36,12 @@ function announcementFor(snap: SpeechSnapshot) {
  * menu, resets whenever a session ends.
  */
 export function ListenBar(props: Props) {
+  const t = useT();
   const hidden = props.snap.state === "idle" || props.snap.state === "unsupported";
   return (
     <>
       <span role="status" aria-live="polite" className="sr-only">
-        {announcementFor(props.snap)}
+        {announcementFor(props.snap, t)}
       </span>
       {hidden ? null : <ListenControls {...props} />}
     </>
@@ -46,6 +49,7 @@ export function ListenBar(props: Props) {
 }
 
 function ListenControls({ snap, voices, onToggle, onStop, onRestart, onSkip, onRate, onVoice, docLang }: Props) {
+  const t = useT();
   const [voicesOpen, setVoicesOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -87,26 +91,26 @@ function ListenControls({ snap, voices, onToggle, onStop, onRestart, onSkip, onR
   const voice = voices.find((v) => v.voiceURI === snap.voiceURI) ?? null;
   const prefix = (docLang || "en").slice(0, 2);
   const sorted = [...voices].sort((a, b) => Number((b.lang || "").startsWith(prefix)) - Number((a.lang || "").startsWith(prefix)) || a.name.localeCompare(b.name));
-  const voiceName = voice ? voice.name.replace(/\(.*?\)/g, "").trim() : "System voice";
+  const voiceName = voice ? voice.name.replace(/\(.*?\)/g, "").trim() : t("listen.systemVoice");
   const failed = snap.state === "error";
   const item = (checked: boolean) => `w-full rounded-[9px] px-2.5 py-1.5 text-left text-[12.5px] hover:bg-lens-hover focus-visible:bg-lens-hover ${checked ? "text-lens-fg" : "text-lens-mute"}`;
 
   return (
     <>
-      <div ref={ref} role="region" data-listen-bar="" aria-label="Reading aloud" className="fixed bottom-[calc(env(safe-area-inset-bottom)+80px)] left-1/2 z-[46] flex -translate-x-1/2 items-center gap-1 rounded-full bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 sm:bottom-[calc(env(safe-area-inset-bottom)+90px)]" style={{ animation: "rise 0.35s var(--ease-out) both" }} data-tip-tone="paper">
-        <button type="button" aria-label="Back one sentence" data-tip="Back a sentence" disabled={snap.atStart} className={BTN} onClick={() => onSkip(-1)}>
+      <div ref={ref} role="region" data-listen-bar="" aria-label={t("listen.region")} className="fixed bottom-[calc(env(safe-area-inset-bottom)+80px)] left-1/2 z-[46] flex -translate-x-1/2 items-center gap-1 rounded-full bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 sm:bottom-[calc(env(safe-area-inset-bottom)+90px)]" style={{ animation: "rise 0.35s var(--ease-out) both" }} data-tip-tone="paper">
+        <button type="button" aria-label={t("listen.back")} data-tip={t("listen.backTip")} disabled={snap.atStart} className={BTN} onClick={() => onSkip(-1)}>
           <SkipBack size={14} aria-hidden="true" />
         </button>
-        <button type="button" aria-label={failed ? "Try again" : snap.state === "playing" ? "Pause" : "Resume"} data-tip={failed ? "Try again" : snap.state === "playing" ? "Pause" : "Resume"} data-tip-kbd="Space" className="grid size-9 place-items-center rounded-full bg-lens-fg/10 text-lens-fg transition-colors hover:bg-lens-hover" onClick={onToggle}>
+        <button type="button" aria-label={failed ? t("listen.tryAgain") : snap.state === "playing" ? t("listen.pause") : t("listen.resume")} data-tip={failed ? t("listen.tryAgain") : snap.state === "playing" ? t("listen.pause") : t("listen.resume")} data-tip-kbd="Space" className="grid size-9 place-items-center rounded-full bg-lens-fg/10 text-lens-fg transition-colors hover:bg-lens-hover" onClick={onToggle}>
           {snap.state === "playing" ? <Pause size={15} fill="currentColor" aria-hidden="true" /> : failed ? <RotateCcw size={14} aria-hidden="true" /> : <Play size={15} fill="currentColor" aria-hidden="true" />}
         </button>
-        <button type="button" aria-label="Forward one sentence" data-tip="Forward a sentence" disabled={snap.atEnd} className={BTN} onClick={() => onSkip(1)}>
+        <button type="button" aria-label={t("listen.forward")} data-tip={t("listen.forwardTip")} disabled={snap.atEnd} className={BTN} onClick={() => onSkip(1)}>
           <SkipForward size={14} aria-hidden="true" />
         </button>
         <span className="max-w-[min(260px,40vw)] truncate px-2 text-[12.5px] tabular-nums text-lens-mute" title={snap.error ?? snap.segment?.text}>
-          {failed ? <span className="text-lens-fg">{snap.error}</span> : <>{snap.passage ? "Passage" : "Reading"} · {shown.i}/{shown.n} · {pct}%</>}
+          {failed ? <span className="text-lens-fg">{snap.error}</span> : <>{snap.passage ? t("listen.passage") : t("listen.reading")} · {shown.i}/{shown.n} · {pct}%</>}
         </span>
-        <select aria-label="Speed" value={String(snap.rate)} onChange={(e) => onRate(Number(e.target.value))} className="h-8 cursor-pointer appearance-none rounded-full bg-transparent px-2 text-[12.5px] font-medium tabular-nums text-lens-fg hover:bg-lens-hover">
+        <select aria-label={t("listen.speed")} value={String(snap.rate)} onChange={(e) => onRate(Number(e.target.value))} className="h-8 cursor-pointer appearance-none rounded-full bg-transparent px-2 text-[12.5px] font-medium tabular-nums text-lens-fg hover:bg-lens-hover">
           {RATES.map((r) => (
             <option key={r} value={r}>
               {r}×
@@ -115,29 +119,29 @@ function ListenControls({ snap, voices, onToggle, onStop, onRestart, onSkip, onR
           {!RATES.includes(snap.rate) ? <option value={snap.rate}>{snap.rate}×</option> : null}
         </select>
         <div className="relative">
-          <button ref={triggerRef} type="button" aria-label={`Voice: ${voiceName}`} aria-haspopup="menu" aria-expanded={voicesOpen} data-tip="Voice" className="flex h-8 max-w-[150px] items-center gap-1 rounded-full px-2.5 text-[12.5px] text-lens-fg/85 hover:bg-lens-hover hover:text-lens-fg" onClick={() => setVoicesOpen((v) => !v)}>
+          <button ref={triggerRef} type="button" aria-label={t("listen.voiceLabel", { name: voiceName })} aria-haspopup="menu" aria-expanded={voicesOpen} data-tip={t("listen.voice")} className="flex h-8 max-w-[150px] items-center gap-1 rounded-full px-2.5 text-[12.5px] text-lens-fg/85 hover:bg-lens-hover hover:text-lens-fg" onClick={() => setVoicesOpen((v) => !v)}>
             <span className="truncate">{voiceName}</span>
             <ChevronDown size={12} aria-hidden="true" />
           </button>
           {voicesOpen ? (
-            <div ref={menuRef} role="menu" aria-label="Voices" onKeyDown={onMenuKey} className="lens-menu scroll-thin absolute bottom-[calc(100%+8px)] right-0 max-h-[280px] w-[260px] overflow-y-auto rounded-[14px] bg-lens p-1 shadow-pop ring-1 ring-black/5">
+            <div ref={menuRef} role="menu" aria-label={t("listen.voices")} onKeyDown={onMenuKey} className="lens-menu scroll-thin absolute bottom-[calc(100%+8px)] right-0 max-h-[280px] w-[260px] overflow-y-auto rounded-[14px] bg-lens p-1 shadow-pop ring-1 ring-black/5">
               <button type="button" role="menuitemradio" aria-checked={!snap.voiceURI} className={item(!snap.voiceURI)} onClick={() => { onVoice(null); closeMenu(true); }}>
-                System default
+                {t("listen.systemDefault")}
               </button>
               {sorted.map((v) => (
                 <button key={v.voiceURI} type="button" role="menuitemradio" aria-checked={v.voiceURI === snap.voiceURI} className={item(v.voiceURI === snap.voiceURI)} onClick={() => { onVoice(v.voiceURI); closeMenu(true); }}>
                   <span className="block truncate">{v.name}</span>
-                  <span className="block text-[11px] opacity-70">{v.lang}{v.localService ? "" : " · online"}</span>
+                  <span className="block text-[11px] opacity-70">{v.lang}{v.localService ? "" : t("listen.online")}</span>
                 </button>
               ))}
-              {!voices.length ? <p className="px-2.5 py-2 text-[12px] text-lens-mute">No voices reported by this browser yet.</p> : null}
+              {!voices.length ? <p className="px-2.5 py-2 text-[12px] text-lens-mute">{t("listen.noVoices")}</p> : null}
             </div>
           ) : null}
         </div>
-        <button type="button" aria-label="Restart" data-tip="From the start" className={BTN} onClick={onRestart}>
+        <button type="button" aria-label={t("listen.restart")} data-tip={t("listen.restartTip")} className={BTN} onClick={onRestart}>
           <RotateCcw size={13} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Stop reading aloud" data-tip="Stop" className={BTN} onClick={onStop}>
+        <button type="button" aria-label={t("listen.stop")} data-tip={t("listen.stopTip")} className={BTN} onClick={onStop}>
           <Square size={13} fill="currentColor" aria-hidden="true" />
         </button>
       </div>

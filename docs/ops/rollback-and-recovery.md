@@ -12,7 +12,7 @@ Code and the database schema are independent: every migration so far only **adds
 2. Find the last good Production deployment (check its commit message).
 3. Open its menu (⋯) → **Promote to Production** (an instant rollback: it only re-points the domain, nothing is rebuilt).
    CLI equivalent: `vercel rollback <deployment-url> --scope menlo6`.
-4. Check `GET /api/health`: `commit` is the old one and `status` is `ok`; run `node scripts/ai-smoke.mjs https://<site>`.
+4. Check `GET /api/health`: `commit` is the old one and `status` is `ok` (liveness; `/api/health/ready` with the token for the database); run `node scripts/ai-smoke.mjs https://<site>`.
 5. Fix the problem on a branch. **After an instant rollback Vercel may stop assigning new Production builds to the domains automatically**; once the fix is merged, promote it from the Deployments page (or check Settings → Domains) and confirm with `/api/health` that the new commit is live.
 
 A bad **environment variable** is rolled back by setting the old value (Vercel keeps no history for sensitive values, so keep the previous value in your password manager before changing one) and redeploying: Deployments → ⋯ → **Redeploy**.
@@ -21,10 +21,10 @@ A bad **environment variable** is rolled back by setting the old value (Vercel k
 
 | Situation | Action |
 | --- | --- |
-| The site is up but AI answers fail | `/api/health`: `ai-failing`. Check the key and the model (`docs/ops/runbook.md`); no rollback needed |
+| The site is up but AI answers fail | `/api/health/ready`: `ai-failing`. Check the key and the model (`docs/ops/runbook.md`); no rollback needed |
 | The AI is costing more than expected | set `GLOSS_BUDGET_DAILY_USD` lower (or `0` to pause the shared AI) and redeploy; readers' own keys are unaffected |
 | A deploy broke reading or import | roll back as above |
-| The database is down | `/api/health`: `database-down`. The app keeps working in the reader's browser; the shared AI is paused (fail closed). Check Neon's status and dashboard |
+| The database is down | `/api/health/ready`: `database-down`. The app keeps working in the reader's browser; the shared AI is paused (fail closed). Check Neon's status and dashboard |
 | Data was deleted or corrupted | restore into a **new** Neon branch (below); do not restore over production |
 
 ## Database backup and restore

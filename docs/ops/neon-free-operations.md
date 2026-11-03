@@ -17,7 +17,7 @@ Limits below are from Neon's plan page ([neon.com/docs/introduction/plans](https
 
 ## What follows from it
 
-1. **A monitor must not keep the database awake.** A check every 5 minutes that touches the database would hold the compute awake all month and use the compute allowance in about 16 days. `/api/health` therefore **reuses a healthy reading for 15 minutes** (`GLOSS_HEALTH_DB_CACHE_SECONDS`, default 900): with a monitor every 5 minutes the database is touched at most about every 15 minutes, so it can sleep about two thirds of the time with no other traffic. A failed reading is never reused (recovery is seen at once), and `?fresh=1` forces a real reading (the post-deploy check uses it). Real users keep it awake while they read: the allowance is spent by use, not by the monitor.
+1. **A monitor must not keep the database awake.** A check every 5 minutes that touches the database would hold the compute awake all month and use the compute allowance in about 16 days. The public liveness check (`/api/health`) never touches the database, and the readiness check (`/api/health/ready`, token only) therefore **reuses a healthy reading for 15 minutes** (`GLOSS_HEALTH_DB_CACHE_SECONDS`, default 900): with a monitor every 5 minutes the database is touched at most about every 15 minutes, so it can sleep about two thirds of the time with no other traffic. A failed reading is reused for 10 seconds at most (recovery is seen within 10 seconds), no caller can make a real reading more often than every 10 seconds, and `?fresh=1` with the token forces a real reading (the post-deploy check uses it). Nobody without the token can reach the database through a health check, so a stranger cannot hold the compute awake that way. Real users keep it awake while they read: the allowance is spent by use, not by the monitor.
 2. **A cold start is not an outage.** The health check repeats a failed reading once before saying `database-down`, and waits up to 3 seconds each time.
 3. **There is no history to lean on.** Make a backup file weekly and before risky changes: `DATABASE_URL='<your Neon connection string>' scripts/db-backup.sh` (read-only; see `docs/ops/restore-rehearsal.md` to restore it).
 4. **The shared AI fails closed, the library does not.** If the database is unreachable the shared AI refuses (no unmetered spending), and a reader's saves wait in the browser, which keeps its own copy.
@@ -26,7 +26,7 @@ Limits below are from Neon's plan page ([neon.com/docs/introduction/plans](https
 
 | Signal | How it is seen | 70% | 85% |
 | --- | --- | --- | --- |
-| **Storage** (`pg_database_size`, against `GLOSS_DB_STORAGE_LIMIT_MB`, default 1024) | `GET /api/health`: `storage: { usedMb, limitMb, percent, level }` | `warnings: ["db-storage-70"]`, still HTTP 200 (about 717 MB) | `reasons: ["db-storage-85"]`, `status: degraded`, **HTTP 503 with `?strict=1`** (about 870 MB) |
+| **Storage** (`pg_database_size`, against `GLOSS_DB_STORAGE_LIMIT_MB`, default 1024) | `GET /api/health/ready` (token): `storage: { usedMb, limitMb, percent, level }` | `warnings: ["db-storage-70"]`, still HTTP 200 (about 717 MB) | `reasons: ["db-storage-85"]`, `status: degraded`, **HTTP 503 with `?strict=1`** (about 870 MB) |
 | **Database health** | the same answer: `database: ok` or `down` (503) | n/a | n/a |
 | **Compute hours** | **not visible to the app.** the Neon console's usage and billing pages for the project | owner reads it weekly: **70 CU-hours** | **85 CU-hours** |
 | **Network transfer** | Neon console, same page | 3.5 GB | 4.25 GB |
@@ -50,7 +50,7 @@ The expected cost on Launch for the beta's size is in `docs/release/UNDERSTAND_F
 
 | Situation | What the readers see | What to do |
 | --- | --- | --- |
-| Compute allowance used | reads and saves fail; the app shows its "could not save" and keeps the browser copy; `/api/health` answers 503 `database-down` | upgrade the project (the compute resumes), or wait for the next billing period; nothing is lost |
+| Compute allowance used | reads and saves fail; the app shows its "could not save" and keeps the browser copy; `/api/health/ready` answers 503 `database-down` | upgrade the project (the compute resumes), or wait for the next billing period; nothing is lost |
 | Storage full | reading works, saving fails | free space (delete large texts) or upgrade |
 | Cold start | one slow first request | nothing |
 | A mistake in the last 6 hours | n/a | restore from a Neon branch at an earlier time (`docs/ops/restore-rehearsal.md`) |

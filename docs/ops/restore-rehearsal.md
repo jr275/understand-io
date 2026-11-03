@@ -11,7 +11,7 @@ What was rehearsed, what was not, and the steps the owner runs on Neon. Written 
 | "Accident": one text deleted | counts `2/2/2/1`, checksum differs |
 | **Full restore** into a new, empty database (`pg_restore --no-owner`) | counts `2/3/2/1`, **checksum identical** to the original |
 | **Targeted recovery**: copy only the lost text from the restored copy into the damaged database (`\copy`) | the text is back, checksum identical to the original |
-| The app (`next dev`) started on the restored database | `GET /api/health?strict=1`: 200, `database: ok` |
+| The app (`next dev`) started on the restored database | `GET /api/health/ready?strict=1` with a health token: 200, `database: ok` |
 | `drizzle-kit migrate` run on the restored database | applied cleanly (nothing to change) |
 
 Two findings:

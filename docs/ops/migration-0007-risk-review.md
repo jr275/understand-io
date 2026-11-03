@@ -50,7 +50,7 @@ The collector inserts with errors swallowed and never throws; the daily-cap coun
 ## 6. Post-merge verification (read-only)
 
 1. The build log shows "migrations applied successfully" and "Database migrations are up to date".
-2. `GET /api/health`: `database ok`, `storage.usedMb` within a small margin of the earlier value (a healthy reading is reused for 15 minutes).
+2. `GET /api/health/ready` (token): `database ok`, `storage.usedMb` within a small margin of the earlier value (a healthy reading is reused for 15 minutes).
 3. In the database: `drizzle.__drizzle_migrations` has 8 rows; `analytics_events` exists with 0 rows and its 3 indexes plus the key.
 4. `node scripts/post-deploy-check.mjs` passes (sign-in checks need the real credentials).
 5. After a day: still 0 rows in `analytics_events`.

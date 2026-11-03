@@ -137,15 +137,18 @@ describe("the proxy and the language of a page", () => {
     expect(forwarded(proxy(page("/", { headers: { [PUBLIC_HEADER]: "0" } })), PUBLIC_HEADER)).toBe("1");
   });
 
-  it("opening an address in Portuguese remembers it for the pages whose address has no language; an English address and a form post set nothing", () => {
+  it("opening an address in Portuguese remembers it for the pages whose address has no language; a prefetch, an English address and a form post set nothing", () => {
     const setCookie = (res: Response) => res.headers.get("set-cookie") ?? "";
-    expect(setCookie(proxy(page("/pt-BR")))).toMatch(/gloss_lang=pt-BR/);
-    expect(setCookie(proxy(page("/pt-BR/privacy")))).toMatch(/SameSite=lax/i);
-    expect(setCookie(proxy(page("/pt-BR", { cookie: "en" })))).toMatch(/gloss_lang=pt-BR/); // an explicit address beats the earlier choice
-    expect(setCookie(proxy(page("/pt-BR", { cookie: "pt-BR" })))).toBe(""); // already remembered
-    expect(setCookie(proxy(page("/")))).toBe("");
-    expect(setCookie(proxy(page("/library")))).toBe("");
-    expect(setCookie(proxy(page("/pt-BR", { method: "POST" })))).toBe("");
+    const doc = { "sec-fetch-dest": "document" };
+    expect(setCookie(proxy(page("/pt-BR", { headers: doc })))).toMatch(/gloss_lang=pt-BR/);
+    expect(setCookie(proxy(page("/pt-BR/privacy", { headers: doc })))).toMatch(/SameSite=lax/i);
+    expect(setCookie(proxy(page("/pt-BR", { cookie: "en", headers: doc })))).toMatch(/gloss_lang=pt-BR/); // an explicit address beats the earlier choice
+    expect(setCookie(proxy(page("/pt-BR", { cookie: "pt-BR", headers: doc })))).toBe(""); // already remembered
+    expect(setCookie(proxy(page("/pt-BR")))).toBe(""); // no browser navigation header: a crawler, a script
+    expect(setCookie(proxy(page("/pt-BR", { headers: { "sec-fetch-dest": "empty", rsc: "1" } })))).toBe(""); // a prefetch or a soft navigation
+    expect(setCookie(proxy(page("/", { headers: doc })))).toBe("");
+    expect(setCookie(proxy(page("/library", { headers: doc })))).toBe("");
+    expect(setCookie(proxy(page("/pt-BR", { method: "POST", headers: doc })))).toBe("");
   });
 
   it("sends a reader who chose Portuguese from an indexed English address to its Portuguese one, and only that", () => {

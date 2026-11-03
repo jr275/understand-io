@@ -73,7 +73,9 @@ function routePage(req: NextRequest) {
     const res = NextResponse.rewrite(url, { request: { headers } });
     // Opening an address in another language is choosing it, as the switcher does: the app's own pages (library, reader) have no language in their address, so
     // without this a reader who arrived at /pt-BR in an English browser would find the library in English one click later.
-    if (req.method === "GET" && req.cookies.get(LOCALE_COOKIE)?.value !== locale) res.cookies.set(LOCALE_COOKIE, locale, { path: "/", maxAge: LOCALE_COOKIE_MAX_AGE, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
+    // Only a real page load counts: a link the browser merely prefetches (the brand link of a Portuguese page points at /pt-BR) must not change the reader's language.
+    const opened = req.headers.get("sec-fetch-dest") === "document" && !req.headers.get("rsc") && !req.headers.get("next-router-prefetch");
+    if (opened && req.method === "GET" && req.cookies.get(LOCALE_COOKIE)?.value !== locale) res.cookies.set(LOCALE_COOKIE, locale, { path: "/", maxAge: LOCALE_COOKIE_MAX_AGE, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
     return res;
   }
   return NextResponse.next({ request: { headers } });

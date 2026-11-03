@@ -174,9 +174,11 @@ test.describe("layout and accessibility in both languages", () => {
 });
 
 test.describe("the social card follows the page's language", () => {
-  test("/pt-BR names its own card, English keeps the default one, and only known languages have a card", async ({ page, request }) => {
+  test("/pt-BR names its own card, English keeps the default one, and only known languages have a card", async ({ page, request, context }) => {
     await page.goto("/pt-BR");
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/og\/pt-BR$/);
+    // Opening the Portuguese address chose Portuguese, so the English address is asked for as a visitor who has not chosen.
+    await context.clearCookies();
     await page.goto("/");
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /\/opengraph-image/);
     for (const l of ["pt-BR", "en"]) {

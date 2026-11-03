@@ -7,6 +7,7 @@ import { isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/c
 import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
 import { useT } from "@/i18n/client";
+import { splitLocalePath } from "@/i18n/config";
 
 /**
  * Two app-wide ways in: drop a PDF, text file or link anywhere, and ⌘V a link or text on any page
@@ -20,7 +21,9 @@ export function GlobalImport() {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
   const internal = useRef(false);
-  const inReader = pathname.startsWith("/read/");
+  // The same page has two addresses (/ and /pt-BR): what matters is the page, not the language prefix.
+  const page = splitLocalePath(pathname).path;
+  const inReader = page.startsWith("/read/");
 
   useEffect(() => {
     const accepts = (dt: DataTransfer | null) => {
@@ -87,7 +90,7 @@ export function GlobalImport() {
   }, [importFile, importUrl, t]);
 
   useEffect(() => {
-    if (pathname === "/") return; // the landing import bar owns paste there
+    if (page === "/") return; // the landing import bar owns paste there, in either language
     const onPaste = (e: ClipboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
@@ -103,7 +106,7 @@ export function GlobalImport() {
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [pathname, inReader, importFile, importText, importUrl, t]);
+  }, [page, inReader, importFile, importText, importUrl, t]);
 
   if (!over) return null;
   return (

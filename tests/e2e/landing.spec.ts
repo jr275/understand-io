@@ -177,6 +177,8 @@ test.describe("landing", () => {
       obs.observe(document, { attributes: true, subtree: true, attributeFilter: ["data-theme"] });
     });
     await page.goto("/");
+    // The paint entry is added when the browser paints, which on a fast production build can be just after the load event.
+    await page.waitForFunction(() => performance.getEntriesByType("paint").some((p) => p.name === "first-paint"));
     const timing = await page.evaluate(() => ({
       themeAt: (window as unknown as { __themeAt?: number }).__themeAt,
       firstPaint: performance.getEntriesByType("paint").find((p) => p.name === "first-paint")?.startTime,

@@ -1,0 +1,27 @@
+-- PROPOSED, NOT APPLIED, NOT IN drizzle/ (so no deploy can run it). See README.md in this folder before using any of it.
+-- Written 2026-11-02 for Mission 06. Target: PostgreSQL 16 (Neon).
+
+-- Part 1 (recommended): when a document row goes, its marks, saved questions and reading positions go with it, whoever deleted it
+-- (the app already does this in one transaction; this makes a manual DELETE, a restore script or a racing request unable to leave children behind).
+-- It cannot be a foreign key: document_id may be 'sample:<slug>', which has no row in documents.
+BEGIN;
+CREATE OR REPLACE FUNCTION documents_delete_children() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  DELETE FROM annotations      WHERE document_id = OLD.id AND reader_id = OLD.reader_id;
+  DELETE FROM glosses          WHERE document_id = OLD.id AND reader_id = OLD.reader_id;
+  DELETE FROM reading_progress WHERE document_id = OLD.id AND reader_id = OLD.reader_id;
+  RETURN OLD;
+END $$;
+CREATE TRIGGER documents_delete_children AFTER DELETE ON documents FOR EACH ROW EXECUTE FUNCTION documents_delete_children();
+COMMIT;
+
+-- Part 2 (optional, needs an application change first): one row per reader and text.
+-- Run only after `node scripts/db-integrity-check.mjs` shows 0 duplicate groups (or after merging them), and after saveDocument() distinguishes this
+-- constraint from the slug constraint (today it treats every 23505 as "slug taken" and retries with a new slug, which would insert the duplicate anyway).
+-- CREATE INDEX CONCURRENTLY cannot run inside a transaction block.
+-- CREATE UNIQUE INDEX CONCURRENTLY documents_reader_hash_uniq ON documents (reader_id, content_hash) WHERE content_hash IS NOT NULL;
+
+-- ROLLBACK (each part on its own; neither touches data):
+--   DROP TRIGGER IF EXISTS documents_delete_children ON documents;
+--   DROP FUNCTION IF EXISTS documents_delete_children();
+--   DROP INDEX CONCURRENTLY IF EXISTS documents_reader_hash_uniq;

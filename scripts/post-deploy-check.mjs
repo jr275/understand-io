@@ -47,7 +47,8 @@ async function call(method, path, { body, form, headers = {}, cookie = true, red
 
 let pass = 0, fail = 0, skip = 0;
 const ok = (name, good, detail = "") => {
-  good ? pass++ : fail++;
+  if (good) pass++;
+  else fail++;
   console.log(`${good ? "PASS" : "FAIL"}  ${name}${detail ? ` (${detail})` : ""}`);
 };
 const skipped = (name, why) => {

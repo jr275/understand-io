@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { isProductionBuild } from "./helpers";
 
 // SEC-8 (CSRF guard in src/proxy.ts) and SEC-9 (security headers from next.config.ts).
 // POST /api/search without a key answers 402 and writes nothing, so it is a side-effect-free way to see whether the proxy let a request through.
@@ -55,21 +56,24 @@ test.describe("CSRF guard on /api", () => {
 });
 
 test.describe("security headers", () => {
-  const expectHeaders = (h: Record<string, string>) => {
+  const expectHeaders = (h: Record<string, string>, production: boolean) => {
     expect(h["x-content-type-options"]).toBe("nosniff");
     expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
     expect(h["permissions-policy"]).toBe("microphone=(self), camera=(), geolocation=()");
     expect(h["content-security-policy"]).toBe("frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     expect(h["x-frame-options"]).toBe("DENY");
     expect(h["content-security-policy"]).not.toContain("script-src");
-    expect(h["strict-transport-security"]).toBeUndefined(); // production only; the dev server runs on plain http
+    // Production only: the dev server runs on plain http and must never pin the developer's browser to https.
+    if (production) expect(h["strict-transport-security"]).toBe("max-age=31536000; includeSubDomains");
+    else expect(h["strict-transport-security"]).toBeUndefined();
   };
 
   test("pages and API responses carry them", async ({ page, request }) => {
+    const production = await isProductionBuild(request);
     const res = await page.goto("/");
-    expectHeaders(res!.headers());
-    expectHeaders((await page.goto("/read/on-a-piece-of-chalk"))!.headers());
-    expectHeaders((await request.get("/api/gloss")).headers());
+    expectHeaders(res!.headers(), production);
+    expectHeaders((await page.goto("/read/on-a-piece-of-chalk"))!.headers(), production);
+    expectHeaders((await request.get("/api/gloss")).headers(), production);
   });
 
   test("the app still renders and runs under them (microphone feature policy, inline theme script, forms)", async ({ page }) => {

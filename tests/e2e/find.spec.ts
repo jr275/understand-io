@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { openReader } from "./helpers";
+import { openReader, settleAnimations } from "./helpers";
 
 const countInPage = (page: Page, word: string) =>
   page.evaluate((w) => [...document.querySelectorAll(".blk .blk-text")].reduce((n, el) => n + ((el.textContent ?? "").toLowerCase().split(w).length - 1), 0), word);
@@ -101,6 +101,7 @@ test.describe("find in the text (literal) and sections", () => {
     await page.keyboard.press("s");
     await page.getByRole("search").getByRole("searchbox").fill("chalk");
     await page.getByRole("search").getByRole("button", { name: "Sections" }).click();
+    await settleAnimations(page); // the panel fades in; a contrast check taken half-way through the fade reads washed-out text
     const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze();
     expect(r.violations.map((v) => `${v.id}: ${v.nodes[0]?.target.join(" ")}`)).toEqual([]);
   });

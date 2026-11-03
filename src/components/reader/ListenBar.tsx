@@ -93,7 +93,7 @@ function ListenControls({ snap, voices, onToggle, onStop, onRestart, onSkip, onR
 
   return (
     <>
-      <div ref={ref} role="region" aria-label="Reading aloud" className="fixed bottom-[calc(env(safe-area-inset-bottom)+80px)] left-1/2 z-[46] flex -translate-x-1/2 items-center gap-1 rounded-full bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 sm:bottom-[calc(env(safe-area-inset-bottom)+90px)]" style={{ animation: "rise 0.35s var(--ease-out) both" }} data-tip-tone="paper">
+      <div ref={ref} role="region" data-listen-bar="" aria-label="Reading aloud" className="fixed bottom-[calc(env(safe-area-inset-bottom)+80px)] left-1/2 z-[46] flex -translate-x-1/2 items-center gap-1 rounded-full bg-lens p-1 text-lens-fg shadow-pop ring-1 ring-black/5 sm:bottom-[calc(env(safe-area-inset-bottom)+90px)]" style={{ animation: "rise 0.35s var(--ease-out) both" }} data-tip-tone="paper">
         <button type="button" aria-label="Back one sentence" data-tip="Back a sentence" disabled={snap.atStart} className={BTN} onClick={() => onSkip(-1)}>
           <SkipBack size={14} aria-hidden="true" />
         </button>

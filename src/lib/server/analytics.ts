@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { lt } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { analyticsEvents } from "@/lib/db/schema";
 import { CLIENT_EVENTS, parseEvent, routePattern, type EventName } from "@/lib/analytics/events";
@@ -7,6 +6,7 @@ import { channelOf, cleanAttribution, type Attribution } from "@/lib/analytics/a
 import { aiStore } from "./aiStore";
 import { READER_COOKIE, pseudonym, verifyReaderCookie } from "./reader";
 import { SlidingWindowLimiter, clientIp } from "./rateLimit";
+import { maybeRunRetention, resetRetentionState, runRetention } from "./analyticsRetention";
 
 /**
  * The collector behind `POST /api/events` and the server-side `recordServerEvent`. Three modes, set by the operator with `GLOSS_ANALYTICS`:
@@ -56,9 +56,15 @@ const whole = (name: string, fallback: number) => {
   const n = Number(process.env[name]);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 };
-/** Events kept per UTC day in total. A cap protects the database (Neon Free is 1 GB): past it, events are dropped, not queued. */
+/**
+ * Events STORED per UTC day in total (not requests): a cap protects the database (Neon Free is 1 GB), and past it events are dropped, not queued. The
+ * count is made with an atomic reservation (`aiStore().quotaReserve`) before anything is written, so the day's total can never pass the cap, however
+ * many instances race for it and however the events are batched.
+ */
 const dailyCap = () => whole("GLOSS_ANALYTICS_DAILY_CAP", 5000);
-const retentionDays = () => whole("GLOSS_ANALYTICS_RETENTION_DAYS", 120);
+const CAP_KEY = "analytics:events";
+/** The UTC midnight that starts the day `now` falls in. Epoch arithmetic only, so the server's time zone never matters. */
+export const analyticsDayStart = (now: number) => Math.floor(now / DAY_MS) * DAY_MS;
 
 export interface StoredEvent {
   at: number;
@@ -85,14 +91,9 @@ const memorySink: AnalyticsSink = {
   },
 };
 
-/** One in this many inserts also deletes what is past retention. */
-const PRUNE_ONE_IN = 200;
-
-/** Deletes events past retention (`GLOSS_ANALYTICS_RETENTION_DAYS`, default 120) and answers how many went. Also runs now and then by itself, after an insert. */
+/** Deletes events past retention (see `analyticsRetention.ts`: bounded batches, idempotent, never throws) and answers how many went. */
 export async function pruneAnalytics(now: number = Date.now()): Promise<number> {
-  const db = getDb();
-  if (!db) return 0;
-  return (await db.delete(analyticsEvents).where(lt(analyticsEvents.at, now - retentionDays() * DAY_MS)).returning({ id: analyticsEvents.id })).length;
+  return (await runRetention(now)).deleted;
 }
 
 const databaseSink: AnalyticsSink = {
@@ -100,7 +101,6 @@ const databaseSink: AnalyticsSink = {
     const db = getDb();
     if (!db) throw new Error("no database");
     await db.insert(analyticsEvents).values(rows);
-    if (Math.random() * PRUNE_ONE_IN < 1) void pruneAnalytics().catch(() => {});
   },
 };
 
@@ -155,12 +155,39 @@ const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise
 
 const noContent = (mode: AnalyticsMode | "dropped") => new Response(null, { status: 204, headers: { "x-gloss-analytics": mode === "dropped" ? "off" : mode, "cache-control": "no-store" } });
 
-async function underDailyCap(now: number): Promise<boolean> {
+/** The UTC day on which this instance last saw the cap used up: for the rest of that day it does not ask the database again (a flood costs nothing). */
+let capReachedDay = -1;
+
+/**
+ * How many of `n` events may be stored now: the day's cap minus what has already been reserved, atomically. 0 when the cap is used up or when the
+ * counter cannot be read (analytics must never add load to a struggling database).
+ */
+async function reserveEvents(n: number, now: number): Promise<number> {
+  const day = analyticsDayStart(now);
+  if (capReachedDay === day) return 0;
   try {
-    return (await aiStore().quotaHit("analytics:events", DAY_MS, now)) <= dailyCap();
+    const granted = await aiStore().quotaReserve(CAP_KEY, DAY_MS, now, n, dailyCap());
+    if (granted < n) capReachedDay = day;
+    return granted;
   } catch {
-    return false; // when the counter cannot be read, record nothing: analytics must never add load to a struggling database
+    return 0;
   }
+}
+
+/**
+ * Stores events that were reserved, bounded in time. If the write fails, the reservation is given back (nothing was stored). If it is merely slow
+ * the reservation stays: the write may still land, so the cap is never undercounted.
+ */
+async function storeReserved(rows: StoredEvent[], now: number): Promise<void> {
+  await within(
+    sink()
+      .insert(rows)
+      .catch(async () => {
+        await aiStore().quotaRelease(CAP_KEY, DAY_MS, now, rows.length).catch(() => {});
+      }),
+    STORE_MS,
+  );
+  void maybeRunRetention(now).catch(() => {}); // at most once an hour across all instances; never waited for, never throws
 }
 
 export async function handleEvents(req: Request, now: number = Date.now()): Promise<Response> {
@@ -197,8 +224,11 @@ export async function handleEvents(req: Request, now: number = Date.now()): Prom
       ref: withAttribution && attribution.ref ? pseudonym("ref", attribution.ref) : null, // never the code itself
     });
   }
-  // Bounded: a slow database never holds this answer (the browser does not wait for it, but the function should not either).
-  if (rows.length && (await underDailyCap(now))) await within(sink().insert(rows).catch(() => {}), STORE_MS);
+  // Reserve first, store what was granted: a batch cannot get around the cap, because it is the events that are counted, not the requests.
+  if (rows.length) {
+    const granted = await reserveEvents(rows.length, now);
+    if (granted > 0) await storeReserved(rows.slice(0, granted), now);
+  }
   return noContent(mode);
 }
 
@@ -210,11 +240,10 @@ export async function recordServerEvent(name: EventName, props: Record<string, u
   const mode = effectiveMode();
   if (mode !== "full") return; // without a stable pseudonym there is nothing meaningful to say about one person's registration
   const parsed = parseEvent(name, props);
-  if (!parsed || !(await underDailyCap(now))) return;
+  if (!parsed || (await reserveEvents(1, now)) < 1) return;
   // Bounded: this runs inside the sign-in callback, and analytics must never make signing in wait.
-  await within(
-    sink()
-    .insert([
+  await storeReserved(
+    [
       {
         at: now,
         event: parsed.event,
@@ -226,11 +255,14 @@ export async function recordServerEvent(name: EventName, props: Record<string, u
         campaign: attribution?.campaign ?? null,
         ref: attribution?.ref ? pseudonym("ref", attribution.ref) : null,
       },
-    ])
-    .catch(() => {}),
-    STORE_MS,
+    ],
+    now,
   );
 }
 
 /** Test hook. */
-export const resetAnalyticsLimits = () => limiter.clear();
+export const resetAnalyticsLimits = () => {
+  limiter.clear();
+  capReachedDay = -1;
+  resetRetentionState();
+};

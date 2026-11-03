@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // The command line of scripts/migration-rehearsal.mjs and the shell wrapper scripts/neon-rehearsal.sh, run as real processes. Every endpoint is
 // fictional and under `.invalid`, which can never resolve, and the environment given to the processes holds nothing but PATH and HOME: nothing
 // here can reach Neon, production or any other server.
-const PROD = "ep-prod-main-aaaa1111";
+const PROD = "ep-fake-prod-a1b2c3d4";
 const STAGING = "ep-stage-copy-bbbb2222";
 const DOMAIN = ".c-1.us-east-1.aws.fixture.invalid";
 const PW = "SECRETPW99";
@@ -51,7 +51,7 @@ describe("migration-rehearsal.mjs refuses before it touches anything", () => {
     ["the production pooled string with production typed direct", host(PROD, true), { endpoint: PROD, confirm: `staging-0007@${PROD}`, prod: [host(PROD)] }, "E_IS_PRODUCTION"],
     ["the production direct string with production typed pooled", host(PROD), { endpoint: PROD, confirm: `staging-0007@${PROD}`, prod: [host(PROD, true)] }, "E_IS_PRODUCTION"],
     ["production typed with a port", host(PROD), { endpoint: PROD, confirm: `staging-0007@${PROD}`, prod: [`${host(PROD)}:5432`] }, "E_IS_PRODUCTION"],
-    ["a look-alike endpoint", host("ep-prod-main-aaaa1112"), { endpoint: "ep-prod-main-aaaa1112", confirm: "staging-0007@ep-prod-main-aaaa1112" }, "E_AMBIGUOUS"],
+    ["a look-alike endpoint", host("ep-fake-prod-b1b2c3d4"), { endpoint: "ep-fake-prod-b1b2c3d4", confirm: "staging-0007@ep-fake-prod-b1b2c3d4" }, "E_AMBIGUOUS"],
     ["a wrong branch", host(STAGING), { branch: "main", confirm: `main@${STAGING}` }, "E_BRANCH"],
     ["a branch and endpoint that do not match", host(STAGING), { endpoint: "ep-other-one-cccc3333" }, "E_ENDPOINT_MISMATCH"],
     ["no confirmation", host(STAGING), { confirm: "" }, "E_CONFIRMATION_MISSING"],

@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { DRY_RUN_SUFFIXES, GuardError, assertDriverMatches, checkLocalTarget, checkRehearsalTarget, cleanChildEnv, endpointIdOf, maskEndpoint } from "../../scripts/lib/rehearsal-guard.mjs";
 
 // Every endpoint here is fictional and under `.invalid`, a name that can never resolve: nothing in this file can reach Neon or any server.
-const PROD = "ep-prod-main-aaaa1111";
+const PROD = "ep-fake-prod-a1b2c3d4";
 const STAGING = "ep-stage-copy-bbbb2222";
 const DOMAIN = ".c-1.us-east-1.aws.fixture.invalid";
 const PW = "SECRETPW99";
@@ -58,10 +58,10 @@ describe("production can never be the target (the endpoint id is the identity, n
 
 describe("a staging endpoint that looks like production is ambiguous and refused", () => {
   const lookalike = (id: string): Partial<Input> => ({ connectionString: url(host(id)), endpoint: id, confirmation: `staging-0007@${id}` });
-  it("blocks one character away", () => expect(codeOf(() => run(lookalike("ep-prod-main-aaaa1112")))).toBe("E_AMBIGUOUS"));
-  it("blocks the same 8-character suffix with other words", () => expect(codeOf(() => run(lookalike("ep-other-words-aaaa1111")))).toBe("E_AMBIGUOUS"));
-  it("blocks the same two words with another suffix", () => expect(codeOf(() => run(lookalike("ep-prod-main-zzzz9999")))).toBe("E_AMBIGUOUS"));
-  it("blocks within three edits", () => expect(codeOf(() => run(lookalike("ep-prod-mail-aaab1111")))).toBe("E_AMBIGUOUS"));
+  it("blocks one character away", () => expect(codeOf(() => run(lookalike("ep-fake-prod-b1b2c3d4")))).toBe("E_AMBIGUOUS"));
+  it("blocks the same 8-character suffix with other words", () => expect(codeOf(() => run(lookalike("ep-other-words-a1b2c3d4")))).toBe("E_AMBIGUOUS"));
+  it("blocks the same two words with another suffix", () => expect(codeOf(() => run(lookalike("ep-fake-prod-0z9y8x7w")))).toBe("E_AMBIGUOUS"));
+  it("blocks within three edits", () => expect(codeOf(() => run(lookalike("ep-zake-prod-z1b2c3d4")))).toBe("E_AMBIGUOUS"));
   it("allows an unrelated endpoint", () => expect(codeOf(() => run())).toBe("ALLOWED"));
 });
 

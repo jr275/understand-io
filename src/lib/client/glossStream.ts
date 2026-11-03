@@ -2,6 +2,7 @@
 
 import type { Anchor, GlossAction, GlossTurn } from "@/lib/content/types";
 import { getUserKey } from "@/lib/store/library";
+import { track } from "@/lib/client/analytics";
 
 const SENTINEL = "\u001e";
 
@@ -25,6 +26,7 @@ export interface GlossMeta {
 /** Streams an answer; resolves with the trailer (model + usage) or an error message. */
 export async function streamGloss(req: GlossRequest, onText: (full: string) => void, signal?: AbortSignal): Promise<GlossMeta> {
   const key = getUserKey();
+  track("ai_question_asked", { action: req.action, key: key ? "own" : "shared" }); // which action and whose key: never the question or the passage
   const res = await fetch("/api/gloss", {
     method: "POST",
     headers: { "content-type": "application/json", ...(key ? { "x-gloss-key": key } : {}) },

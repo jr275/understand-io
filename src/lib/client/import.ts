@@ -6,6 +6,7 @@ import type { GlossDocument } from "@/lib/content/types";
 import { ensureReader, getLibrary, rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
 import { findDuplicate } from "@/lib/store/duplicates";
 import { toast } from "@/lib/store/toast";
+import { track } from "@/lib/client/analytics";
 
 export interface ImportResult {
   document: GlossDocument;
@@ -77,10 +78,16 @@ export function useImport(defaultAfter: After = "read") {
     async (kind: NonNullable<typeof busy>, task: () => Promise<ImportResult>, after: After) => {
       setBusy(kind);
       setError(null);
+      const source = kind === "url" ? "link" : kind === "text" ? "paste" : kind;
       try {
-        finish(await task(), after);
+        const r = await task();
+        // Counts, never contents: what kind of text, how it arrived, and whether it was new.
+        track("import_completed", { source, outcome: r.duplicate ? "duplicate" : r.linkOnly ? "link_only" : "ok" });
+        if (!r.duplicate) track("document_saved", { kind: r.document.kind === "sample" ? "text" : r.document.kind, via: kind === "page" ? "bookmarklet" : kind === "url" ? "link" : kind === "text" ? "paste" : "file" });
+        finish(r, after);
         return true;
       } catch (e) {
+        track("import_completed", { source, outcome: "failed" });
         const msg = e instanceof Error ? e.message : "Import failed.";
         setError(msg);
         toast(msg, { ttl: 8000 });

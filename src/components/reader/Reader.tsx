@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/client/analytics";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ArrowUp, ArrowUpRight, BookOpenCheck, Headphones, Keyboard, NotebookPen, Search } from "lucide-react";
@@ -346,6 +347,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       }
       const a: Annotation = { id: newId(), documentId, kind, color, note: note === undefined ? undefined : clampNote(note), anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
       addAnnotation(a);
+      track("highlight_created", { mark: a.kind }); // the kind of mark only: never its text, quote or note
       clearSelection();
       if (kind === "note") setActiveId(a.id);
       toast(lib.persisted ? "Kept in your library." : "Kept in this browser.", { ttl: 2600 });

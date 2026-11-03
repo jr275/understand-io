@@ -6,8 +6,27 @@ import { SampleRow } from "@/components/landing/SampleRow";
 import { Desk } from "@/components/landing/Desk";
 import { Notice } from "@/components/chrome/Notice";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { LandingBeacon } from "@/components/chrome/AnalyticsBeacons";
+import { SITE_NAME, absoluteUrl, alternatesFor, jsonLd, socialFor } from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Understand.io" };
+const TITLE = "Understand.io: highlight any line and ask it anything";
+const DESCRIPTION = "Read articles, PDFs and your own text, select a line and ask. The answer is written in the margin beside the words, citing the paragraphs it used.";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: { absolute: TITLE }, description: DESCRIPTION, alternates: alternatesFor("/"), ...socialFor({ title: TITLE, description: DESCRIPTION, path: "/" }) };
+}
+
+const applicationLd = () =>
+  jsonLd({
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: SITE_NAME,
+    description: DESCRIPTION,
+    url: absoluteUrl("/"),
+    applicationCategory: "EducationalApplication",
+    operatingSystem: "Any (web browser)",
+    inLanguage: "en",
+  });
 
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
@@ -33,6 +52,8 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
         <Desk />
         <LegalLinks />
       </main>
+      <LandingBeacon />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: applicationLd() }} />
       <Toasts bottom={24} />
       {signin ? <Notice text={signin} /> : null}
     </div>

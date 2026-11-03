@@ -85,8 +85,8 @@ jobs:
       - name: psql is available (the database role tests run the real setup script with it and must not be skipped)
         run: psql --version
       - name: Unit tests that need a real database (skipped when DATABASE_URL is unset)
-        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts tests/unit/analyticsDatabase.test.ts tests/unit/analyticsCapDatabase.test.ts tests/unit/dbRolesDatabase.test.ts tests/unit/rehearsalDatabase.test.ts
-      # rehearsalDatabase.test.ts creates and drops its own databases (gloss_rh_*) on this disposable service, and dbRolesDatabase.test.ts its own databases (gloss_roles_*) and roles (rt_*); analyticsDatabase.test.ts removes the rows it adds.
+        run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts tests/unit/analyticsDatabase.test.ts tests/unit/analyticsCapDatabase.test.ts tests/unit/dbRolesDatabase.test.ts tests/unit/pgBackupDatabase.test.ts tests/unit/rehearsalDatabase.test.ts
+      # rehearsalDatabase.test.ts creates and drops its own databases (gloss_rh_*) on this disposable service, and dbRolesDatabase.test.ts / pgBackupDatabase.test.ts their own databases (gloss_roles_*) and roles (rt_*); analyticsDatabase.test.ts removes the rows it adds.
       - name: The disposable service was left clean
         run: |
           node --input-type=module <<'EOF'
@@ -106,6 +106,48 @@ jobs:
       - name: Server log on failure
         if: failure()
         run: cat server.log
+
+  # Not a required check. The production database is believed to be PostgreSQL 18 and the job above runs 16: this one runs the backup, restore and role
+  # tests against a 18 server with 18 client tools, so a change that only breaks on 18 shows up here. (An older pg_dump is refused by design: see
+  # scripts/lib/pgBackup.mjs and tests/unit/pgBackup.test.ts.)
+  postgres18:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gloss_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/gloss_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: PostgreSQL 18 client tools (pg_dump, pg_restore, psql)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          /usr/lib/postgresql/18/bin/pg_dump --version
+      - name: Apply all migrations to the empty database
+        run: pnpm db:migrate
+      - name: Backup, restore and role tests on PostgreSQL 18
+        run: PATH=/usr/lib/postgresql/18/bin:$PATH pnpm test tests/unit/pgBackup.test.ts tests/unit/pgBackupDatabase.test.ts tests/unit/dbRolesDatabase.test.ts
 
   # Kept apart so a newly published advisory shows up on its own and does not hide the other results.
   audit:

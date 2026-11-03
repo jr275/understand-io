@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LOCALE_COOKIE, LOCALE_HEADER, PREFIX, PUBLIC_HEADER, localePath, normalizeLocale, splitLocalePath } from "@/i18n/config";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_HEADER, PREFIX, PUBLIC_HEADER, localePath, normalizeLocale, splitLocalePath } from "@/i18n/config";
 
 /** Pages search engines index: each exists once per language, at the address of that language. */
 export const isPublicPath = (path: string) => path === "/" || path === "/privacy" || path === "/terms" || path.startsWith("/learn") || path.startsWith("/legal");
@@ -70,7 +70,11 @@ function routePage(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = path;
     url.search = search;
-    return NextResponse.rewrite(url, { request: { headers } });
+    const res = NextResponse.rewrite(url, { request: { headers } });
+    // Opening an address in another language is choosing it, as the switcher does: the app's own pages (library, reader) have no language in their address, so
+    // without this a reader who arrived at /pt-BR in an English browser would find the library in English one click later.
+    if (req.method === "GET" && req.cookies.get(LOCALE_COOKIE)?.value !== locale) res.cookies.set(LOCALE_COOKIE, locale, { path: "/", maxAge: LOCALE_COOKIE_MAX_AGE, sameSite: "lax", secure: process.env.NODE_ENV === "production" });
+    return res;
   }
   return NextResponse.next({ request: { headers } });
 }

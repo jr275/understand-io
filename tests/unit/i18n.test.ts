@@ -137,6 +137,17 @@ describe("the proxy and the language of a page", () => {
     expect(forwarded(proxy(page("/", { headers: { [PUBLIC_HEADER]: "0" } })), PUBLIC_HEADER)).toBe("1");
   });
 
+  it("opening an address in Portuguese remembers it for the pages whose address has no language; an English address and a form post set nothing", () => {
+    const setCookie = (res: Response) => res.headers.get("set-cookie") ?? "";
+    expect(setCookie(proxy(page("/pt-BR")))).toMatch(/gloss_lang=pt-BR/);
+    expect(setCookie(proxy(page("/pt-BR/privacy")))).toMatch(/SameSite=lax/i);
+    expect(setCookie(proxy(page("/pt-BR", { cookie: "en" })))).toMatch(/gloss_lang=pt-BR/); // an explicit address beats the earlier choice
+    expect(setCookie(proxy(page("/pt-BR", { cookie: "pt-BR" })))).toBe(""); // already remembered
+    expect(setCookie(proxy(page("/")))).toBe("");
+    expect(setCookie(proxy(page("/library")))).toBe("");
+    expect(setCookie(proxy(page("/pt-BR", { method: "POST" })))).toBe("");
+  });
+
   it("sends a reader who chose Portuguese from an indexed English address to its Portuguese one, and only that", () => {
     const res = proxy(page("/privacy?a=b", { cookie: "pt-BR" }));
     expect(res.status).toBe(307);

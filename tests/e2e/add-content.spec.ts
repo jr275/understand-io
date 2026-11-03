@@ -11,11 +11,11 @@ import { collectErrors, settleAnimations } from "./helpers";
 const UNREADABLE = "http://127.0.0.1/reports/annual-report";
 
 const T = {
-  en: { path: "/", field: "Article link", add: "Add content", invalid: /does not look like a web address/, retry: "Try again", offline: /Could not reach the server/, library: "/library", source: "Add a source", already: /already in your library/, saved: /Saved as a link only/ },
-  pt: { path: "/pt-BR", field: "Link do artigo", add: "Adicionar conteúdo", invalid: /não parece um endereço da web/, retry: "Tentar de novo", offline: /Não foi possível acessar o servidor/, library: "/pt-BR/library", source: "Adicionar uma fonte", already: /já está na sua biblioteca/, saved: /Salvo apenas como link/ },
+  en: { path: "/", field: /Article links?/, add: "Add content", invalid: /does not look like a web address/, retry: "Try again", offline: /Could not reach the server/, library: "/library", source: "Add a source", already: /already in your library/, saved: /Saved as a link only/ },
+  pt: { path: "/pt-BR", field: /Links? d[oa]s? artigos?/, add: "Adicionar conteúdo", invalid: /não parece um endereço da web/, retry: "Tentar de novo", offline: /Não foi possível acessar o servidor/, library: "/pt-BR/library", source: "Adicionar uma fonte", already: /já está na sua biblioteca/, saved: /Salvo apenas como link/ },
 } as const;
 
-const linkField = (page: Page | Locator, label: string) => page.getByRole("textbox", { name: label });
+const linkField = (page: Page | Locator, label: string | RegExp) => page.getByRole("textbox", { name: label });
 /** The sentence under a link field (the toast that repeats it is a separate status region). */
 const status = (scope: Page | Locator) => scope.locator("[data-url-status]");
 const axe = async (page: Page) => (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"]).analyze()).violations.map((v) => `${v.id}: ${v.nodes[0]?.html.slice(0, 120)}`);
@@ -25,7 +25,7 @@ test.describe("home: the link field is the first thing on the page", () => {
     for (const size of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(size);
       await page.goto("/");
-      const box = await linkField(page, "Article link").boundingBox();
+      const box = await linkField(page, /Article links?/).boundingBox();
       expect(box, `${size.width}px`).not.toBeNull();
       expect(box!.y + box!.height, `${size.width}px: the field ends inside the first screen`).toBeLessThan(size.height);
       await expect(page.getByRole("button", { name: /^Read/ })).toBeVisible();
@@ -156,7 +156,7 @@ test("the Portuguese title stays on two lines, so the link field is still in the
       return Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight));
     });
     expect(lines, `${size.width}px`).toBe(2);
-    const box = await page.getByRole("textbox", { name: "Link do artigo" }).boundingBox();
+    const box = await page.getByRole("textbox", { name: /Links? d[oa]s? artigos?/ }).boundingBox();
     expect(box!.y + box!.height).toBeLessThan(size.height * 0.65);
   }
 });
@@ -165,8 +165,8 @@ test("a link that fails or is added inside the panel is said once, next to the f
   await page.goto("/library");
   await page.getByRole("button", { name: /Add a source/ }).click();
   const dialog = page.getByRole("dialog");
-  await linkField(dialog, "Article link").fill("http://127.0.0.1/no-toast");
-  await linkField(dialog, "Article link").press("Enter");
+  await linkField(dialog, /Article links?/).fill("http://127.0.0.1/no-toast");
+  await linkField(dialog, /Article links?/).press("Enter");
   await expect(status(dialog)).toContainText("Saved as a link only");
   await expect(page.locator('[role="status"]:not([data-url-status])').filter({ hasText: /Saved the link|Shelved/ })).toHaveCount(0);
 });

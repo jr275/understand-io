@@ -1,25 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, BookmarkPlus, Check, Copy, FileUp, Link2, TextCursorInput, X } from "lucide-react";
 import { TopicGlyph } from "./TopicGlyph";
-import { rememberDocument } from "@/lib/store/library";
 import { ACCEPT, bookmarklet, useImport } from "@/lib/client/import";
 import { UrlField, useUrlSource } from "@/components/ingest/UrlField";
+import { useLinkBatch } from "@/components/ingest/LinksField";
+import { parseLinks } from "@/lib/client/linkBatch";
 import { handleFiles } from "@/lib/client/importQueue";
 import { PasteDialog } from "@/components/landing/PasteDialog";
 import { useModalFocus } from "@/lib/client/useModalFocus";
 import { useT } from "@/i18n/client";
 import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
-type Row = { url: string; state: "pending" | "saved" | "failed"; title?: string; error?: string; note?: string };
-
 export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (count: number) => void }) {
   const t = useT();
   const [tab, setTab] = useState<"agent" | "links">("links");
   const [text, setText] = useState("");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [busy, setBusy] = useState(false);
+  // Several links at once go through the same engine as the home page: one at a time, each with its own outcome.
+  const links = useLinkBatch();
+  const busy = links.running;
   const [pasteOpen, setPasteOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -29,7 +29,11 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const imp = useImport("read");
   // The panel is opened from the library and from the top bar: a link added here stays on this page and shows up on the shelf.
   const source = useUrlSource("stay");
-  useEffect(() => setOrigin(window.location.origin), []);
+  useEffect(() => {
+    // The bookmarklets name this page's address, which only the browser knows.
+    const id = window.setTimeout(() => setOrigin(window.location.origin), 0);
+    return () => window.clearTimeout(id);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !pasteOpen) {
@@ -41,34 +45,23 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onClose, pasteOpen]);
 
-  const urls = text
-    .split(/\s+/)
-    .map((s) => s.trim())
-    .filter((s) => /^https?:\/\/\S+$/i.test(s) || /^([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(s))
-    .map((s) => (/^https?:\/\//i.test(s) ? s : `https://${s}`));
+  const parsed = useMemo(() => parseLinks(text), [text]);
+  const urls = parsed.urls;
 
-  const save = async () => {
+  const save = () => {
     if (!urls.length) return;
-    setBusy(true);
-    const next: Row[] = urls.map((u) => ({ url: u, state: "pending" }));
-    setRows(next);
-    let saved = 0;
-    for (let i = 0; i < next.length; i++) {
-      try {
-        const res = await fetch("/api/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ url: next[i].url, keep: true }) });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error || t("add.failedStatus", { status: res.status }));
-        rememberDocument(j.document, j.persisted);
-        saved++;
-        setRows((r) => r.map((x, k) => (k === i ? { ...x, state: "saved", title: j.document.title, note: j.linkOnly ? `${t("add.savedAsLink")} ${j.reason ?? ""}`.trim() : undefined } : x)));
-      } catch (e) {
-        setRows((r) => r.map((x, k) => (k === i ? { ...x, state: "failed", error: e instanceof Error ? e.message : t("add.failed") } : x)));
-      }
-    }
-    setBusy(false);
-    setText("");
-    onSaved(saved);
+    if (links.batch.start(parsed)) setText("");
   };
+
+  // The shelf is told once per finished batch, with how many links were kept.
+  const told = useRef(false);
+  useEffect(() => {
+    if (links.running) told.current = false;
+    else if (links.summary.done && !told.current) {
+      told.current = true;
+      onSaved(links.summary.saved);
+    }
+  }, [links.running, links.summary.done, links.summary.saved, onSaved]);
 
   const importExport = async (file: File) => {
     const t = await file.text();
@@ -148,20 +141,25 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
             <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={"https://paulgraham.com/greatwork.html\nhttps://..."} rows={4} className="add-text" aria-label={t("add.linksLabel")} />
             <div className="mt-3 flex items-center justify-between gap-3">
               <span className="text-[12.5px] text-ink-4">{urls.length ? t("add.linkCount", { n: urls.length }) : ""}</span>
-              <button type="button" disabled={!urls.length || busy} className="add-btn" onClick={() => void save()}>
+              <button type="button" disabled={!urls.length || busy} className="add-btn" onClick={save}>
                 {busy ? t("add.saving") : t("common.save")}
               </button>
             </div>
-            {rows.length ? (
+            {links.rows.length ? (
               <ul className="add-rows">
-                {rows.map((r) => (
-                  <li key={r.url} data-state={r.state}>
-                    <span className="add-dot">{r.state === "saved" ? <Check size={12} aria-hidden="true" /> : r.state === "failed" ? <X size={12} aria-hidden="true" /> : <span className="size-2 animate-pulse rounded-full bg-current" />}</span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{r.title ?? r.url}</span>
-                    {r.error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{lm(r.error)}</span> : null}
-                    {r.note ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-ink-3">{lm(r.note)}</span> : null}
-                  </li>
-                ))}
+                {links.rows.map((r) => {
+                  const state = r.state === "saved" || r.state === "link" || r.state === "duplicate" ? "saved" : r.state === "failed" || r.state === "skipped" ? "failed" : "pending";
+                  const error = r.state === "skipped" ? t(r.error === "scheme" ? "ingest.rowScheme" : "ingest.rowInvalid") : r.state === "failed" ? lm(r.error ?? "") : null;
+                  const note = r.state === "link" ? `${t("add.savedAsLink")} ${r.reason ? lm(r.reason) : ""}`.trim() : r.state === "duplicate" ? t("ingest.rowDuplicate") : null;
+                  return (
+                    <li key={r.id} data-state={state}>
+                      <span className="add-dot">{state === "saved" ? <Check size={12} aria-hidden="true" /> : state === "failed" ? <X size={12} aria-hidden="true" /> : <span className="size-2 animate-pulse rounded-full bg-current" />}</span>
+                      <span className="min-w-0 flex-1 truncate text-[13px] text-ink-2">{r.title ?? r.url}</span>
+                      {error ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-rubric-text">{error}</span> : null}
+                      {note ? <span className="min-w-0 flex-[2] text-[12px] leading-snug text-ink-3">{note}</span> : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
               </div>

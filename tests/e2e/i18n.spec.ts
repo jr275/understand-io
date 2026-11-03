@@ -27,7 +27,7 @@ test.describe("English is the default and Portuguese has its own addresses", () 
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Destaque qualquer trecho.");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Pergunte o que quiser.");
     await expect(page).toHaveTitle(/destaque qualquer trecho e pergunte o que quiser/i);
-    await expect(page.getByPlaceholder("Cole o link de um artigo")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Links dos artigos" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Enviar arquivos" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Colar texto" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Biblioteca", exact: true })).toBeVisible();

@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { FileUp, TextCursorInput } from "lucide-react";
 import { ACCEPT, looksLikeUrl, normaliseUrl } from "@/lib/client/import";
-import { UrlField, useUrlSource } from "@/components/ingest/UrlField";
+import { useUrlSource } from "@/components/ingest/UrlField";
+import { LinksField, useLinkBatch } from "@/components/ingest/LinksField";
+import { parseLinks } from "@/lib/client/linkBatch";
 import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
 import { PasteDialog } from "./PasteDialog";
@@ -45,7 +47,8 @@ export function ImportBar({ initialUrl, capture }: Props) {
     return () => window.clearTimeout(id);
   }, []);
   const fileRef = useRef<HTMLInputElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const links = useLinkBatch();
   const source = useUrlSource("read", initialUrl ?? "");
   const { busy, error, importUrl, importText, importFile, importPage, setUrl } = source;
   const started = useRef(false);
@@ -123,7 +126,11 @@ export function ImportBar({ initialUrl, capture }: Props) {
       }
       if (!text) return;
       e.preventDefault();
-      if (looksLikeUrl(text)) {
+      // Several lines that are all addresses are a list of links to read, not a text to keep.
+      const list = /\r?\n/.test(text) ? parseLinks(text) : null;
+      if (list && list.urls.length + list.repeated > 1 && !list.invalid.length) {
+        links.batch.start(list);
+      } else if (looksLikeUrl(text)) {
         setUrl(text);
         void importUrl(normaliseUrl(text));
       } else if (text.length > 40) {
@@ -135,20 +142,11 @@ export function ImportBar({ initialUrl, capture }: Props) {
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [importFile, importText, importUrl, setUrl]);
+  }, [importFile, importText, importUrl, setUrl, links.batch]);
 
   return (
     <div className="mt-9 w-full max-w-[640px] text-left sm:mt-12">
-      <UrlField
-        ref={inputRef}
-        source={source}
-        size="hero"
-        action={t("common.read")}
-        busyAction={t("common.reading")}
-        placeholder={waiting ? t("landing.linkWaiting") : t("landing.linkPlaceholder")}
-        waiting={waiting}
-        showSupport
-      />
+      <LinksField ref={inputRef} source={source} links={links} waiting={waiting} />
       <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-[13.5px] text-ink-2">
         <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rule bg-raised px-3.5 transition-colors hover:border-rule-strong hover:text-ink" onClick={() => fileRef.current?.click()}>
           <FileUp size={15} aria-hidden="true" /> {t("ingest.uploadButton")}

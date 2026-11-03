@@ -82,8 +82,15 @@ jobs:
           nohup pnpm start --port 3201 > server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3201/api/documents > /dev/null && exit 0; sleep 1; done
           cat server.log; exit 1
+      # The service above is PostgreSQL 16. The runner image's default client tools move on (a newer pg_dump writes settings such as transaction_timeout that a 16 server
+      # refuses to restore), so the 16 client is installed and put first on the PATH: the backup tests then run client and server of the same version, as in production.
+      - name: Use the PostgreSQL 16 client tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
       - name: psql is available (the database role tests run the real setup script with it and must not be skipped)
-        run: psql --version
+        run: psql --version && pg_dump --version
       - name: Unit tests that need a real database (skipped when DATABASE_URL is unset)
         run: pnpm test tests/unit/accountMerge.test.ts tests/unit/importErrors.test.ts tests/unit/rateLimitShared.test.ts tests/unit/aiStoreDatabase.test.ts tests/unit/analyticsDatabase.test.ts tests/unit/analyticsCapDatabase.test.ts tests/unit/dbRolesDatabase.test.ts tests/unit/pgBackupDatabase.test.ts tests/unit/rehearsalDatabase.test.ts
       # rehearsalDatabase.test.ts creates and drops its own databases (gloss_rh_*) on this disposable service, and dbRolesDatabase.test.ts / pgBackupDatabase.test.ts their own databases (gloss_roles_*) and roles (rt_*); analyticsDatabase.test.ts removes the rows it adds.

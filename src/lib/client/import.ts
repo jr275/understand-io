@@ -35,6 +35,14 @@ export const ACCEPT =
 /** Where to go once a document has been imported. */
 export type After = "read" | "library" | "stay";
 
+/** A failed import, with the HTTP status when the server answered (so a caller can tell "slow down" from "that page cannot be read"). */
+export class ImportError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "ImportError";
+  }
+}
+
 async function post(path: string, body: BodyInit, json = true, signal?: AbortSignal): Promise<ImportResult> {
   // A new visitor has no reader cookie yet. Two imports sent together (a batch) would each be given a different reader by the server, and
   // the one the browser does not keep would vanish from the library. One shared request settles the cookie first.
@@ -45,12 +53,15 @@ async function post(path: string, body: BodyInit, json = true, signal?: AbortSig
   } catch (e) {
     // A cancelled batch stays a cancellation; any other failure to get an answer (offline, the server down) is said in words, not as the browser's "Failed to fetch".
     if (e instanceof DOMException && e.name === "AbortError") throw e;
-    throw new Error("Could not reach the server. Check your connection and try again.");
+    throw new ImportError("Could not reach the server. Check your connection and try again.");
   }
   const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
-  if (!res.ok || !data.document) throw new Error(data.error || `Request failed (${res.status}).`);
+  if (!res.ok || !data.document) throw new ImportError(data.error || `Request failed (${res.status}).`, res.status);
   return data as ImportResult;
 }
+
+/** Sends one link to the import endpoint (the same request every link entry point makes). The reader's cookie is settled first, once for any number of callers. */
+export const sendLink = (url: string): Promise<ImportResult> => post("/api/import", JSON.stringify({ url, keep: true }));
 
 /** Imports a URL, pasted text, a file or captured page HTML, remembers the document locally and opens the reader. */
 export function useImport(defaultAfter: After = "read", opts: { inline?: boolean } = {}) {
@@ -133,7 +144,7 @@ export function useImport(defaultAfter: After = "read", opts: { inline?: boolean
   const importUrl = useCallback(
     (url: string, after: After = defaultAfter) => {
       const dup = findDuplicate(Object.values(getLibrary().docs), { url });
-      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("url", () => post("/api/import", JSON.stringify({ url, keep: true })), after);
+      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("url", () => sendLink(url), after);
     },
     [run, alreadyHere, defaultAfter],
   );

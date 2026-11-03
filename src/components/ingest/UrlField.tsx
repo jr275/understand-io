@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useCallback, useId, useRef, useState, type ReactNode, type Ref } from "react";
+import { forwardRef, useCallback, useId, useRef, useState, type Ref } from "react";
 import { ArrowRight, Check, Link2, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { looksLikeUrl, normaliseUrl, urlProblem, useImport, type After, type ImportOutcome } from "@/lib/client/import";
@@ -45,7 +45,8 @@ export function useUrlSource(after: After, initial = "") {
   return { ...imp, url, setUrl, problem, touched, setTouched, canSend, submit };
 }
 
-type Source = ReturnType<typeof useUrlSource>;
+export type UrlSource = ReturnType<typeof useUrlSource>;
+type Source = UrlSource;
 
 interface Props {
   source: Source;
@@ -78,6 +79,28 @@ function Outcome({ last }: { last: ImportOutcome }) {
   );
 }
 
+/** The one sentence under a link field: what is happening, what is wrong, or what was added (see `useUrlSource`). */
+export function UrlStatus({ source, working, showSupport, problemOverride }: { source: Source; working: boolean; showSupport?: boolean; problemOverride?: "scheme" | "invalid" | null }) {
+  const t = useT();
+  const { url, error, last, problem, touched, submit } = source;
+  const shown = problemOverride !== undefined ? problemOverride : problem && (touched || url.trim().length > 6) ? problem : null;
+  if (working) return <p className="text-ink-3">{t("ingest.working")}</p>;
+  if (shown) return <p className="text-rubric-text">{t(shown === "scheme" ? "ingest.scheme" : "ingest.invalid")}</p>;
+  if (error) {
+    return (
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-rubric-text">
+        <span className="min-w-0">{lm(error)}</span>
+        <button type="button" className="inline-flex shrink-0 items-center gap-1.5 font-medium text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink" onClick={() => void submit()}>
+          <RotateCcw size={13} aria-hidden="true" /> {t("ingest.retry")}
+        </button>
+      </p>
+    );
+  }
+  if (last) return <Outcome last={last} />;
+  if (showSupport) return <p className="text-ink-4">{t("ingest.linkSupport")}</p>;
+  return null;
+}
+
 export const UrlField = forwardRef(function UrlField({ source, size = "panel", action, busyAction, placeholder, autoFocus, waiting, showSupport }: Props, ref: Ref<HTMLInputElement>) {
   const t = useT();
   const statusId = useId();
@@ -87,26 +110,12 @@ export const UrlField = forwardRef(function UrlField({ source, size = "panel", a
     if (typeof ref === "function") ref(el);
     else if (ref) ref.current = el;
   };
-  const { url, setUrl, busy, error, last, problem, touched, setTouched, submit } = source;
+  const { url, setUrl, busy, error, problem, touched, setTouched, submit } = source;
   const working = busy === "url" || busy === "page" || !!waiting;
   const shownProblem = problem && (touched || url.trim().length > 6) ? problem : null;
   const hero = size === "hero";
   const label = working ? (busyAction ?? t("ingest.adding")) : (action ?? t("ingest.add"));
-
-  let status: ReactNode = null;
-  if (working) status = <p className="text-ink-3">{t("ingest.working")}</p>;
-  else if (shownProblem) status = <p className="text-rubric-text">{t(shownProblem === "scheme" ? "ingest.scheme" : "ingest.invalid")}</p>;
-  else if (error) {
-    status = (
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-rubric-text">
-        <span className="min-w-0">{lm(error)}</span>
-        <button type="button" className="inline-flex shrink-0 items-center gap-1.5 font-medium text-ink underline decoration-rule-strong underline-offset-4 hover:decoration-ink" onClick={() => void submit()}>
-          <RotateCcw size={13} aria-hidden="true" /> {t("ingest.retry")}
-        </button>
-      </p>
-    );
-  } else if (last) status = <Outcome last={last} />;
-  else if (showSupport) status = <p className="text-ink-4">{t("ingest.linkSupport")}</p>;
+  const status = <UrlStatus source={source} working={working} showSupport={showSupport} />;
 
   return (
     <div className="w-full text-left">

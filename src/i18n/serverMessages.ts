@@ -8,7 +8,7 @@ import type { MessageKey } from "./translate";
  */
 const CATALOG: [RegExp, MessageKey, string[]][] = [
   [/^Sign\-in\ is\ not\ set\ up\ on\ this\ server\.$/, "srv.signInOff", []],
-  [/^Sign\-in\ is\ not\ set\ up\ on\ this\ server\ \(GOOGLE_CLIENT_ID,\ GOOGLE_CLIENT_SECRET\ and\ DATABASE_URL\ are\ needed\)\.$/, "srv.signInOffLong", []],
+  [/^Sign\-in\ is\ not\ set\ up\ on\ this\ server\ \([^)]+\ are\ needed\)\.$/, "srv.signInOffLong", []],
   [/^Google\ sign\-in\ was\ cancelled\.$/, "srv.signInCancelled", []],
   [/^The\ sign\-in\ link\ was\ stale\.\ Please\ try\ again\.$/, "srv.signInStale", []],
   [/^Sign\-in\ could\ not\ be\ completed\ on\ the\ server\.\ Please\ try\ again\ in\ a\ moment\.$/, "srv.signInFailed", []],

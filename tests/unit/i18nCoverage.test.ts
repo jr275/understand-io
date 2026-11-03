@@ -22,7 +22,7 @@ const holes = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort
 const EN = flatten(en);
 const PT = flatten(ptBR as unknown as Record<string, unknown>);
 /** Values that are the same in both languages on purpose: a name, a code, a punctuation mark. */
-const SAME = new Set(["lang.en", "lang.pt-BR", "meta.appCategory", "landing.heroDot", "appearance.web", "topics.design", "topics.startups", "library.minutes", "add.linkCount", "reader.kindPdf", "composer.web", "insights.original", "insights.literal", "insights.mdOriginal", "notebook.summary", "listen.online"]);
+const SAME = new Set(["lang.en", "lang.pt-BR", "meta.appCategory", "landing.heroDot", "appearance.web", "topics.design", "topics.startups", "library.minutes", "add.linkCount", "reader.kindPdf", "composer.web", "insights.original", "insights.literal", "insights.mdOriginal", "notebook.summary", "listen.online", "ingest.cTotal"]);
 
 describe("the dictionaries", () => {
   it("have exactly the same keys in English and Portuguese (the compiler also enforces it)", () => {

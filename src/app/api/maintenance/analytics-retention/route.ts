@@ -1,7 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { analyticsMode } from "@/lib/server/analytics";
 import { retentionStatus, runRetention } from "@/lib/server/analyticsRetention";
-import { SlidingWindowLimiter, clientIp } from "@/lib/server/rateLimit";
+import { authorizeBearer, jsonNoStore } from "@/lib/server/bearerAuth";
+import { SlidingWindowLimiter } from "@/lib/server/rateLimit";
 
 /**
  * Maintenance for analytics retention, for an external scheduler or an operator. It does not exist unless `GLOSS_MAINTENANCE_TOKEN` is set to a long
@@ -17,20 +17,8 @@ const attempts = new SlidingWindowLimiter(5000);
 /** Every attempt counts, valid or not: a scheduler calls this a few times an hour, so a burst can only be a guess at the token. */
 const MAX_ATTEMPTS_PER_MINUTE = 30;
 
-const respond = (status: number, body: Record<string, unknown>) => Response.json(body, { status, headers: { "cache-control": "no-store" } });
-const digest = (v: string) => createHash("sha256").update(v).digest();
-
-function authorize(req: Request, now: number): Response | null {
-  const token = process.env.GLOSS_MAINTENANCE_TOKEN ?? "";
-  if (token.length < 32) return respond(404, { error: "not-found" });
-  const ip = clientIp(req);
-  if (!attempts.hit(`m:${ip}`, MAX_ATTEMPTS_PER_MINUTE, 60_000, now).ok) return respond(429, { error: "too-many-attempts" });
-  const header = req.headers.get("authorization") ?? "";
-  const given = header.startsWith("Bearer ") ? header.slice(7) : "";
-  // Compare digests of equal length, in constant time: neither the length nor the content of the token is revealed by timing.
-  if (given && timingSafeEqual(digest(given), digest(token))) return null;
-  return respond(401, { error: "unauthorized" });
-}
+const respond = jsonNoStore;
+const authorize = (req: Request, now: number) => authorizeBearer(req, { env: "GLOSS_MAINTENANCE_TOKEN", scope: "m", limiter: attempts, maxPerMinute: MAX_ATTEMPTS_PER_MINUTE, now });
 
 export async function GET(req: Request) {
   const denied = authorize(req, Date.now());

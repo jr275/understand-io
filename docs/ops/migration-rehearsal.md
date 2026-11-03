@@ -10,7 +10,7 @@ Written 2026-11-02. **Nothing here touched production or Neon.** The rehearsal b
 
 ## The staging rehearsal that was run
 
-Isolated staging: a new database on local PostgreSQL 16.15, built **in production's state** by applying the repository's own `0000` to `0006` SQL files through drizzle's migrator (7 migrations recorded, no analytics table), then filled with production-shaped data:
+Isolated staging: a new database on local PostgreSQL 16.15, built **in the state just before the migration** by applying the repository's own earlier SQL files through drizzle's migrator (no analytics table), then filled with production-shaped data:
 
 | Table | Rows before and after |
 | --- | --- |
@@ -26,7 +26,7 @@ Isolated staging: a new database on local PostgreSQL 16.15, built **in productio
 | ai_reservations | 2 |
 | ai_leases | 2 |
 
-(14 MB; the 11 tables are all the tables production has before 0007.) Then, with `scripts/migration-rehearsal.mjs --confirm-not-production --local --rollback-test` (a disposable local database; for a Neon branch use `scripts/neon-rehearsal.sh`), which runs the real production step (`scripts/vercel-build.mjs` with `VERCEL_ENV=production`, `SKIP_NEXT_BUILD=1`) and checks the result:
+(the 11 tables of the schema before 0007.) Then, with `scripts/migration-rehearsal.mjs --confirm-not-production --local --rollback-test` (a disposable local database; for a Neon branch use `scripts/neon-rehearsal.sh`), which runs the real production step (`scripts/vercel-build.mjs` with `VERCEL_ENV=production`, `SKIP_NEXT_BUILD=1`) and checks the result:
 
 | Check | Result |
 | --- | --- |
@@ -62,7 +62,7 @@ The step-by-step procedure, the exact credentials and permissions it needs, and 
 | The migration fails during the production build | nothing to do: the build stops, the previous deployment keeps serving, nothing was deployed | none |
 | 0007 applied, new code misbehaves | Vercel: **Instant Rollback** to the previous production deployment (a deployment change the owner makes in the Vercel dashboard). The `analytics_events` table stays, empty and unused; the old code does not know it | none |
 | Analytics misbehaves | leave `GLOSS_ANALYTICS` unset (it is unset): nothing is recorded; no deployment needed | none |
-| The table must go (owner decision; destructive for whatever was recorded) | in one transaction on the production database: `DROP TABLE analytics_events;` and `DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations);` | only analytics rows; rehearsed on the staging copy: afterwards the 11 tables are identical and 0007 applies again cleanly |
+| The table must go (owner decision; destructive for whatever was recorded) | in one transaction on the target database: `DROP TABLE analytics_events;` and `DELETE FROM drizzle.__drizzle_migrations WHERE id = (SELECT max(id) FROM drizzle.__drizzle_migrations);` | only analytics rows; rehearsed on the staging copy: afterwards the 11 tables are identical and 0007 applies again cleanly |
 
 drizzle has no down migrations; the second row is the "down". Do the last row only with a Neon branch or restore point taken first, and only if the code that uses the table is no longer deployed.
 
@@ -71,7 +71,7 @@ drizzle has no down migrations; the second row is the "down". Do the last row on
 | | Local unit and integration | Staging copy (local PostgreSQL) | Neon branch | Production |
 | --- | --- | --- | --- | --- |
 | Migration SQL content (test) | yes | yes | not run | not run |
-| Apply through the real mechanism, 11 tables identical, idempotent, rollback | yes | **yes (12 of 12; 13 of 13 with the helper's extra check, twice in a row)** | **not yet: owner step above** | not run; must not be run before the branch passes |
+| Apply through the real mechanism, 11 tables identical, idempotent, rollback | yes | **yes (12 of 12; 13 of 13 with the helper's extra check, twice in a row)** | see the runbook | not run; must not be run before the branch passes |
 | Product with analytics off and migration applied | yes (integration, e2e) | yes | not run | not applicable (code not deployed) |
 | Cookie secret present and usable | n/a | n/a | n/a | **yes (read-only)** |
 | `/api/events` | yes | yes | not run | 404 (code not deployed), as expected |

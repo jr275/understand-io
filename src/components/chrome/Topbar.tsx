@@ -103,7 +103,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
           </Pop>
         </div>
         {after}
-        <LanguageSwitcher className="ml-1" />
+        <LanguageSwitcher className="ml-1 max-[360px]:ml-0" />
         <AccountControl compact={reader} />
       </nav>
       {adding && !onAdd ? (
@@ -121,7 +121,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
   if (reader) {
     return (
       <header className={`fixed inset-x-0 top-0 z-40 h-[var(--topbar-h)] border-b border-transparent transition-[transform,background-color,border-color] duration-300 ease-[var(--ease-out)] ${className}`}>
-        <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 px-4 sm:px-6">{inner}</div>
+        <div className="mx-auto flex h-full max-w-[1440px] items-center gap-4 max-[360px]:gap-1 px-3 min-[361px]:px-4 sm:px-6">{inner}</div>
         {progress !== undefined ? <span aria-hidden="true" className="absolute inset-x-0 -bottom-px h-[2px] origin-left bg-[var(--rubric)] opacity-80 transition-transform duration-150" style={{ transform: `scaleX(${progress})` }} /> : null}
       </header>
     );

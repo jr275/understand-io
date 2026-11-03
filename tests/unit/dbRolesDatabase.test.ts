@@ -217,7 +217,9 @@ describe.skipIf(!admin)("the owner, migration and runtime roles against real Pos
 
   describe("the owner role", () => {
     it("cannot log in, and owns everything that exists, in the database that was migrated by the old login and in the one the migrator built", async () => {
-      expect(await sqlstate(postgres(urlOf(role.owner, "x", db1), { max: 1, onnotice: () => {} }).unsafe("SELECT 1"))).toBe("28000");
+      // refused either way: "not permitted to log in" (28000) on a server that trusts the connection, "invalid password" (28P01) when it asks for one first (scram, as in CI)
+      expect(["28000", "28P01"]).toContain(await sqlstate(postgres(urlOf(role.owner, "x", db1), { max: 1, onnotice: () => {} }).unsafe("SELECT 1")));
+      expect((await as("boot", db1)`SELECT rolcanlogin FROM pg_roles WHERE rolname = ${role.owner}`)[0].rolcanlogin).toBe(false);
       for (const d of [db1, db2]) {
         const c = as("boot", d);
         const others = await c`SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname IN ('public', 'drizzle') AND c.relkind IN ('r', 'S') AND pg_get_userbyid(c.relowner) <> ${role.owner}`;

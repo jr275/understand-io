@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { getUserKey, setUserKey } from "@/lib/store/library";
+import { useT } from "@/i18n/client";
 
 export function KeyPanel({ onDone }: { onDone?: () => void }) {
+  const t = useT();
   const [value, setValue] = useState(() => getUserKey());
   const [saved, setSaved] = useState(() => !!getUserKey());
   const [status, setStatus] = useState<{ serverKey: boolean } | null>(null);
@@ -17,11 +19,11 @@ export function KeyPanel({ onDone }: { onDone?: () => void }) {
 
   return (
     <div>
-      <p className="text-[13.5px] font-medium text-ink">Your Together API key</p>
+      <p className="text-[13.5px] font-medium text-ink">{t("key.title")}</p>
       <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
         {status?.serverKey
-          ? "This instance has a key of its own, so answers work without one. Add yours to use it instead."
-          : "Answers in the margin, whole-text questions and semantic search need a Together AI key. Reading aloud uses your browser's voices and never needs one."}
+          ? t("key.serverKey")
+          : t("key.needKey")}
       </p>
       <input
         type="password"
@@ -33,13 +35,13 @@ export function KeyPanel({ onDone }: { onDone?: () => void }) {
         placeholder="tgp_v1_..."
         autoComplete="off"
         spellCheck={false}
-        aria-label="Together API key"
+        aria-label={t("key.label")}
         className="mt-3 h-9 w-full rounded-lg border border-rule bg-bg px-3 text-[13px] tracking-wide text-ink outline-none placeholder:text-ink-4 focus:border-rule-strong focus-visible:outline-none"
       />
-      <p className="mt-2 text-[11.5px] leading-snug text-ink-4">Sent with your requests only. Stored in this browser, never on a server, never logged.</p>
+      <p className="mt-2 text-[11.5px] leading-snug text-ink-4">{t("key.privacy")}</p>
       <div className="mt-3 flex items-center justify-between">
         <a href="https://api.together.ai/settings/api-keys" target="_blank" rel="noopener noreferrer" className="text-[12.5px] text-rubric-text underline decoration-rule-strong underline-offset-4">
-          Get a key on Together
+          {t("key.get")}
         </a>
         <div className="flex gap-1.5">
           {value && saved ? (
@@ -52,7 +54,7 @@ export function KeyPanel({ onDone }: { onDone?: () => void }) {
                 setSaved(false);
               }}
             >
-              Remove
+              {t("common.remove")}
             </button>
           ) : null}
           <button
@@ -65,7 +67,7 @@ export function KeyPanel({ onDone }: { onDone?: () => void }) {
               onDone?.();
             }}
           >
-            {saved ? "Saved" : "Save"}
+            {saved ? t("common.saved") : t("common.save")}
           </button>
         </div>
       </div>

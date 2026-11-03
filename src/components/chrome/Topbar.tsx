@@ -13,6 +13,8 @@ import { Pop } from "@/components/ui/Pop";
 import { AppearancePanel } from "./AppearancePanel";
 import { KeyPanel } from "./KeyPanel";
 import { AccountControl } from "./AccountControl";
+import { useT } from "@/i18n/client";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 interface Props {
   /** Reader pages render a fixed bar with their own tools. */
@@ -31,6 +33,7 @@ interface Props {
 }
 
 export function Topbar({ variant = "landing", tools, center, after, progress, onAdd, className = "" }: Props) {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState<"aa" | "key" | null>(null);
@@ -42,7 +45,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
   const inner = (
     <>
       <div className="flex h-9 items-center gap-3.5 max-[380px]:gap-2.5">
-        <Link aria-label="Understand.io, back to your library" className="rounded-md" href="/">
+        <Link aria-label={t("topbar.home")} className="rounded-md" href="/">
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
             <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[340px]:sr-only"}`}>Understand.io</span>
@@ -50,46 +53,47 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
         </Link>
       </div>
       {reader ? <div className="flex min-w-0 flex-1 justify-center">{center}</div> : null}
-      <nav aria-label={reader ? "Reader tools" : "Main"} className="flex items-center gap-1 max-[380px]:gap-0">
+      <nav aria-label={reader ? t("topbar.navReader") : t("topbar.navMain")} className="flex items-center gap-1 max-[380px]:gap-0">
         {!reader && (
           <Link
-            aria-label="Library"
+            aria-label={t("common.library")}
             aria-current={pathname === "/library" ? "page" : undefined}
             className="mr-1 inline-flex h-9 items-center gap-2 rounded-full px-3 text-[14px] font-medium text-ink-2 transition-colors hover:bg-sunk hover:text-ink aria-[current=page]:bg-sunk aria-[current=page]:text-ink max-sm:w-9 max-sm:justify-center max-sm:px-0"
             href="/library"
           >
             <Library size={17} aria-hidden="true" />
-            <span className="max-sm:hidden">Library</span>
+            <span className="max-sm:hidden">{t("common.library")}</span>
           </Link>
         )}
-        <IconButton aria-label="Add a link, PDF or text" data-tip="Add to your library" aria-haspopup="dialog" aria-expanded={onAdd ? undefined : adding} onClick={() => (onAdd ? onAdd() : setAdding(true))}>
+        <IconButton aria-label={t("topbar.add")} data-tip={t("topbar.addTip")} aria-haspopup="dialog" aria-expanded={onAdd ? undefined : adding} onClick={() => (onAdd ? onAdd() : setAdding(true))}>
           <Plus size={17} strokeWidth={2.1} aria-hidden="true" />
         </IconButton>
         {tools}
         <div className="relative">
-          <IconButton ref={aaRef} aria-label="Appearance and answers" data-tip="Appearance" aria-expanded={open === "aa"} aria-haspopup="dialog" onClick={() => setOpen(open === "aa" ? null : "aa")}>
+          <IconButton ref={aaRef} aria-label={t("topbar.appearance")} data-tip={t("topbar.appearanceTip")} aria-expanded={open === "aa"} aria-haspopup="dialog" onClick={() => setOpen(open === "aa" ? null : "aa")}>
             <span className="block translate-y-[0.5px] font-serif text-[18px] leading-none">Aa</span>
           </IconButton>
-          <Pop open={open === "aa"} onClose={() => setOpen(null)} label="Appearance and answers" anchorRef={aaRef}>
+          <Pop open={open === "aa"} onClose={() => setOpen(null)} label={t("topbar.appearance")} anchorRef={aaRef}>
             <AppearancePanel reader={reader} />
           </Pop>
         </div>
         <div className="relative">
-          <IconButton ref={keyRef} aria-label="Together API key" data-tip="Add your Together key" aria-expanded={open === "key"} aria-haspopup="dialog" onClick={() => setOpen(open === "key" ? null : "key")}>
+          <IconButton ref={keyRef} aria-label={t("topbar.key")} data-tip={t("topbar.keyTip")} aria-expanded={open === "key"} aria-haspopup="dialog" onClick={() => setOpen(open === "key" ? null : "key")}>
             <KeyRound size={15} aria-hidden="true" />
           </IconButton>
-          <Pop open={open === "key"} onClose={() => setOpen(null)} label="Together API key" width={320} anchorRef={keyRef}>
+          <Pop open={open === "key"} onClose={() => setOpen(null)} label={t("topbar.key")} width={320} anchorRef={keyRef}>
             <KeyPanel onDone={() => setOpen(null)} />
           </Pop>
         </div>
         {after}
+        <LanguageSwitcher className="ml-1" />
         <AccountControl compact={reader} />
       </nav>
       {adding && !onAdd ? (
         <AddPanel
           onClose={() => setAdding(false)}
           onSaved={(n) => {
-            if (n) toast(`${n} article${n === 1 ? "" : "s"} shelved.`, { action: { label: "Library", onClick: () => router.push("/library") } });
+            if (n) toast(t("topbar.shelved", { n }), { action: { label: t("common.library"), onClick: () => router.push("/library") } });
             void syncRemoteLibrary();
           }}
         />

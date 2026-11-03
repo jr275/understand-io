@@ -12,43 +12,45 @@ import {
 } from "lucide-react";
 import { importQueue, useImportQueue } from "@/lib/client/importQueue";
 import type { QueueItem } from "@/lib/store/importQueue";
+import { useI18n, useT } from "@/i18n/client";
 
-const size = (n: number) =>
+const size = (n: number, num: (x: number, o?: Intl.NumberFormatOptions) => string) =>
   n >= 1024 * 1024
-    ? `${(n / 1024 / 1024).toFixed(1)} MB`
+    ? `${num(n / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
     : `${Math.max(1, Math.round(n / 1024))} KB`;
 
 function Status({ item }: { item: QueueItem }) {
+  const t = useT();
   switch (item.state) {
     case "waiting":
       return (
         <span className="inline-flex items-center gap-1.5 text-lens-mute">
-          <Clock size={13} aria-hidden="true" /> Waiting
+          <Clock size={13} aria-hidden="true" /> {t("importQueue.waiting")}
         </span>
       );
     case "sending":
       return (
         <span className="inline-flex items-center gap-1.5">
           <Loader2 size={13} className="animate-spin" aria-hidden="true" />{" "}
-          Sending and reading…
+          {t("importQueue.sending")}
         </span>
       );
     case "done":
       return (
         <span className="inline-flex items-center gap-1.5">
-          <CheckCircle2 size={13} aria-hidden="true" /> Ready
+          <CheckCircle2 size={13} aria-hidden="true" /> {t("importQueue.ready")}
         </span>
       );
     case "duplicate":
       return (
         <span className="inline-flex items-center gap-1.5">
-          <Copy size={13} aria-hidden="true" /> Already in your library
+          <Copy size={13} aria-hidden="true" /> {t("importQueue.duplicate")}
         </span>
       );
     case "cancelled":
       return (
         <span className="inline-flex items-center gap-1.5 text-lens-mute">
-          <CircleSlash size={13} aria-hidden="true" /> Cancelled
+          <CircleSlash size={13} aria-hidden="true" /> {t("importQueue.cancelled")}
         </span>
       );
     default:
@@ -59,7 +61,7 @@ function Status({ item }: { item: QueueItem }) {
             className="mt-[3px] shrink-0"
             aria-hidden="true"
           />{" "}
-          <span>Failed: {item.error}</span>
+          <span>{t("importQueue.failed", { error: item.error ?? "" })}</span>
         </span>
       );
   }
@@ -67,6 +69,7 @@ function Status({ item }: { item: QueueItem }) {
 
 /** The line of files being imported together: one row each, with what actually happened to it and what can be done next. */
 export function ImportQueuePanel() {
+  const { t, fmt } = useI18n();
   const items = useImportQueue();
   if (!items.length) return null;
   const active = items.some(
@@ -77,15 +80,15 @@ export function ImportQueuePanel() {
   ).length;
   return (
     <section
-      aria-label="File import"
+      aria-label={t("importQueue.region")}
       className="fixed left-3 z-[56] w-[min(400px,calc(100vw-24px))] rounded-[18px] bg-lens p-3 text-[13px] leading-snug text-lens-fg shadow-pop"
       style={{ bottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
     >
       <div className="flex items-center justify-between gap-2 pb-2">
         <p className="font-medium">
           {active
-            ? `Importing ${items.length} files (${finished} done)`
-            : `Import finished (${items.length} files)`}
+            ? t("importQueue.importing", { total: items.length, done: finished })
+            : t("importQueue.finished", { total: items.length })}
         </p>
         {active ? (
           <button
@@ -93,7 +96,7 @@ export function ImportQueuePanel() {
             className="underline decoration-lens-mute underline-offset-4"
             onClick={() => importQueue.cancelAll()}
           >
-            Cancel remaining
+            {t("importQueue.cancelRemaining")}
           </button>
         ) : (
           <span className="flex items-center gap-2">
@@ -101,11 +104,11 @@ export function ImportQueuePanel() {
               className="underline decoration-lens-mute underline-offset-4"
               href="/library"
             >
-              Open library
+              {t("importQueue.openLibrary")}
             </Link>
             <button
               type="button"
-              aria-label="Dismiss the import list"
+              aria-label={t("importQueue.dismissList")}
               className="grid size-7 place-items-center rounded-full text-lens-mute hover:bg-lens-hover hover:text-lens-fg"
               onClick={() => importQueue.clearFinished()}
             >
@@ -114,7 +117,7 @@ export function ImportQueuePanel() {
           </span>
         )}
       </div>
-      <ul className="max-h-[40vh] space-y-2 overflow-auto" aria-label="Files">
+      <ul className="max-h-[40vh] space-y-2 overflow-auto" aria-label={t("importQueue.files")}>
         {items.map((item) => (
           <li
             key={item.id}
@@ -125,7 +128,7 @@ export function ImportQueuePanel() {
               <span className="min-w-0 truncate font-medium" title={item.name}>
                 {item.name}
               </span>
-              <span className="shrink-0 text-lens-mute">{size(item.size)}</span>
+              <span className="shrink-0 text-lens-mute">{size(item.size, fmt.number)}</span>
             </div>
             <div className="mt-1 flex items-start justify-between gap-2">
               <Status item={item} />
@@ -136,7 +139,7 @@ export function ImportQueuePanel() {
                     className="underline decoration-lens-mute underline-offset-4"
                     href={`/read/${item.slug}`}
                   >
-                    Open
+                    {t("common.open")}
                   </Link>
                 ) : null}
                 {item.state === "failed" || item.state === "cancelled" ? (
@@ -147,7 +150,7 @@ export function ImportQueuePanel() {
                       className="underline decoration-lens-mute underline-offset-4"
                       onClick={() => importQueue.retry(item.id)}
                     >
-                      Try again
+                      {t("importQueue.tryAgain")}
                     </button>
                   ) : null
                 ) : null}
@@ -155,10 +158,10 @@ export function ImportQueuePanel() {
                   <button
                     type="button"
                     className="underline decoration-lens-mute underline-offset-4"
-                    aria-label={`Cancel ${item.name}`}
+                    aria-label={t("importQueue.cancelItem", { name: item.name })}
                     onClick={() => importQueue.cancel(item.id)}
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 ) : null}
               </span>
@@ -168,8 +171,8 @@ export function ImportQueuePanel() {
       </ul>
       <p role="status" className="sr-only">
         {active
-          ? `${finished} of ${items.length} files finished`
-          : `Import finished: ${items.filter((i) => i.state === "done").length} of ${items.length} imported`}
+          ? t("importQueue.progress", { done: finished, total: items.length })
+          : t("importQueue.summary", { done: items.filter((i) => i.state === "done").length, total: items.length })}
       </p>
     </section>
   );

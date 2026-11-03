@@ -1,17 +1,10 @@
 # The cookie secret: where it is, what depends on it, and what rotating it does
 
-`GLOSS_COOKIE_SECRET` is the one key behind every signature the app makes. Checked 2026-11-02 from the Vercel CLI (names and settings only; **no value was read, and Sensitive values cannot be read back by anyone**) and by a read-only probe of the live site. Nothing was changed.
+`GLOSS_COOKIE_SECRET` is the one key behind every signature the app makes.
 
-## Verified state
+## Where it is configured
 
-| Question | Evidence | Status |
-| --- | --- | --- |
-| Does it exist in the environments that need it? | `vercel env ls`: `GLOSS_COOKIE_SECRET`, type Sensitive, in **Production** (created 15 days ago) and in **Preview** (separate record, 15 days ago); none in Development (no development environment variables exist) | verified |
-| Is it usable in production? | In production the server refuses a secret that is missing, shorter than 32 characters or `change-me` (`src/lib/server/reader.ts`). A request that carries a cookie that cannot be valid reaches the signing code and gets 500 if the secret is unusable and 200 if it is usable. 12 such requests to `https://understand-io.vercel.app/api/documents` answered 200 each (no write, no cookie issued) | verified (tested against production, read-only) |
-| Is it the same across deployments? | The variable is project-level for its environment: every production deployment built after it was created receives the same value. The five latest production deployments are 3 to 6 days old, the variable 15, so all of them have it. The 12 probes were answered by several instances. A byte-for-byte comparison of values is not possible (Sensitive) and is not needed | verified by configuration; equality of the bytes is not observable |
-| Do Production and Preview share the value? | They are two records, so they can differ; the value cannot be read to compare. Cookies issued by a preview deployment are valid in production only if the two values were set equal | unknown, and not required (previews have no `DATABASE_URL`, are behind Vercel SSO, and use no real library) |
-| Is analytics safe if it is absent? | `effectiveMode()` (`src/lib/server/analytics.ts`) turns analytics **off** when the key is missing, short or the example value: the collector answers `204` and `x-gloss-analytics: off`, writes nothing, the sign-in callback goes on, and one warning is logged without the secret. Unit tests for the three cases; and a real production-build start with the variable removed and `GLOSS_ANALYTICS=full`: landing 200, health 200, `/api/events` 204 `off`, **0 rows written**, no secret in the log. (The cookie routes themselves, for example `POST /api/reader`, answer 500 in that state, by design: they fail closed.) | tested locally on a production build; not tested against production |
-| Is `/api/events` live in production? | No: it answers 404, because production runs `main` (57d9a76) and PR #12 is a draft. So no analytics code is running in production | verified |
+Which environments hold the secret, and whether it works in each, is checked by the owner and recorded in the private operations repository. In production the server refuses a secret that is missing, shorter than 32 characters or `change-me` (`src/lib/server/reader.ts`).
 
 ## What the secret signs
 

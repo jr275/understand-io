@@ -21,7 +21,7 @@ Two findings:
 
 ## What was not rehearsed (needs the owner)
 
-The restore **on Neon itself**: this environment has no Neon credential, and the plan (which sets how far back you can restore: Free 6 hours, Launch up to 7 days, per [neon.com/pricing](https://neon.com/pricing)) is not readable from the repository. Nothing in production was touched.
+The restore **on Neon itself**: it needs the owner's Neon access, and the plan (which sets how far back you can restore; see the provider's plan page) is not readable from the repository. Nothing in production was touched.
 
 ### Steps on Neon (about 15 minutes, changes nothing in production)
 

@@ -1,6 +1,6 @@
 # Restore rehearsal
 
-What was rehearsed, what was not, and the steps the owner runs on Neon. Written 2026-10-29. Related: `docs/ops/rollback-and-recovery.md`.
+What was rehearsed, what was not, and the steps the owner runs on Neon. Written 2026-10-29. Related: `docs/ops/rollback-and-recovery.md`. The rehearsal below was done by hand; the repeatable, verifying version is `scripts/db-backup.mjs` and `scripts/db-restore-verify.mjs` (`docs/ops/disaster-recovery.md`).
 
 ## What was rehearsed (disposable local PostgreSQL 16, synthetic data)
 

@@ -38,13 +38,7 @@ The app makes no backups of its own. Neon keeps history for point-in-time restor
 3. To recover a few rows, copy them from the restored branch into production with `INSERT ... SELECT` over a second connection, after review.
 4. To switch production to the restored branch (a last resort): set `DATABASE_URL` in Vercel to the new branch's connection string, redeploy, and check `/api/health`. The old branch is kept until you delete it.
 
-**Manual copy (a file you hold), not run automatically:**
-
-```bash
-pg_dump "<direct (not pooled) connection string>" -Fc -f understand-$(date +%F).dump
-```
-
-Use the direct host (without `-pooler`) for `pg_dump`. Store the file somewhere private: it contains readers' texts.
+**Manual copy (a file you hold), not run automatically:** use `node scripts/db-backup.mjs` and prove it with `node scripts/db-restore-verify.mjs` (`docs/ops/disaster-recovery.md`). It needs the direct host (without `-pooler`) and a `pg_dump` at least as new as the server, refuses otherwise, and writes a checksum and a manifest. Store the files somewhere private: they contain readers' texts and are not encrypted.
 
 ## After any incident
 

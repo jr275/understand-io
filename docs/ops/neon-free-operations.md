@@ -19,7 +19,7 @@ Limits below are from Neon's plan page ([neon.com/docs/introduction/plans](https
 
 1. **A monitor must not keep the database awake.** A check every 5 minutes that touches the database would hold the compute awake all month and use the compute allowance in about 16 days. The public liveness check (`/api/health`) never touches the database, and the readiness check (`/api/health/ready`, token only) therefore **reuses a healthy reading for 15 minutes** (`GLOSS_HEALTH_DB_CACHE_SECONDS`, default 900): with a monitor every 5 minutes the database is touched at most about every 15 minutes, so it can sleep about two thirds of the time with no other traffic. A failed reading is reused for 10 seconds at most (recovery is seen within 10 seconds), no caller can make a real reading more often than every 10 seconds, and `?fresh=1` with the token forces a real reading (the post-deploy check uses it). Nobody without the token can reach the database through a health check, so a stranger cannot hold the compute awake that way. Real users keep it awake while they read: the allowance is spent by use, not by the monitor.
 2. **A cold start is not an outage.** The health check repeats a failed reading once before saying `database-down`, and waits up to 3 seconds each time.
-3. **There is no history to lean on.** Make a backup file weekly and before risky changes: `DATABASE_URL='<your Neon connection string>' scripts/db-backup.sh` (read-only; see `docs/ops/restore-rehearsal.md` to restore it).
+3. **There is no history to lean on.** Make a backup file weekly and before risky changes: `BACKUP_DATABASE_URL='<the DIRECT connection string>' node scripts/db-backup.mjs --prompt-password` (read-only; it checks the client against the server's PostgreSQL version, writes a checksum and a manifest, and `node scripts/db-restore-verify.mjs` proves a restore: `docs/ops/disaster-recovery.md`).
 4. **The shared AI fails closed, the library does not.** If the database is unreachable the shared AI refuses (no unmetered spending), and a reader's saves wait in the browser, which keeps its own copy.
 
 ## What is watched, and how
@@ -54,7 +54,7 @@ The expected cost on Launch for the beta's size is in `docs/release/UNDERSTAND_F
 | Storage full | reading works, saving fails | free space (delete large texts) or upgrade |
 | Cold start | one slow first request | nothing |
 | A mistake in the last 6 hours | n/a | restore from a Neon branch at an earlier time (`docs/ops/restore-rehearsal.md`) |
-| A mistake older than that | n/a | restore from the last backup file made with `scripts/db-backup.sh` |
+| A mistake older than that | n/a | restore from the last backup file made with `scripts/db-backup.mjs` (`docs/ops/disaster-recovery.md`) |
 
 ## Recovery, tested and not tested
 

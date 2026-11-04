@@ -1,4 +1,4 @@
-/** The Understand.io mark: three text lines, a faint rule and a rubric dot. */
+/** The Keeple mark: three text lines, a faint rule and a rubric dot. */
 export function GlossMark({ className = "size-[21px] shrink-0" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>

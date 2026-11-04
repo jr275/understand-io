@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Check the live site (liveness always; database, AI and budget when a token is set)
         env:
-          URL: ${{ inputs.url || vars.HEALTH_URL || 'https://understand-io.vercel.app' }}
+          URL: ${{ inputs.url || vars.HEALTH_URL || 'https://www.keeple.me' }}
           HEALTH_TOKEN: ${{ secrets.GLOSS_HEALTH_TOKEN }}
         run: |
           # Liveness never touches the database. Readiness (database, AI ledger, storage) needs the token; the token is sent as a header, never in the URL.

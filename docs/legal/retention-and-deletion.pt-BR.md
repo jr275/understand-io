@@ -1,4 +1,4 @@
-# Política de retenção e exclusão — Understand.io
+# Política de retenção e exclusão — Keeple
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do código do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 

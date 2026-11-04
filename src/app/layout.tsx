@@ -9,6 +9,7 @@ import { I18nProvider } from "@/i18n/client";
 import { htmlLang, ogLocale } from "@/i18n/config";
 import { getLocale } from "@/i18n/server";
 import { translate } from "@/i18n/translate";
+import { SITE_NAME } from "@/lib/seo/site";
 
 const newsreader = Newsreader({
   subsets: ["latin", "latin-ext"],
@@ -51,11 +52,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: siteOrigin,
     alternates: siteOrigin ? { canonical: "./" } : undefined,
-    title: { default: "Understand.io", template: "%s" },
+    title: { default: SITE_NAME, template: "%s" },
     description,
-    applicationName: "Understand.io",
-    openGraph: { title: "Understand.io", description, siteName: "Understand.io", type: "website", locale: ogLocale(locale) },
-    twitter: { card: "summary_large_image", title: "Understand.io", description },
+    applicationName: SITE_NAME,
+    openGraph: { title: SITE_NAME, description, siteName: SITE_NAME, type: "website", locale: ogLocale(locale) },
+    twitter: { card: "summary_large_image", title: SITE_NAME, description },
   };
 }
 

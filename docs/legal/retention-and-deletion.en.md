@@ -1,4 +1,4 @@
-# Retention and deletion policy — Understand.io
+# Retention and deletion policy — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app's code works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 

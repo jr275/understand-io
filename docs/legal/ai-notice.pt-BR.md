@@ -1,4 +1,4 @@
-# Aviso de uso de IA de terceiros — Understand.io
+# Aviso de uso de IA de terceiros — Keeple
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do código do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
@@ -6,7 +6,7 @@
 
 ## 1. Onde a IA é usada
 
-O Understand.io não executa nenhum modelo de IA por conta própria. Ele envia texto a um terceiro, a **Together AI**, que executa os modelos. Isso acontece nestes recursos:
+O Keeple não executa nenhum modelo de IA por conta própria. Ele envia texto a um terceiro, a **Together AI**, que executa os modelos. Isso acontece nestes recursos:
 
 - **Respostas na margem:** Explicar, Perguntar, Simplificar, Definir, Checar fatos, Relacionados, Contraponto e perguntas sobre o texto inteiro.
 - **Painel Entender:** resumos, conceitos-chave, perguntas de teste e tradução.

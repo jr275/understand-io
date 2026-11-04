@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = `${doc.title}, glossed`;
   // Only the bundled samples (public-domain essays that show the product) may be found; anything a reader saved is theirs alone.
   if (doc.kind !== "sample") return { title, robots: NOINDEX };
-  const description = `${doc.dek ?? doc.title} Read ${doc.author ? `${doc.author}'s ` : ""}text with Understand.io: select a line, ask it anything, and the answer is written in the margin with the paragraphs it used.`;
+  const description = `${doc.dek ?? doc.title} Read ${doc.author ? `${doc.author}'s ` : ""}text with Keeple: select a line, ask it anything, and the answer is written in the margin with the paragraphs it used.`;
   return { title, description, alternates: alternatesFor(`/read/${doc.slug}`), ...socialFor({ title, description, path: `/read/${doc.slug}`, type: "article" }) };
 }
 

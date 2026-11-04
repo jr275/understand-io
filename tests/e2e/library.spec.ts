@@ -42,7 +42,7 @@ test.describe("library", () => {
     await page.getByLabel("Search the library").fill("");
     await page.getByRole("button", { name: /Add a source/ }).click();
     const dialog = page.getByRole("dialog", { name: "Add to the library" });
-    await expect(dialog.getByText("Read in Understand")).toBeVisible();
+    await expect(dialog.getByText("Read in Keeple")).toBeVisible();
     await dialog.getByText("Several links at once").click();
     await dialog.getByLabel("Links to save").fill("not a url");
     await expect(dialog.getByRole("button", { name: "Save" })).toBeDisabled();

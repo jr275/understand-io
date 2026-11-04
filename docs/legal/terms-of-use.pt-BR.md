@@ -1,4 +1,4 @@
-# Termos de Uso — Understand.io
+# Termos de Uso — Keeple
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
@@ -6,7 +6,7 @@
 
 ## 1. Quem somos e com o que você concorda
 
-O Understand.io ("o serviço") é operado pela Menlo Software AIP. ⚠️ [DECISÃO DO PROPRIETÁRIO: endereço e número de registro da Menlo Software AIP, se houver; a forma jurídica não é indicada aqui de propósito]. Ao usar o serviço, você concorda com estes termos e com a Política de Privacidade. Se não concordar, não use o serviço. O serviço está em **beta** (veja o Aviso de limitações da versão beta).
+O Keeple ("o serviço") é operado pela Menlo Software AIP. ⚠️ [DECISÃO DO PROPRIETÁRIO: endereço e número de registro da Menlo Software AIP, se houver; a forma jurídica não é indicada aqui de propósito]. Ao usar o serviço, você concorda com estes termos e com a Política de Privacidade. Se não concordar, não use o serviço. O serviço está em **beta** (veja o Aviso de limitações da versão beta).
 
 ## 2. O que o serviço faz
 
@@ -64,7 +64,7 @@ O serviço é fornecido "como está" durante o beta. Não prometemos que ele fic
 
 ## 12. Preço
 
-O Understand.io é oferecido gratuitamente, com uso diário limitado dos seus recursos de IA (um serviço freemium; veja os limites de uso acima). O aplicativo não tem recurso de pagamento hoje. ⚠️ [DECISÃO DO PROPRIETÁRIO: se haverá planos pagos e como os usuários serão avisados antes de qualquer cobrança]
+O Keeple é oferecido gratuitamente, com uso diário limitado dos seus recursos de IA (um serviço freemium; veja os limites de uso acima). O aplicativo não tem recurso de pagamento hoje. ⚠️ [DECISÃO DO PROPRIETÁRIO: se haverá planos pagos e como os usuários serão avisados antes de qualquer cobrança]
 
 ## 13. Encerramento
 

@@ -73,7 +73,7 @@ spines, grouped by topic.
 
 ## Addendum: intelligent reading (second brief)
 
-Principle: the reader reads, Understand.io helps to understand. Added on top of the reproduction and the three first additions:
+Principle: the reader reads, Keeple helps to understand. Added on top of the reproduction and the three first additions:
 
 - Open any readable link, PDF (also by URL) or text; the partner logo is not shown.
 - Selection toolbar: Ask, Explain, Simplify, Translate, Summarize (the passage only), Highlight, Underline, Note, Copy quote.

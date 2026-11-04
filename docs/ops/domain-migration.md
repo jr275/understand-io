@@ -1,5 +1,7 @@
 # Moving to the final domain
 
+The domain is chosen: **www.keeple.me** (product name Keeple). The exact values to set are in `docs/ops/keeple-domain-and-sign-in.md`; this page keeps the reasons and the checks.
+
 Prepared, not executed. **Do not change `APP_URL` in production until the domain is confirmed and working** (step 4).
 
 ## What depends on the address (checked in the code)

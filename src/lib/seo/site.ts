@@ -6,7 +6,7 @@ import type { Metadata } from "next";
  * declared only for a page that exists in that language (`available`), so no `hreflang` ever points at a page that is not there.
  */
 
-export const SITE_NAME = "Understand.io";
+export const SITE_NAME = "Keeple";
 
 /** The public origin, from `APP_URL` (so the address changes with the domain, never with a code change); undefined in previews and local work. */
 export function siteOrigin(env: Record<string, string | undefined> = process.env): URL | undefined {

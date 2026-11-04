@@ -1,6 +1,6 @@
 # Product principles
 
-_What every change to Understand.io is judged against. They come from what the code already does and from the defects the audits found; none is aspirational._
+_What every change to Keeple is judged against. They come from what the code already does and from the defects the audits found; none is aspirational._
 
 1. **Reading comes first.** The text is the product. A feature earns its place by helping someone read, remember or find something in a text they chose, never by adding a place to go that is not a text. Nothing opens over the page without being asked.
 2. **A claim is checked, not trusted.** An answer, a summary or a search hit points at the paragraph it came from, and the app checks that pointer against the document itself (`lib/ai/evidence.ts`, `lib/anchors`). What the model says about its own sources is never the proof.

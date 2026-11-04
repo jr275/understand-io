@@ -13,15 +13,15 @@ const isProductionBuild = async (request: APIRequestContext) => ((await (await r
 test.describe("search and social presentation", () => {
   test("the landing page has its own title, description and social card, and structured data that claims no rating or price", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle("Understand.io: highlight any line and ask it anything");
+    await expect(page).toHaveTitle("Keeple: highlight any line and ask it anything");
     expect(await meta(page, 'name="description"')).toMatch(/margin/);
-    expect(await meta(page, 'property="og:title"')).toBe("Understand.io: highlight any line and ask it anything");
-    expect(await meta(page, 'property="og:site_name"')).toBe("Understand.io");
+    expect(await meta(page, 'property="og:title"')).toBe("Keeple: highlight any line and ask it anything");
+    expect(await meta(page, 'property="og:site_name"')).toBe("Keeple");
     expect(await meta(page, 'name="twitter:card"')).toBe("summary_large_image");
     expect(await meta(page, 'property="og:image"')).toContain("/opengraph-image");
     expect(await page.locator("meta[name=robots][content*=noindex]").count()).toBe(0);
     const ld = JSON.parse((await page.locator('script[type="application/ld+json"]').first().textContent()) ?? "{}");
-    expect(ld).toMatchObject({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Understand.io" });
+    expect(ld).toMatchObject({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Keeple" });
     expect(ld).not.toHaveProperty("aggregateRating");
     expect(ld).not.toHaveProperty("offers");
   });

@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { useModalFocus } from "@/lib/client/useModalFocus";
+import { useT } from "@/i18n/client";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 /**
  * `onRead` resolves true when the text was saved (the parent then closes the dialog); on false the dialog stays open with
@@ -21,6 +23,7 @@ export function PasteDialog({
   onClose: () => void;
   onRead: (text: string) => void | Promise<unknown>;
 }) {
+  const t = useT();
   const [pasted, setPasted] = useState(initial);
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalFocus(dialogRef);
@@ -32,7 +35,7 @@ export function PasteDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Paste text"
+        aria-label={t("landing.pasteTitle")}
         className="pop relative w-full max-w-[560px] p-5"
         style={{ ["--origin" as string]: "center" }}
         onKeyDown={(e) => {
@@ -50,23 +53,23 @@ export function PasteDialog({
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-serif text-[19px] leading-tight text-ink">Paste text</p>
-              <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Understand.io will set it like an article.</p>
+              <p className="font-serif text-[19px] leading-tight text-ink">{t("landing.pasteTitle")}</p>
+              <p className="mt-1 text-[13px] text-ink-3">{t("landing.pasteHelp")}</p>
             </div>
-            <button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink" onClick={onClose}>
+            <button type="button" aria-label={t("common.close")} className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink" onClick={onClose}>
               <X size={17} aria-hidden="true" />
             </button>
           </div>
           {error ? (
             <p role="alert" className="mt-3 rounded-[10px] bg-rubric-wash px-3 py-2 text-[13px] text-rubric-text">
-              {error}
+              {lm(error)}
             </p>
           ) : null}
-          <textarea data-autofocus value={pasted} onChange={(e) => setPasted(e.target.value)} rows={9} placeholder="Paste anything…" aria-label="Text to read" className="add-text font-serif text-[15px]" />
+          <textarea data-autofocus value={pasted} onChange={(e) => setPasted(e.target.value)} rows={9} placeholder={t("landing.pastePlaceholder")} aria-label={t("landing.pasteLabel")} className="add-text font-serif text-[15px]" />
           <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-[12.5px] text-ink-4">{pasted.trim() ? `${pasted.trim().split(/\s+/).length} words` : ""}</span>
+            <span className="text-[12.5px] text-ink-4">{pasted.trim() ? t("landing.words", { n: pasted.trim().split(/\s+/).length }) : ""}</span>
             <button type="submit" disabled={!pasted.trim() || busy} className="add-btn">
-              Read <ArrowRight size={15} aria-hidden="true" />
+              {t("common.read")} <ArrowRight size={15} aria-hidden="true" />
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import type { Anchor, GlossAction } from "@/lib/content/types";
+import { INTERFACE_LANGUAGE_NAME } from "./languages";
 
 export interface ContextBlock {
   id: string;
@@ -27,13 +28,24 @@ const LENGTH: Record<string, string> = {
   long: "Answer in two or three short paragraphs.",
 };
 
-export function systemPrompt(length: string) {
+/**
+ * The language the answer is written in. By default it is the language the reader chose for the interface, whatever the language of the text or of the
+ * question; the reader can always ask for another one in so many words ("answer in Spanish"), and that wins. Without a known interface language the old
+ * rule stands (the question's language, else the text's).
+ */
+export function languageRule(uiLang?: string): string {
+  const ui = uiLang ? INTERFACE_LANGUAGE_NAME[uiLang] : undefined;
+  if (!ui) return "Write plainly, in the reader's language (match the language of the question if there is one, otherwise the text).";
+  return `Write plainly in ${ui}, the language the reader's interface is set to, even when the text or the question is in another language. If the reader's own words ask for a different language ("answer in Spanish", "responda em inglês"), use that one instead. Quotes from the text stay in the text's own language.`;
+}
+
+export function systemPrompt(length: string, uiLang?: string) {
   return [
     "You are Understand.io, a careful reading companion. The reader has selected a passage in a text and asks about it.",
     UNTRUSTED_RULE,
     "Ground every claim in the text supplied. Cite the paragraphs you draw on with their number in the form ¶12 (use the ¶ sign and the number, nothing else).",
     "Start with the single most useful sentence and wrap that sentence in ==double equals== so it can be marked. Only one such sentence.",
-    "Write plainly, in the reader's language (match the language of the question if there is one, otherwise the text). No headings. Use markdown only for *emphasis*, **bold**, `code` and short bullet lists.",
+    `${languageRule(uiLang)} No headings. Use markdown only for *emphasis*, **bold**, \`code\` and short bullet lists.`,
     "Mark exactly where you leave the text: begin a sentence with \"My reading:\" when it is your own interpretation, with \"Outside the text:\" when it relies on knowledge from beyond the paragraphs supplied, and with \"The text does not say:\" when the paragraphs cannot confirm something. Every sentence without such a label must be supported by the paragraphs and carry a ¶ citation.",
     "You only see the paragraphs supplied. Never claim to have read the rest of the text; if the question needs more than they show, say so.",
     "If the text does not support an answer, say so plainly instead of inventing one.",

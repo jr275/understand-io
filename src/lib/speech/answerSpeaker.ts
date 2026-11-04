@@ -1,5 +1,6 @@
 import { sentences } from "@/lib/search/tokenize";
 import { chunkSpeech, spokenText } from "./segments";
+import { tNow } from "@/i18n/runtime";
 
 /**
  * Reads one answer aloud with the browser's own voice (the same engine as read-aloud, but for text that is not part of the document:
@@ -60,7 +61,7 @@ export class AnswerSpeaker {
 
   speak(text: string, opts: SpeakOptions = {}): boolean {
     if (!AnswerSpeaker.supported()) {
-      this.set("error", "This browser cannot read aloud.");
+      this.set("error", tNow("srv.speakUnsupported"));
       return false;
     }
     const queue = AnswerSpeaker.pieces(text);
@@ -92,7 +93,7 @@ export class AnswerSpeaker {
       u.onerror = (e) => {
         if (my !== this.token) return; // our own cancel() reports "interrupted" after the token moved on
         this.current = null;
-        this.set("error", e.error === "not-allowed" ? "The browser blocked the voice until you interact with the page." : "The voice stopped because of an error.");
+        this.set("error", e.error === "not-allowed" ? tNow("srv.speakBlocked") : tNow("srv.speakStopped"));
       };
       this.current = u; // held so the engine cannot drop it before it ends
       if (synth.paused) synth.resume();

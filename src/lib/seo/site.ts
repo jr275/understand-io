@@ -48,10 +48,12 @@ export function alternatesFor(path: string, languages: PageLanguages = { [DEFAUL
 }
 
 /** Open Graph and Twitter fields for a page, with its own title, description and address (the image comes from `opengraph-image`). */
-export function socialFor(o: { title: string; description: string; path: string; type?: "website" | "article" }, origin: URL | undefined = siteOrigin()): Pick<Metadata, "openGraph" | "twitter"> {
+export function socialFor(o: { title: string; description: string; path: string; type?: "website" | "article"; locale?: Locale }, origin: URL | undefined = siteOrigin()): Pick<Metadata, "openGraph" | "twitter"> {
+  // The English card is the file `app/opengraph-image`; another language has its own card, so a shared Portuguese page does not show an English one.
+  const card = o.locale && o.locale !== DEFAULT_LOCALE ? [{ url: absoluteUrl(`/og/${o.locale}`, origin), width: 1200, height: 630 }] : undefined;
   return {
-    openGraph: { title: o.title, description: o.description, siteName: SITE_NAME, type: o.type ?? "website", ...(origin ? { url: absoluteUrl(o.path, origin) } : {}) },
-    twitter: { card: "summary_large_image", title: o.title, description: o.description },
+    openGraph: { title: o.title, description: o.description, siteName: SITE_NAME, type: o.type ?? "website", ...(o.locale ? { locale: o.locale === "pt-BR" ? "pt_BR" : "en_US" } : {}), ...(origin ? { url: absoluteUrl(o.path, origin) } : {}), ...(card ? { images: card } : {}) },
+    twitter: { card: "summary_large_image", title: o.title, description: o.description, ...(card ? { images: card } : {}) },
   };
 }
 

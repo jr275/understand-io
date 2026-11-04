@@ -7,6 +7,8 @@ import { ensureReader, getLibrary, rememberDocument, syncRemoteLibrary } from "@
 import { findDuplicate } from "@/lib/store/duplicates";
 import { toast } from "@/lib/store/toast";
 import { track } from "@/lib/client/analytics";
+import { tNow } from "@/i18n/runtime";
+import { localizeServerMessage } from "@/i18n/serverMessages";
 
 export interface ImportResult {
   document: GlossDocument;
@@ -18,45 +20,72 @@ export interface ImportResult {
   duplicate?: boolean;
 }
 
+/** What the last import of a `useImport` did, for the screen that started it to say so next to its own field. */
+export interface ImportOutcome {
+  kind: "added" | "duplicate" | "link";
+  document: GlossDocument;
+  /** For `link`: why the page itself could not be read. */
+  reason?: string;
+}
+
 /** File types the import endpoints accept. */
 export const ACCEPT =
   ".pdf,.txt,.md,.markdown,.docx,.epub,.html,.htm,.xhtml,application/pdf,text/plain,text/markdown,text/html,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-/** The formats the file import reads, as the reader should be told. */
-export const FORMATS_LABEL = "PDF, text (.txt), markdown (.md), Word (.docx), EPUB and HTML";
-
 /** Where to go once a document has been imported. */
 export type After = "read" | "library" | "stay";
+
+/** A failed import, with the HTTP status when the server answered (so a caller can tell "slow down" from "that page cannot be read"). */
+export class ImportError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+    this.name = "ImportError";
+  }
+}
 
 async function post(path: string, body: BodyInit, json = true, signal?: AbortSignal): Promise<ImportResult> {
   // A new visitor has no reader cookie yet. Two imports sent together (a batch) would each be given a different reader by the server, and
   // the one the browser does not keep would vanish from the library. One shared request settles the cookie first.
   await ensureReader();
-  const res = await fetch(path, { method: "POST", body, signal, headers: json ? { "content-type": "application/json" } : undefined });
+  let res: Response;
+  try {
+    res = await fetch(path, { method: "POST", body, signal, headers: json ? { "content-type": "application/json" } : undefined });
+  } catch (e) {
+    // A cancelled batch stays a cancellation; any other failure to get an answer (offline, the server down) is said in words, not as the browser's "Failed to fetch".
+    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    throw new ImportError("Could not reach the server. Check your connection and try again.");
+  }
   const data = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
-  if (!res.ok || !data.document) throw new Error(data.error || `Import failed (${res.status}).`);
+  if (!res.ok || !data.document) throw new ImportError(data.error || `Request failed (${res.status}).`, res.status);
   return data as ImportResult;
 }
 
+/** Sends one link to the import endpoint (the same request every link entry point makes). The reader's cookie is settled first, once for any number of callers. */
+export const sendLink = (url: string): Promise<ImportResult> => post("/api/import", JSON.stringify({ url, keep: true }));
+
 /** Imports a URL, pasted text, a file or captured page HTML, remembers the document locally and opens the reader. */
-export function useImport(defaultAfter: After = "read") {
+export function useImport(defaultAfter: After = "read", opts: { inline?: boolean } = {}) {
+  // `inline`: the screen shows the outcome next to its own field (see `UrlField`), so no toast repeats it where the reader stays on the page.
+  const inline = !!opts.inline;
   const router = useRouter();
   const [busy, setBusy] = useState<null | "url" | "text" | "file" | "page">(null);
   const [error, setError] = useState<string | null>(null);
+  const [last, setLast] = useState<ImportOutcome | null>(null);
 
   const finish = useCallback(
     (r: ImportResult, after: After) => {
       rememberDocument(r.document, r.persisted);
+      setLast({ kind: r.duplicate ? "duplicate" : r.linkOnly ? "link" : "added", document: r.document, reason: r.reason });
       if (r.duplicate) {
         // The server recognised the text: it is the one already on the shelf, so say so and open that one.
-        toast(`“${r.document.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.alreadyInLibrary", { title: r.document.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         return;
       }
       if (r.linkOnly) {
         // Saved, but not readable here: say so and why, and go where the link's own page explains what can be done.
-        toast(`Saved the link. ${r.reason ?? "The page could not be read here."}`, { ttl: 9000, action: { label: "Open", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.savedLinkReason", { reason: r.reason ? localizeServerMessage(r.reason) : tNow("srv.pageNotReadHere") }), { ttl: 9000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         if (after === "read") router.push(`/read/${r.document.slug}`);
         else if (after === "library") router.push("/library");
         else void syncRemoteLibrary();
@@ -64,20 +93,21 @@ export function useImport(defaultAfter: After = "read") {
       }
       if (after === "read") router.push(`/read/${r.document.slug}`);
       else if (after === "library") {
-        toast(`Shelved “${r.document.title}”.`, { action: { label: "Read", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         router.push("/library");
       } else {
-        toast(`Shelved “${r.document.title}”.`, { action: { label: "Read", onClick: () => router.push(`/read/${r.document.slug}`) } });
+        if (!(inline && after === "stay")) toast(tNow("srv.shelved", { title: r.document.title }), { action: { label: tNow("common.read"), onClick: () => router.push(`/read/${r.document.slug}`) } });
         void syncRemoteLibrary();
       }
     },
-    [router],
+    [router, inline],
   );
 
   const run = useCallback(
     async (kind: NonNullable<typeof busy>, task: () => Promise<ImportResult>, after: After) => {
       setBusy(kind);
       setError(null);
+      setLast(null);
       const source = kind === "url" ? "link" : kind === "text" ? "paste" : kind;
       try {
         const r = await task();
@@ -90,29 +120,31 @@ export function useImport(defaultAfter: After = "read") {
         track("import_completed", { source, outcome: "failed" });
         const msg = e instanceof Error ? e.message : "Import failed.";
         setError(msg);
-        toast(msg, { ttl: 8000 });
+        if (!inline) toast(localizeServerMessage(msg), { ttl: 8000 });
         return false;
       } finally {
         setBusy(null);
       }
     },
-    [finish],
+    [finish, inline],
   );
 
   /** The text is already on the shelf: say so and open it, instead of keeping a second copy. */
   const alreadyHere = useCallback(
     (d: GlossDocument, after: After) => {
-      toast(`“${d.title}” is already in your library.`, { ttl: 6000, action: { label: "Open", onClick: () => router.push(`/read/${d.slug}`) } });
+      setError(null);
+      setLast({ kind: "duplicate", document: d });
+      if (!(inline && after === "stay")) toast(tNow("srv.alreadyInLibrary", { title: d.title }), { ttl: 6000, action: { label: tNow("common.open"), onClick: () => router.push(`/read/${d.slug}`) } });
       if (after === "read") router.push(`/read/${d.slug}`);
       return true;
     },
-    [router],
+    [router, inline],
   );
 
   const importUrl = useCallback(
     (url: string, after: After = defaultAfter) => {
       const dup = findDuplicate(Object.values(getLibrary().docs), { url });
-      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("url", () => post("/api/import", JSON.stringify({ url, keep: true })), after);
+      return dup ? Promise.resolve(alreadyHere(dup, after)) : run("url", () => sendLink(url), after);
     },
     [run, alreadyHere, defaultAfter],
   );
@@ -134,7 +166,12 @@ export function useImport(defaultAfter: After = "read") {
     [run, defaultAfter],
   );
 
-  return { busy, error, importUrl, importText, importFile, importPage };
+  const reset = useCallback(() => {
+    setError(null);
+    setLast(null);
+  }, []);
+
+  return { busy, error, last, reset, importUrl, importText, importFile, importPage };
 }
 
 export function looksLikeUrl(s: string) {
@@ -142,6 +179,17 @@ export function looksLikeUrl(s: string) {
   if (/\s/.test(t)) return false;
   // Any address with a scheme counts (an IP address, a port, a local name), and so does a bare domain.
   return /^https?:\/\/\S+$/i.test(t) || /^([\w-]+\.)+[a-z]{2,}(\/\S*)?$/i.test(t);
+}
+
+/**
+ * Why a typed address cannot be opened, for saying so before anything is sent: `scheme` for an address that names another protocol (mailto:, ftp:,
+ * javascript:), `invalid` for text that is not an address at all. Null when it can be tried (or when nothing was typed yet).
+ */
+export function urlProblem(s: string): null | "scheme" | "invalid" {
+  const t = s.trim();
+  if (!t) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) && !/^[\w.-]+:\d+/.test(t)) return "scheme";
+  return looksLikeUrl(t) ? null : "invalid";
 }
 
 export function normaliseUrl(s: string) {

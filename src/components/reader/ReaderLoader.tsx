@@ -9,9 +9,11 @@ import { Topbar } from "@/components/chrome/Topbar";
 import { Reader } from "./Reader";
 import { LinkPage } from "./LinkPage";
 import { OpenedBeacon } from "@/components/chrome/AnalyticsBeacons";
+import { useT } from "@/i18n/client";
 
 /** Server-provided document, or a local-only one from this browser, or a not-found state. */
 export function ReaderLoader({ slug, initial, unavailable = false }: { slug: string; initial: GlossDocument | null; unavailable?: boolean }) {
+  const t = useT();
   const lib = useLibrary();
   const mounted = useMounted();
   // lib.docs is read so a document imported in this tab appears without a reload.
@@ -33,26 +35,26 @@ export function ReaderLoader({ slug, initial, unavailable = false }: { slug: str
       <main className="mx-auto max-w-[40rem] px-6 pt-[calc(var(--topbar-h)+96px)] text-center">
         {checked && unavailable ? (
           <>
-            <p className="font-serif text-[clamp(2rem,5vw,3rem)] leading-[1.05] tracking-[-0.02em] text-ink">Your library is out of reach.</p>
+            <p className="font-serif text-[clamp(2rem,5vw,3rem)] leading-[1.05] tracking-[-0.02em] text-ink">{t("loader.outOfReach")}</p>
             <p className="mt-4 text-[15px] leading-relaxed text-ink-3">
-              This text is kept on the server, and the server cannot reach its database right now. Nothing was lost. Try again in a moment.
+              {t("loader.outOfReachHelp")}
             </p>
             <button type="button" className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-5 text-[14px] font-medium text-bg" onClick={() => window.location.reload()}>
-              Try again
+              {t("loader.tryAgain")}
             </button>
           </>
         ) : checked ? (
           <>
-            <p className="font-serif text-[clamp(2rem,5vw,3rem)] leading-[1.05] tracking-[-0.02em] text-ink">Not on your shelves.</p>
+            <p className="font-serif text-[clamp(2rem,5vw,3rem)] leading-[1.05] tracking-[-0.02em] text-ink">{t("loader.notOnShelves")}</p>
             <p className="mt-4 text-[15px] leading-relaxed text-ink-3">
-              There is no text at <code className="rounded bg-sunk px-1.5 py-0.5 text-[13px]">/read/{slug}</code> in this browser or in your library on this server.
+              {t("loader.noText", { path: `/read/${slug}` })}
             </p>
             <Link href="/" className="mt-8 inline-flex h-10 items-center rounded-full bg-ink px-5 text-[14px] font-medium text-bg">
-              Paste a link
+              {t("loader.pasteLink")}
             </Link>
           </>
         ) : (
-          <div className="loading-bar mx-auto w-40" aria-label="Loading" />
+          <div className="loading-bar mx-auto w-40" aria-label={t("loader.loading")} />
         )}
       </main>
     </div>

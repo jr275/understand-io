@@ -35,11 +35,14 @@ import { FindBar } from "./FindBar";
 import { ListenBar } from "./ListenBar";
 import { VoiceSearch } from "./VoiceSearch";
 import { QuickAdd } from "./QuickAdd";
+import { useT } from "@/i18n/client";
+import { tNow } from "@/i18n/runtime";
 
 const EMPTY_A: Annotation[] = [];
 const EMPTY_G: Gloss[] = [];
 
 export function Reader({ doc }: { doc: GlossDocument }) {
+  const t = useT();
   const documentId = doc.id ?? `local:${doc.slug}`;
   const blocks = doc.blocks;
   const [settings, setSettings] = useSettings();
@@ -152,7 +155,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
     try {
       if (mq.matches && !localStorage.getItem("gloss:nudge")) {
         localStorage.setItem("gloss:nudge", String(Date.now()));
-        toast("Select any passage to ask about it, explain it or highlight it.", { ttl: 7000 });
+        toast(tNow("reader.hintSelect"), { ttl: 7000 });
       }
     } catch {
       /* ignore */
@@ -266,7 +269,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const jumpToAnchor = useCallback(
     (a: Anchor) => {
       const resolved = resolveCached(blocks, a, blockIdx).anchor;
-      if (!resolved) return void toast("Couldn't find that passage in the text any more.", { ttl: 3500 });
+      if (!resolved) return void toast(tNow("reader.passageGone"), { ttl: 3500 });
       scrollToBlock(resolved.start.b, true);
     },
     [blocks, blockIdx, scrollToBlock],
@@ -342,7 +345,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           else updateAnnotation(documentId, id, { color });
         }
         clearSelection();
-        toast(decision.type === "remove" ? (kind === "underline" ? "Underline removed." : "Highlight removed.") : "Colour changed.", { ttl: 2200 });
+        toast(decision.type === "remove" ? (kind === "underline" ? tNow("reader.underlineRemoved") : tNow("reader.highlightRemoved")) : tNow("reader.colourChanged"), { ttl: 2200 });
         return;
       }
       const a: Annotation = { id: newId(), documentId, kind, color, note: note === undefined ? undefined : clampNote(note), anchor: pending.anchor, createdAt: Date.now(), updatedAt: Date.now() };
@@ -350,7 +353,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       track("highlight_created", { mark: a.kind }); // the kind of mark only: never its text, quote or note
       clearSelection();
       if (kind === "note") setActiveId(a.id);
-      toast(lib.persisted ? "Kept in your library." : "Kept in this browser.", { ttl: 2600 });
+      toast(lib.persisted ? tNow("reader.keptLibrary") : tNow("reader.keptBrowser"), { ttl: 2600 });
     },
     [pending, documentId, clearSelection, lib.persisted, resolvedAnn],
   );
@@ -418,7 +421,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       if (meta.error) {
         current = { ...current, status: "error", error: meta.error };
         upsertGloss(current);
-        if (/key/i.test(meta.error)) toast("Answers need a Together AI key. Add yours with the key button in the top bar.", { ttl: 7000 });
+        if (/key/i.test(meta.error)) toast(tNow("reader.needsKeyAnswers"), { ttl: 7000 });
         return;
       }
       // Remember which paragraphs the model was given: its ¶ citations are checked against them, and an overview says how much it read.
@@ -429,7 +432,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       const result = {
         kind: "stream" as const,
         context: context.map((c) => c.id),
-        coverage: { used, total, from: nums.length ? Math.min(...nums) : 0, to: nums.length ? Math.max(...nums) : 0, complete, note: complete ? undefined : `Based on ${used} of ${total} paragraphs: the ones closest to the question plus a sample spread across the text. The rest was not read.` },
+        coverage: { used, total, from: nums.length ? Math.min(...nums) : 0, to: nums.length ? Math.max(...nums) : 0, complete, note: complete ? undefined : tNow("reader.coverageNote", { used, total }) },
       };
       current = { ...current, status: "done", model: meta.model ?? current.model, usage: meta.usage ?? current.usage, result };
       upsertGloss(current);
@@ -495,8 +498,8 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       if (abortRef.current.get(g.id) === ctrl) abortRef.current.delete(g.id);
       if (ctrl.signal.aborted) return; // cancelled or deleted: leave the store alone
       if (out.error || !out.result) {
-        upsertGloss({ ...g, status: "error", error: out.error ?? "That did not work." });
-        if (out.needsKey) toast("This needs a Together AI key. Add yours with the key button in the top bar.", { ttl: 7000 });
+        upsertGloss({ ...g, status: "error", error: out.error ?? tNow("reader.didNotWork") });
+        if (out.needsKey) toast(tNow("reader.needsKey"), { ttl: 7000 });
         return;
       }
       const range = insightRanges.current.get(g.id);
@@ -530,19 +533,19 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           setNbOpen(false);
           setFindOpen(false);
           setFocusInsight((f) => ({ id: hit.id, n: (f?.n ?? 0) + 1 }));
-          toast("You already have this for this version of the text. Use Regenerate to make a new one.", { ttl: 5200 });
+          toast(tNow("reader.alreadyHave"), { ttl: 5200 });
           return;
         }
       }
       const { blocks: bs, totalParagraphs } = documentBlocks(doc, startIndex);
-      if (!bs.length) return void toast("There is no text to read.", { ttl: 3000 });
+      if (!bs.length) return void toast(tNow("reader.noText"), { ttl: 3000 });
       startInsight(op, { op, variant, title: doc.title, author: doc.author, blocks: bs, totalParagraphs, outputLang: settings.outLang || undefined }, null);
     },
     [doc, startInsight, settings.outLang, insights, docHash],
   );
   const runPassageOp = useCallback(
     (kind: "translate" | "summarize", anchor: Anchor) => {
-      if (anchor.quote.length > 6000) return void toast("That selection is too long for this. Select up to about 6,000 characters.", { ttl: 4500 });
+      if (anchor.quote.length > 6000) return void toast(tNow("reader.tooLong"), { ttl: 4500 });
       const ids = anchorBlockIds(blocks, anchor);
       const totalParagraphs = blocks.filter((b) => b.n).length;
       if (kind === "translate") startInsight("translate", { op: "translate", title: doc.title, author: doc.author, blocks: blocksAround(blocks, ids, 0), totalParagraphs, selection: anchor.quote, targetLang }, anchor);
@@ -561,7 +564,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         const first = [...document.querySelectorAll<HTMLElement>(".blk")].find((el) => el.getBoundingClientRect().bottom > 120);
         start = first ? blocks.findIndex((b) => b.id === first.dataset.block) : 0;
       }
-      if (start < 0 || start >= blocks.length) return void toast("There is nothing more to translate.", { ttl: 3000 });
+      if (start < 0 || start >= blocks.length) return void toast(tNow("reader.nothingToTranslate"), { ttl: 3000 });
       const parts: string[] = [];
       const nums: number[] = [];
       let chars = 0;
@@ -573,7 +576,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         chars += b.text.length;
         if (b.n) nums.push(b.n);
       }
-      if (!parts.length) return void toast("There is nothing more to translate.", { ttl: 3000 });
+      if (!parts.length) return void toast(tNow("reader.nothingToTranslate"), { ttl: 3000 });
       const req: AiOpRequest = { op: "translate", title: doc.title, author: doc.author, blocks: [], totalParagraphs: blocks.filter((b) => b.n).length, selection: parts.join("\n\n"), targetLang };
       const g: Gloss = { id: newId(), documentId, action: "translate", anchor: null, turns: [], createdAt: Date.now(), status: "streaming" };
       insightJobs.current.set(g.id, req);
@@ -601,7 +604,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       if (!g) return;
       if (!insightJobs.current.has(id)) {
         // After a reload the request is gone: say so and clear the failed card instead of pretending to retry.
-        toast("That request cannot be repeated after a reload. Start it again from the panel.", { ttl: 4500 });
+        toast(tNow("reader.cannotRepeat"), { ttl: 4500 });
         return void cancelInsight(id);
       }
       void runInsight(g);
@@ -621,7 +624,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   const jumpToEvidence = useCallback(
     (e: Evidence) => {
       const b = blocks.find((x) => x.id === e.blockId);
-      if (!b || b.text.slice(e.start, e.end) !== e.quote) return void toast("That quote is no longer where it was in the text.", { ttl: 3500 });
+      if (!b || b.text.slice(e.start, e.end) !== e.quote) return void toast(tNow("reader.quoteMoved"), { ttl: 3500 });
       const a = makeAnchor(blocks, { b: e.blockId, o: e.start }, { b: e.blockId, o: e.end }, blockIdx);
       jumpToAnchor(a);
       setHit(a);
@@ -732,7 +735,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
   }, [cursor]);
   /** Stopping from inside the bar removes the bar, so keyboard focus would fall to the page: put it on the top-bar listen button (when the Listen setting shows one) or on the text. */
   const stopFromBar = useCallback(() => {
-    const inBar = !!(document.activeElement as HTMLElement | null)?.closest('[aria-label="Reading aloud"]');
+    const inBar = !!(document.activeElement as HTMLElement | null)?.closest('[data-listen-bar]');
     speech.stop();
     if (!inBar) return;
     requestAnimationFrame(() => {
@@ -742,7 +745,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       target.focus({ preventScroll: true });
     });
   }, [speech]);
-  const readAloudUnavailable = useCallback(() => toast("Read aloud is not available in this browser. Chrome, Edge and Safari have it.", { ttl: 6000 }), []);
+  const readAloudUnavailable = useCallback(() => toast(tNow("reader.readAloudUnavailable"), { ttl: 6000 }), []);
   const startReading = useCallback(() => {
     if (!speech.supported) return readAloudUnavailable();
     speech.playFrom(readingStart());
@@ -996,19 +999,19 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         progress={ratio}
         after={
           <>
-          <IconButton aria-pressed={findOpen} active={findOpen} aria-label="Find in this text" data-tip="Find in this text" data-tip-kbd="S" onClick={() => (findOpen ? closeFind() : openFind())}>
+          <IconButton aria-pressed={findOpen} active={findOpen} aria-label={t("reader.find")} data-tip={t("reader.find")} data-tip-kbd="S" onClick={() => (findOpen ? closeFind() : openFind())}>
             <Search size={16} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
-          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={insightsOpen} active={insightsOpen} data-tip={insightsOpen ? "Close" : "Summaries, concepts, questions, translation"} data-tip-kbd="I" onClick={toggleInsights}>
+          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={insightsOpen} active={insightsOpen} data-tip={insightsOpen ? t("common.close") : t("reader.understandTip")} data-tip-kbd="I" onClick={toggleInsights}>
             <BookOpenCheck size={16} strokeWidth={1.8} aria-hidden="true" />
-            <span className="hidden sm:inline">Understand</span>
-            <span className="sr-only sm:hidden">Understand</span>
+            <span className="hidden sm:inline">{t("reader.understand")}</span>
+            <span className="sr-only sm:hidden">{t("reader.understand")}</span>
             {insights.length ? <span className="min-w-[18px] rounded-full bg-sunk px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-ink-2 max-sm:absolute max-sm:-right-0.5 max-sm:-top-0.5 max-sm:min-w-[16px] max-sm:px-1 max-sm:text-[10px] max-sm:leading-[16px]">{insights.length}</span> : null}
           </IconButton>
-          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={nbOpen} active={nbOpen} data-tip={nbOpen ? "Close notebook" : "Your notes and highlights"} data-tip-kbd="N" onClick={toggleNotebook}>
+          <IconButton className="relative !px-3 max-sm:w-9 max-sm:!px-0" aria-pressed={nbOpen} active={nbOpen} data-tip={nbOpen ? t("reader.closeNotebook") : t("reader.notesTip")} data-tip-kbd="N" onClick={toggleNotebook}>
             <NotebookPen size={16} strokeWidth={1.8} aria-hidden="true" />
-            <span className="hidden sm:inline">Notebook</span>
-            <span className="sr-only sm:hidden">Notebook</span>
+            <span className="hidden sm:inline">{t("reader.notebook")}</span>
+            <span className="sr-only sm:hidden">{t("reader.notebook")}</span>
             {annotations.length + glosses.length ? <span className="min-w-[18px] rounded-full bg-[var(--rubric)] px-1.5 text-center text-[11px] font-semibold leading-[18px] tabular-nums text-white max-sm:absolute max-sm:-right-0.5 max-sm:-top-0.5 max-sm:min-w-[16px] max-sm:px-1 max-sm:text-[10px] max-sm:leading-[16px]">{annotations.length + glosses.length}</span> : null}
           </IconButton>
           </>
@@ -1016,7 +1019,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         center={
           <div className={`flex min-w-0 flex-1 justify-center transition-opacity duration-300 ${scrolled ? "opacity-100" : "pointer-events-none opacity-0"}`}>
             <div className="hidden h-9 min-w-0 max-w-[560px] items-center gap-2 text-[13.5px] md:flex">
-              <button type="button" className="min-w-0 truncate rounded-full px-2.5 py-1.5 font-serif text-[16px] leading-none text-ink transition-colors hover:bg-sunk" data-tip="Back to the top" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
+              <button type="button" className="min-w-0 truncate rounded-full px-2.5 py-1.5 font-serif text-[16px] leading-none text-ink transition-colors hover:bg-sunk" data-tip={t("reader.backToTop")} onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>
                 {doc.title}
               </button>
             </div>
@@ -1025,15 +1028,15 @@ export function Reader({ doc }: { doc: GlossDocument }) {
         tools={
           <>
             <span className="hidden sm:block">
-              <IconButton aria-label="Keyboard shortcuts" data-tip="Shortcuts" data-tip-kbd="?" onClick={() => setKeysOpen(true)}>
+              <IconButton aria-label={t("reader.shortcutsLabel")} data-tip={t("reader.shortcuts")} data-tip-kbd="?" onClick={() => setKeysOpen(true)}>
                 <Keyboard size={17} strokeWidth={1.8} aria-hidden="true" />
               </IconButton>
             </span>
             {settings.listen && !(mounted && snap.state === "unsupported") ? (
               <IconButton
-                aria-label={listening ? "Stop reading aloud" : "Read aloud from here"}
+                aria-label={listening ? t("reader.stopReading") : t("reader.readAloud")}
                 active={listening}
-                data-tip={listening ? "Stop reading aloud" : "Read aloud from here"}
+                data-tip={listening ? t("reader.stopReading") : t("reader.readAloud")}
                 data-tip-kbd="L"
                 data-listen-toggle=""
                 onClick={() => (listening ? speech.stop() : startReading())}
@@ -1056,7 +1059,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             <header className="mb-14">
               <p className="focus-hide rise mb-6 flex items-center gap-2 text-[13px] font-medium text-ink-3">
                 <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--rubric)]" />
-                <span className="truncate">{doc.sourceLabel || (doc.kind === "pdf" ? "PDF" : doc.kind === "text" ? "Pasted text" : "Article")}</span>
+                <span className="truncate">{doc.sourceLabel || (doc.kind === "pdf" ? t("reader.kindPdf") : doc.kind === "text" ? t("reader.kindText") : t("reader.kindArticle"))}</span>
               </p>
               <h1 className="rise font-serif text-[clamp(2.6rem,6.4vw,4.3rem)] font-[380] leading-[1.02] tracking-[-0.022em] text-balance text-ink [font-variation-settings:'opsz'_72]" style={{ animationDelay: "40ms" }}>
                 {doc.title}
@@ -1069,7 +1072,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
               <div className="focus-hide rise mt-8 flex items-center gap-4 border-t border-rule pt-5" style={{ animationDelay: "140ms" }}>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[14.5px] leading-snug text-ink">
-                    {doc.author ? <span className="font-medium">{doc.author}</span> : <span className="font-medium text-ink-3">Unknown author</span>}
+                    {doc.author ? <span className="font-medium">{doc.author}</span> : <span className="font-medium text-ink-3">{t("reader.unknownAuthor")}</span>}
                     {doc.year ? <span className="text-ink-3">&nbsp;&nbsp;·&nbsp;&nbsp;{doc.year}</span> : null}
                   </p>
                   <p className="mt-1 text-[13px] leading-snug text-ink-3">
@@ -1078,7 +1081,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 </div>
                 {doc.sourceUrl ? (
                   <a href={doc.sourceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-rule px-3.5 text-[13px] font-medium text-ink-2 transition-[border-color,color,transform] hover:border-rule-strong hover:text-ink active:scale-[0.97]">
-                    Original <ArrowUpRight size={14} aria-hidden="true" />
+                    {t("insights.original")} <ArrowUpRight size={14} aria-hidden="true" />
                   </a>
                 ) : null}
               </div>
@@ -1090,10 +1093,10 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 >
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 font-serif text-[19px] leading-none tracking-[-0.01em] text-ink [font-variation-settings:'opsz'_24]">
-                      Gloss this text
+                      {t("reader.glossThis")}
                       <ArrowRight size={15} aria-hidden="true" className="translate-y-px text-ink-4 transition-[transform,color] duration-300 ease-[var(--ease-out)] group-hover:translate-x-1 group-hover:text-rubric-text" />
                     </span>
-                    <span className="mt-1.5 block truncate text-[13px] leading-snug text-ink-3">The gist, the key claims and a map, before you start</span>
+                    <span className="mt-1.5 block truncate text-[13px] leading-snug text-ink-3">{t("reader.glossThisHelp")}</span>
                   </span>
                   <kbd className="hidden sm:inline">B</kbd>
                 </button>
@@ -1132,29 +1135,29 @@ export function Reader({ doc }: { doc: GlossDocument }) {
                 ❦
               </p>
               <p>
-                From {doc.sourceLabel || "your own text"}
-                {doc.kind === "sample" ? " (public domain)" : ""}.
+                {t("reader.footerFrom", { source: doc.sourceLabel || t("reader.yourOwnText") })}
+                {doc.kind === "sample" ? t("reader.publicDomain") : ""}.
               </p>
               <p className="mt-1">
                 {serverInfo?.model ? (
                   <>
-                    Glosses are written by {serverInfo.model.split("/").pop()}, served by{" "}
+                    {t("reader.footerWrittenBy", { model: serverInfo.model.split("/").pop() ?? "" })}{" "}
                     <a href="https://www.together.ai" target="_blank" rel="noopener noreferrer" className="text-ink-2 underline decoration-rule-strong underline-offset-4 hover:text-ink">
                       Together AI
                     </a>
-                    {serverInfo.serverKey ? "" : ", with your own key"}.
+                    {serverInfo.serverKey ? "" : t("reader.withOwnKey")}.
                   </>
                 ) : (
-                  "Glosses are written by an open model served by Together AI."
+                  t("reader.footerOpenModel")
                 )}{" "}
-                Read-aloud uses this browser’s voices.
+                {t("reader.voices")}
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 <button type="button" className="h-9 rounded-full border border-rule px-4 text-[13px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" onClick={() => { setInsightsOpen(false); setNbOpen(true); }}>
-                  Open your notebook
+                  {t("reader.openNotebook")}
                 </button>
                 <Link className="inline-flex h-9 items-center rounded-full border border-rule px-4 text-[13px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" href="/library">
-                  Back to the library
+                  {t("reader.backToLibrary")}
                 </Link>
               </div>
               <QuickAdd />
@@ -1197,7 +1200,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
       ) : null}
 
       {pending ? (
-        <aside aria-label="Selection tools">
+        <aside aria-label={t("reader.selectionTools")}>
         <Lens
           rect={pending.rect}
           marker={settings.marker}
@@ -1212,13 +1215,13 @@ export function Reader({ doc }: { doc: GlossDocument }) {
           onRemove={(ids) => {
             ids.forEach((id) => removeAnnotation(documentId, id));
             clearSelection();
-            toast("Removed.", { ttl: 2200 });
+            toast(tNow("reader.removed"), { ttl: 2200 });
           }}
           onNote={(t) => annotate("note", settings.marker, t)}
           onCopy={() => {
             const n = blocks.find((b) => b.id === pending.anchor.start.b)?.n;
             void navigator.clipboard?.writeText(`“${pending.anchor.quote}”\n— ${doc.title}${doc.author ? `, ${doc.author}` : ""}${n ? `, ¶${n}` : ""}`);
-            toast("Copied with the title and paragraph number.", { ttl: 2500 });
+            toast(tNow("reader.copied"), { ttl: 2500 });
             clearSelection();
           }}
           onListen={() => {
@@ -1248,7 +1251,7 @@ export function Reader({ doc }: { doc: GlossDocument }) {
             setBackTo(null);
           }}
         >
-          <ArrowUp size={14} aria-hidden="true" /> Back to where you were
+          <ArrowUp size={14} aria-hidden="true" /> {t("reader.backToWhere")}
         </button>
       ) : null}
       {findOpen ? (

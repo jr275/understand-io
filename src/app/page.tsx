@@ -8,28 +8,37 @@ import { Notice } from "@/components/chrome/Notice";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 import { LandingBeacon } from "@/components/chrome/AnalyticsBeacons";
 import { SITE_NAME, absoluteUrl, alternatesFor, jsonLd, socialFor } from "@/lib/seo/site";
+import { htmlLang, localePath, type Locale } from "@/i18n/config";
+import { getLocale } from "@/i18n/server";
+import { translate, translatorFor } from "@/i18n/translate";
 
-const TITLE = "Understand.io: highlight any line and ask it anything";
-const DESCRIPTION = "Read articles, PDFs and your own text, select a line and ask. The answer is written in the margin beside the words, citing the paragraphs it used.";
+/** The landing page exists in both languages, each at its own address: `/` and `/pt-BR`, declared to search engines as each other's alternates. */
+const LANDING_LANGUAGES = { en: localePath("/", "en"), "pt-BR": localePath("/", "pt-BR") };
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: { absolute: TITLE }, description: DESCRIPTION, alternates: alternatesFor("/"), ...socialFor({ title: TITLE, description: DESCRIPTION, path: "/" }) };
+  const locale = await getLocale();
+  const title = translate(locale, "meta.landingTitle");
+  const description = translate(locale, "meta.landingDescription");
+  const path = localePath("/", locale);
+  return { title: { absolute: title }, description, alternates: alternatesFor(path, LANDING_LANGUAGES), ...socialFor({ title, description, path, locale }) };
 }
 
-const applicationLd = () =>
+const applicationLd = (locale: Locale) =>
   jsonLd({
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: SITE_NAME,
-    description: DESCRIPTION,
-    url: absoluteUrl("/"),
-    applicationCategory: "EducationalApplication",
-    operatingSystem: "Any (web browser)",
-    inLanguage: "en",
+    description: translate(locale, "meta.landingDescription"),
+    url: absoluteUrl(localePath("/", locale)),
+    applicationCategory: translate(locale, "meta.appCategory"),
+    operatingSystem: translate(locale, "meta.os"),
+    inLanguage: htmlLang(locale),
   });
 
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
+  const locale = await getLocale();
+  const t = translatorFor(locale);
   const url = typeof sp.url === "string" ? sp.url : typeof sp.save === "string" ? sp.save : undefined;
   const capture = sp.capture === "read" || sp.capture === "save" ? sp.capture : undefined;
   const signin = typeof sp.signin === "string" ? sp.signin.slice(0, 200) : "";
@@ -41,9 +50,11 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
           <section className="mx-auto flex w-full max-w-[980px] flex-col items-center px-6 text-center sm:px-10">
             <h1 className="hero-title font-serif text-ink">
               <span className="block">
-                Highlight <span className="hero-mark">any line</span>.
+                {t("landing.heroHighlight")}
+                <span className="hero-mark">{t("landing.heroMark")}</span>
+                {t("landing.heroDot")}
               </span>
-              <span className="block">Ask it anything.</span>
+              <span className="block">{t("landing.heroAsk")}</span>
             </h1>
             <ImportBar initialUrl={url} capture={capture} />
             <SampleRow />
@@ -53,7 +64,7 @@ export default async function LandingPage({ searchParams }: { searchParams: Prom
         <LegalLinks />
       </main>
       <LandingBeacon />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: applicationLd() }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: applicationLd(locale) }} />
       <Toasts bottom={24} />
       {signin ? <Notice text={signin} /> : null}
     </div>

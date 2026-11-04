@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type RefObject } from "react";
 import type { Block } from "@/lib/content/types";
+import { useT } from "@/i18n/client";
 
 interface Props {
   blocks: Block[];
@@ -13,6 +14,7 @@ interface Props {
 
 /** Left minimap ("Map"): one bar per block, scaled to the text; click or drag to scroll. */
 export function Rail({ blocks, rootRef, progress, marks }: Props) {
+  const t = useT();
   const [rows, setRows] = useState<{ id: string; top: number; height: number; width: number }[]>([]);
   const [railH, setRailH] = useState(0);
 
@@ -54,7 +56,7 @@ export function Rail({ blocks, rootRef, progress, marks }: Props) {
   return (
     <div
       role="slider"
-      aria-label="Position in the text"
+      aria-label={t("rail.position")}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(progress * 100)}

@@ -8,8 +8,17 @@ import { metadata as libraryMeta } from "@/app/library/page";
 import { SAMPLE_META } from "@/lib/content/samples";
 
 vi.mock("@/lib/server/reader", () => ({ getReaderId: async () => null }));
+// The page's language comes from the request (the proxy sets these headers); here the request is faked.
+const req = vi.hoisted(() => ({ locale: "" as string, isPublic: "1" }));
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-gloss-locale": req.locale, "x-gloss-public": req.isPublic }),
+  cookies: async () => ({ get: () => undefined }),
+}));
 
-beforeEach(() => vi.stubEnv("APP_URL", "https://understand.example"));
+beforeEach(() => {
+  req.locale = "";
+  vi.stubEnv("APP_URL", "https://understand.example");
+});
 afterEach(() => vi.unstubAllEnvs());
 
 const abs = (p: string) => `https://understand.example${p}`;
@@ -30,7 +39,7 @@ describe("robots.txt", () => {
 describe("sitemap.xml", () => {
   it("lists the landing page and the bundled samples, and nothing private, draft or unpublished", () => {
     const urls = sitemap().map((e) => e.url);
-    expect(urls).toEqual([abs("/"), ...SAMPLE_META.map((s) => abs(`/read/${s.slug}`))]);
+    expect(urls).toEqual([abs("/"), abs("/pt-BR"), ...SAMPLE_META.map((s) => abs(`/read/${s.slug}`))]);
     expect(urls.join(" ")).not.toMatch(/library|api|learn|privacy|terms/);
   });
   it("is empty without a public address, and carries no invented dates", () => {
@@ -46,9 +55,19 @@ describe("metadata per route", () => {
     expect(m.title).toEqual({ absolute: "Understand.io: highlight any line and ask it anything" });
     expect(String(m.description).length).toBeGreaterThan(70);
     expect(m.alternates?.canonical).toBe(abs("/"));
-    expect(m.alternates?.languages).toMatchObject({ en: abs("/"), "x-default": abs("/") });
-    expect(m.openGraph).toMatchObject({ url: abs("/"), siteName: "Understand.io" });
+    expect(m.alternates?.languages).toMatchObject({ en: abs("/"), "pt-BR": abs("/pt-BR"), "x-default": abs("/") });
+    expect(m.openGraph).toMatchObject({ url: abs("/"), siteName: "Understand.io", locale: "en_US" });
     expect(m.robots).toBeUndefined();
+  });
+
+  it("the Portuguese landing page is its own address with its own words, canonical and hreflang pointing at both", async () => {
+    req.locale = "pt-BR";
+    const m = await landingMeta();
+    expect(m.title).toEqual({ absolute: "Understand.io: destaque qualquer trecho e pergunte o que quiser" });
+    expect(String(m.description)).toMatch(/margem/);
+    expect(m.alternates?.canonical).toBe(abs("/pt-BR"));
+    expect(m.alternates?.languages).toMatchObject({ en: abs("/"), "pt-BR": abs("/pt-BR"), "x-default": abs("/") });
+    expect(m.openGraph).toMatchObject({ url: abs("/pt-BR"), locale: "pt_BR" });
   });
 
   it("each bundled sample is indexable with its own title, description and canonical address", async () => {

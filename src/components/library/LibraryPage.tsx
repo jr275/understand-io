@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Library, LayoutGrid, Link2, Plus, Search } from "lucide-react";
 import type { GlossDocument } from "@/lib/content/types";
-import { TOPICS, topicInfo } from "@/lib/content/types";
+import { TOPICS } from "@/lib/content/types";
 import { SAMPLES } from "@/lib/content/samples";
 import { hideSample, rememberDocument, removeDocument, syncRemoteLibrary, updateDocumentMeta, useLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
@@ -20,10 +20,17 @@ import { BackupPanel } from "./BackupPanel";
 import { MarksReview } from "./MarksReview";
 import { EMPTY_SEARCH, searchLibrary } from "@/lib/search/library";
 import { layoutShelf, shortAuthor, spineFor, type Sort } from "./shelf";
+import { useT } from "@/i18n/client";
+import { topicName } from "@/i18n/topics";
+import type { MessageKey } from "@/i18n/translate";
+import { tNow } from "@/i18n/runtime";
 
 type Meta = Omit<GlossDocument, "blocks">;
 
+const SORT_KEY: Record<Sort, MessageKey> = { topic: "library.sortTopic", recent: "library.sortRecent", colour: "library.sortColour", length: "library.sortLength" };
+
 export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
+  const t = useT();
   const lib = useLibrary();
   const [view, setView] = useState<"shelf" | "topics">("shelf");
   const [sort, setSort] = useState<Sort>("topic");
@@ -115,7 +122,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
     return d.topic === filter;
   });
 
-  const topics = TOPICS.map((t) => ({ ...t, count: docs.filter((d) => d.topic === t.id).length })).filter((t) => t.count > 0);
+  const topics = TOPICS.map((tp) => ({ ...tp, count: docs.filter((d) => d.topic === tp.id).length })).filter((tp) => tp.count > 0);
   const minutes = docs.reduce((n, d) => n + (d.minutes ?? 0), 0);
   const reading = docs.filter((d) => (progressOf(d)?.ratio ?? 0) > 0.02 && !progressOf(d)?.finished).length;
   const finished = docs.filter((d) => progressOf(d)?.finished).length;
@@ -137,7 +144,8 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
     };
   }, [topics.length]);
 
-  const hours = minutes >= 60 ? `${Math.round(minutes / 60)} hour${Math.round(minutes / 60) === 1 ? "" : "s"} of reading` : `${minutes} min of reading`;
+  const hoursShown = Math.round(minutes / 60);
+  const timeLabel = minutes >= 60 ? t("library.statHours", { n: hoursShown }) : t("library.statMinutes");
 
   return (
     <div className="library relative z-[1] min-h-dvh transition-[opacity,filter] duration-300">
@@ -148,25 +156,25 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
         <section className="lib-hero">
           <div className="lib-hero-row">
             <div className="min-w-0">
-              <h1 className="lib-title">Your library</h1>
+              <h1 className="lib-title">{t("library.title")}</h1>
               <p className="lib-stats">
                 <span>
-                  <b>{docs.length}</b> text{docs.length === 1 ? "" : "s"}
+                  <b>{docs.length}</b> {t("library.statTexts", { n: docs.length })}
                 </span>
                 <span>
-                  <b>{topics.length}</b> topic{topics.length === 1 ? "" : "s"}
+                  <b>{topics.length}</b> {t("library.statTopics", { n: topics.length })}
                 </span>
                 <span>
-                  <b>{minutes >= 60 ? Math.round(minutes / 60) : minutes}</b> {hours.replace(/^\d+ /, "")}
+                  <b>{minutes >= 60 ? hoursShown : minutes}</b> {timeLabel}
                 </span>
                 {reading ? (
                   <span>
-                    <b>{reading}</b> in progress
+                    <b>{reading}</b> {t("library.statInProgress")}
                   </span>
                 ) : null}
                 {finished ? (
                   <span>
-                    <b>{finished}</b> read
+                    <b>{finished}</b> {t("library.statRead", { n: finished })}
                   </span>
                 ) : null}
               </p>
@@ -184,8 +192,8 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                 </span>
               </span>
               <span className="min-w-0 text-left">
-                <span className="lib-add-title">Add articles</span>
-                <span className="lib-add-sub">Paste links, or open a PDF</span>
+                <span className="lib-add-title">{t("library.addTitle")}</span>
+                <span className="lib-add-sub">{t("library.addSub")}</span>
               </span>
               <span className="lib-add-plus" aria-hidden="true">
                 <Plus size={15} strokeWidth={2.2} aria-hidden="true" />
@@ -195,13 +203,13 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
         </section>
 
         <div className="lib-tools">
-          <div className="lib-switch" role="radiogroup" aria-label="View" data-view={view}>
+          <div className="lib-switch" role="radiogroup" aria-label={t("library.view")} data-view={view}>
             <span className="lib-switch-pill" aria-hidden="true" />
             <button type="button" role="radio" aria-checked={view === "shelf"} onClick={() => setView("shelf")}>
-              <Library size={15} aria-hidden="true" /> Shelf
+              <Library size={15} aria-hidden="true" /> {t("library.shelf")}
             </button>
             <button type="button" role="radio" aria-checked={view === "topics"} onClick={() => setView("topics")}>
-              <LayoutGrid size={15} aria-hidden="true" /> Topics
+              <LayoutGrid size={15} aria-hidden="true" /> {t("library.topicsView")}
             </button>
           </div>
           <label className="lib-search">
@@ -220,17 +228,17 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   }
                 }
               }}
-              placeholder="Search the library"
-              aria-label="Search the library"
+              placeholder={t("library.search")}
+              aria-label={t("library.search")}
             />
             <kbd className="max-sm:hidden">/</kbd>
           </label>
           {view === "shelf" ? (
-            <div className="lib-sort" role="radiogroup" aria-label="Arrange by">
-              <span className="px-2 text-[12.5px] text-ink-4 max-md:hidden">Arrange by</span>
+            <div className="lib-sort" role="radiogroup" aria-label={t("library.arrangeBy")}>
+              <span className="px-2 text-[12.5px] text-ink-4 max-md:hidden">{t("library.arrangeBy")}</span>
               {(["topic", "recent", "colour", "length"] as Sort[]).map((s) => (
                 <button key={s} type="button" role="radio" aria-checked={sort === s} onClick={() => setSort(s)}>
-                  {s[0].toUpperCase() + s.slice(1)}
+                  {t(SORT_KEY[s])}
                 </button>
               ))}
             </div>
@@ -239,36 +247,36 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
 
         {view === "shelf" ? (
           <div className="lib-chip-row" data-l={chipEdges.l ? "" : undefined} data-r={chipEdges.r ? "" : undefined}>
-            <div ref={chipsRef} className="lib-chips no-scrollbar" role="group" aria-label="Filter">
+            <div ref={chipsRef} className="lib-chips no-scrollbar" role="group" aria-label={t("library.filter")}>
               <button type="button" aria-pressed={filter === "all"} className="lib-chip" onClick={() => setFilter("all")}>
-                All <span className="lib-n">{docs.length}</span>
+                {t("library.all")} <span className="lib-n">{docs.length}</span>
               </button>
-              {topics.map((t) => (
-                <button key={t.id} type="button" aria-pressed={filter === t.id} className="lib-chip" style={{ ["--c" as string]: t.color }} onClick={() => setFilter(filter === t.id ? "all" : t.id)}>
-                  <TopicGlyph topic={t.id} size={18} /> {t.label} <span className="lib-n">{t.count}</span>
+              {topics.map((tp) => (
+                <button key={tp.id} type="button" aria-pressed={filter === tp.id} className="lib-chip" style={{ ["--c" as string]: tp.color }} onClick={() => setFilter(filter === tp.id ? "all" : tp.id)}>
+                  <TopicGlyph topic={tp.id} size={18} /> {topicName(t, tp.id)} <span className="lib-n">{tp.count}</span>
                 </button>
               ))}
               {reading || finished || shortCount ? <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 self-center bg-rule-strong" /> : null}
               {reading ? (
                 <button type="button" aria-pressed={filter === "reading"} className="lib-chip" onClick={() => setFilter(filter === "reading" ? "all" : "reading")}>
-                  <span className="lib-emoji">📕</span> Reading now <span className="lib-n">{reading}</span>
+                  <span className="lib-emoji">📕</span> {t("library.readingNow")} <span className="lib-n">{reading}</span>
                 </button>
               ) : null}
               {finished ? (
                 <button type="button" aria-pressed={filter === "finished"} className="lib-chip" onClick={() => setFilter(filter === "finished" ? "all" : "finished")}>
-                  <span className="lib-emoji">✅</span> Finished <span className="lib-n">{finished}</span>
+                  <span className="lib-emoji">✅</span> {t("library.finished")} <span className="lib-n">{finished}</span>
                 </button>
               ) : null}
               {shortCount ? (
                 <button type="button" aria-pressed={filter === "short"} className="lib-chip" onClick={() => setFilter(filter === "short" ? "all" : "short")}>
-                  <span className="lib-emoji">⚡</span> Under 10 min <span className="lib-n">{shortCount}</span>
+                  <span className="lib-emoji">⚡</span> {t("library.under10")} <span className="lib-n">{shortCount}</span>
                 </button>
               ) : null}
             </div>
-            <button type="button" className="lib-chip-page is-l" aria-label="Scroll filters left" tabIndex={-1} onClick={() => chipsRef.current?.scrollBy({ left: -240, behavior: "smooth" })}>
+            <button type="button" className="lib-chip-page is-l" aria-label={t("library.scrollLeft")} tabIndex={-1} onClick={() => chipsRef.current?.scrollBy({ left: -240, behavior: "smooth" })}>
               <ChevronLeft size={15} aria-hidden="true" />
             </button>
-            <button type="button" className="lib-chip-page is-r" aria-label="Scroll filters right" tabIndex={-1} onClick={() => chipsRef.current?.scrollBy({ left: 240, behavior: "smooth" })}>
+            <button type="button" className="lib-chip-page is-r" aria-label={t("library.scrollRight")} tabIndex={-1} onClick={() => chipsRef.current?.scrollBy({ left: 240, behavior: "smooth" })}>
               <ChevronRight size={15} aria-hidden="true" />
             </button>
           </div>
@@ -283,9 +291,9 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                 <div className={`bookcase ${entering ? "is-entering" : ""}`} style={{ height: layout.height, minWidth: Math.min(layout.width, 1180) }}>
                   <div className="plank" aria-hidden="true" style={{ transform: `translateY(${layout.shelfY}px)`, ["--i" as string]: 0 }} />
                   {layout.labels.map((l) => (
-                    <button key={l.topic} type="button" className="plank-label" data-tip={`Open ${topicInfo(l.topic).label}`} style={{ transform: `translate(${l.x}px, ${layout.shelfY + 24}px)` }} onClick={() => setFilter(l.topic)}>
+                    <button key={l.topic} type="button" className="plank-label" data-tip={t("library.openTopic", { topic: topicName(t, l.topic) })} style={{ transform: `translate(${l.x}px, ${layout.shelfY + 24}px)` }} onClick={() => setFilter(l.topic)}>
                       <TopicGlyph topic={l.topic} size={16} className="mr-[5px]" />
-                      {topicInfo(l.topic).label}
+                      {topicName(t, l.topic)}
                       <span className="plank-n">{l.count}</span>
                     </button>
                   ))}
@@ -333,7 +341,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                               className="bk"
                               aria-label={`${b.doc.title} ${shortAuthor(b.doc)}`.trim()}
                               data-tip={b.doc.title}
-                              data-tip-hint={`${b.doc.author ?? b.doc.sourceLabel ?? ""} · ${b.doc.kind === "link" ? "saved link" : `${b.doc.minutes} min`}${p?.finished ? " · read" : p && p.ratio > 0.02 ? ` · ${Math.round(p.ratio * 100)}% read` : ""}`}
+                              data-tip-hint={`${b.doc.author ?? b.doc.sourceLabel ?? ""} · ${b.doc.kind === "link" ? t("library.savedLink") : t("library.minutes", { n: b.doc.minutes })}${p?.finished ? ` · ${t("library.readWord")}` : p && p.ratio > 0.02 ? ` · ${t("library.percentRead", { n: Math.round(p.ratio * 100) })}` : ""}`}
                               onClick={(e) => setOpen({ slug: b.doc.slug, rect: (e.currentTarget.querySelector(".spine") as HTMLElement).getBoundingClientRect() })}
                               onKeyDown={(e) => {
                                 if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -353,35 +361,35 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   })}
                 </div>
               </div>
-              {filtered.length ? <p className="lib-hint">Click a spine to take it down. Arrow keys walk the shelf.</p> : <p className="lib-hint">Nothing on this shelf yet.</p>}
+              {filtered.length ? <p className="lib-hint">{t("library.hint")}</p> : <p className="lib-hint">{t("library.emptyShelf")}</p>}
             </>
           ) : (
             <div className="topic-grid">
-              {topics.map((t, i) => {
-                const items = docs.filter((d) => d.topic === t.id);
+              {topics.map((tp, i) => {
+                const items = docs.filter((d) => d.topic === tp.id);
                 const mins = items.reduce((n, d) => n + (d.minutes ?? 0), 0);
                 return (
                   <button
-                    key={t.id}
+                    key={tp.id}
                     type="button"
                     className="topic-card"
-                    style={{ ["--c" as string]: t.color, ["--c-deep" as string]: t.deep, ["--i" as string]: i }}
+                    style={{ ["--c" as string]: tp.color, ["--c-deep" as string]: tp.deep, ["--i" as string]: i }}
                     onClick={() => {
                       setView("shelf");
-                      setFilter(t.id);
+                      setFilter(tp.id);
                     }}
                   >
                     <div className="topic-card-art">
-                      <TopicArt topic={t.id} seed={i} />
+                      <TopicArt topic={tp.id} seed={i} />
                     </div>
                     <div className="relative flex items-end justify-between gap-4 px-5 pb-1 pt-4">
                       <div className="min-w-0">
                         <h3 className="flex w-fit items-center font-serif text-[27px] leading-[1.05] tracking-[-0.015em] text-ink">
-                          <TopicGlyph topic={t.id} size={30} className="mr-2 -mt-1" />
-                          {t.label}
+                          <TopicGlyph topic={tp.id} size={30} className="mr-2 -mt-1" />
+                          {topicName(t, tp.id)}
                         </h3>
                         <p className="mt-1.5 text-[13px] text-ink-3">
-                          {items.length} piece{items.length === 1 ? "" : "s"} · {mins} min
+                          {t("library.topicMeta", { n: items.length, mins })}
                         </p>
                       </div>
                     </div>
@@ -398,7 +406,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
           )}
 
           {docs.length <= 3 ? (
-            <section className="starter" aria-label="Fill your library">
+            <section className="starter" aria-label={t("library.starterLabel")}>
               <div className="starter-card is-classics">
                 <div className="starter-fan" aria-hidden="true">
                   {["philosophy", "science", "writing", "ai", "programming"].map((t, i) => (
@@ -408,10 +416,10 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   ))}
                 </div>
                 <div className="min-w-0">
-                  <p className="starter-title">Start with the three classics</p>
-                  <p className="starter-body">Huxley on a piece of chalk, Schopenhauer on thinking for oneself, Thoreau on reading. Public domain, already on the shelf.</p>
+                  <p className="starter-title">{t("library.classicsTitle")}</p>
+                  <p className="starter-body">{t("library.classicsBody")}</p>
                   <Link href="/read/on-a-piece-of-chalk" className="starter-btn">
-                    Open one <ArrowRight size={15} aria-hidden="true" />
+                    {t("library.openOne")} <ArrowRight size={15} aria-hidden="true" />
                   </Link>
                 </div>
               </div>
@@ -419,15 +427,15 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                 <span className="starter-icon">
                   <Link2 size={20} aria-hidden="true" />
                 </span>
-                <span className="starter-title">Save your own links</span>
-                <span className="starter-body">Paste one or many. Understand.io reads each one in and sets it like an article.</span>
+                <span className="starter-title">{t("library.saveTitle")}</span>
+                <span className="starter-body">{t("library.saveBody")}</span>
               </button>
               <Link href="/" className="starter-card">
                 <span className="starter-icon is-agent">
                   <TopicGlyph topic="learning" size={34} />
                 </span>
-                <span className="starter-title">Open a file or paste text</span>
-                <span className="starter-body">From the front page: a chapter, a paper, your own notes. Highlights and read-aloud work the same way.</span>
+                <span className="starter-title">{t("library.openTitle")}</span>
+                <span className="starter-body">{t("library.openBody")}</span>
               </Link>
             </section>
           ) : null}
@@ -449,7 +457,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
             if (openDoc.kind === "sample") hideSample(openDoc.slug);
             removeDocument(openDoc.slug);
             setOpen(null);
-            toast(`Removed “${openDoc.title}”.`, { ttl: 3000 });
+            toast(tNow("srv.removedTitle", { title: openDoc.title }), { ttl: 3000 });
           }}
         />
       ) : null}
@@ -457,7 +465,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
         <AddPanel
           onClose={() => setAdding(false)}
           onSaved={(n) => {
-            if (n) toast(`${n} article${n === 1 ? "" : "s"} shelved.`);
+            if (n) toast(tNow("topbar.shelved", { n }));
             void syncRemoteLibrary();
           }}
         />

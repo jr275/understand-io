@@ -1,10 +1,10 @@
-# Privacy Policy — Understand.io
+# Privacy Policy — Keeple.me
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app's code works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
 **Last updated:** ⚠️ [OWNER DECISION: date at publication]
 
-Understand.io is a reading companion. You import articles, PDFs or text, read them, highlight, write notes, and ask an AI about passages. This policy says what the app stores, where, who else receives data, and what you can do about it. The service is in beta (see the Beta notice).
+Keeple.me (formerly Understand.io) is a reading companion. You import articles, PDFs or text, read them, highlight, write notes, and ask an AI about passages. This policy says what the app stores, where, who else receives data, and what you can do about it. The service is in beta (see the Beta notice).
 
 ## 1. Who runs the service
 
@@ -113,7 +113,7 @@ In the app you can delete content, download a backup and a Markdown export of yo
 
 ## 13. Children
 
-⚠️ [OWNER DECISION: minimum age for using Understand.io]. ⚠️ [LEGAL REVIEW: rules on children's data in the countries you serve]
+⚠️ [OWNER DECISION: minimum age for using Keeple.me]. ⚠️ [LEGAL REVIEW: rules on children's data in the countries you serve]
 
 ## 14. Security
 

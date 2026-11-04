@@ -1,10 +1,10 @@
-# Política de Privacidade — Understand.io
+# Política de Privacidade — Keeple.me
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do código do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
 **Última atualização:** ⚠️ [DECISÃO DO PROPRIETÁRIO: data na publicação]
 
-O Understand.io é um companheiro de leitura. Você importa artigos, PDFs ou textos, lê, destaca, escreve notas e faz perguntas a uma IA sobre trechos. Esta política diz o que o aplicativo guarda, onde guarda, quem mais recebe dados e o que você pode fazer a respeito. O serviço está em versão beta (veja o Aviso de limitações da versão beta).
+O Keeple.me (antes chamado Understand.io) é um companheiro de leitura. Você importa artigos, PDFs ou textos, lê, destaca, escreve notas e faz perguntas a uma IA sobre trechos. Esta política diz o que o aplicativo guarda, onde guarda, quem mais recebe dados e o que você pode fazer a respeito. O serviço está em versão beta (veja o Aviso de limitações da versão beta).
 
 ## 1. Quem opera o serviço
 
@@ -112,7 +112,7 @@ No aplicativo você pode excluir conteúdo, baixar um backup e uma exportação 
 
 ## 13. Crianças e adolescentes
 
-⚠️ [DECISÃO DO PROPRIETÁRIO: idade mínima para usar o Understand.io]. ⚠️ [REVISÃO JURÍDICA: regras sobre dados de crianças e adolescentes nos países que você atende]
+⚠️ [DECISÃO DO PROPRIETÁRIO: idade mínima para usar o Keeple.me]. ⚠️ [REVISÃO JURÍDICA: regras sobre dados de crianças e adolescentes nos países que você atende]
 
 ## 14. Segurança
 

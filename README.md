@@ -1,4 +1,6 @@
-# Understand.io — a from-scratch reconstruction of Gloss
+# Keeple.me (formerly Understand.io) — a from-scratch reconstruction of Gloss
+
+> **Name.** The product is now called Keeple.me. Its identity lives in `src/lib/brand.ts`; what was renamed, what was kept on purpose and how the new domain is activated: `docs/brand/`. Internal identifiers (package `gloss`, `GLOSS_*` variables, `gloss_*` cookies, database and Vercel project names) are unchanged.
 
 An independent reading app that reproduces the publicly observable [Gloss](https://www.usegloss.io)
 experience and adds three features: **read-aloud (text-to-speech)**, **voice semantic passage
@@ -65,7 +67,7 @@ when a key is configured.
 | `/library` or an imported text shows an error, or the log says `ECONNREFUSED ... 5432` | PostgreSQL is not running | `brew services start postgresql@16` (Homebrew install), then reload. The app keeps working without it: pages load, imports stay in this browser and sync once the database is back. |
 | `EADDRINUSE: address already in use :::3100` | another dev server already owns the port | open http://localhost:3100 instead, or stop the other one first (`lsof -nP -iTCP:3100 -sTCP:LISTEN`) |
 | `Another next dev server is already running` | Next allows one dev server per folder | use the URL it prints, or `kill` the PID it names |
-| "That site blocks readers like this one" | the publisher refuses server-side fetches (403) | use the "Read in Understand" bookmarklet from the Add panel, or paste the text |
+| "That site blocks readers like this one" | the publisher refuses server-side fetches (403) | use the "Read in Keeple" bookmarklet from the Add panel, or paste the text |
 
 ## Scripts
 
@@ -103,7 +105,7 @@ Single-key shortcuts can be switched off in Appearance ("Single-key shortcuts") 
 - Margin answers, whole-text answers, summaries, concepts, comprehension questions, translation, meaning re-rank and server transcription need a Together AI key (server `TOGETHER_API_KEY` or a reader's own).
   Without one the app answers "needs a key" and never fakes output. **These paths have not been run against the live provider**: they are tested with a fake model, which proves the checking, storage and display but not the quality of any answer.
 - Google sign-in needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and (in production) `APP_URL`. The real round trip has not been run.
-- Some publishers (theatlantic.com, medium.com, nytimes.com) refuse server-side fetches. Use the "Read in Understand" bookmarklet from the Add panel
+- Some publishers (theatlantic.com, medium.com, nytimes.com) refuse server-side fetches. Use the "Read in Keeple" bookmarklet from the Add panel
   or paste the text.
 
 ## Known defects and limits

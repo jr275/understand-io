@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { tNow } from "@/i18n/runtime";
+import type { MessageKey } from "@/i18n/translate";
 
 /**
  * Tiny renderer for gloss answers: paragraphs, bullets, *em*, **strong**, `code`,
@@ -31,7 +33,11 @@ export function renderGlossBody(text: string, onCite: (n: number) => void, strea
   });
 }
 
-const BASIS_TAGS: Record<string, string> = { "My reading:": "My reading", "Outside the text:": "Outside the text", "The text does not say:": "The text does not say" };
+/** The markers the model writes (they are fixed English in the prompt, whatever the answer's language) and the words shown for them. */
+const BASIS_TAGS: Record<string, MessageKey> = { "My reading:": "gloss.myReading", "Outside the text:": "gloss.outside", "The text does not say:": "gloss.silent" };
+
+/** Language-independent identifiers of the same markers (what tests and styles key on). */
+const BASIS_ID: Record<string, string> = { "My reading:": "My reading", "Outside the text:": "Outside the text", "The text does not say:": "The text does not say" };
 
 function inline(s: string, onCite: (n: number) => void, valid: Set<number> | null): ReactNode[] {
   const out: ReactNode[] = [];
@@ -43,7 +49,7 @@ function inline(s: string, onCite: (n: number) => void, valid: Set<number> | nul
   while ((m = re.exec(s))) {
     if (m.index > last) out.push(s.slice(last, m.index));
     const tok = m[0];
-    if (BASIS_TAGS[tok]) out.push(<span key={k++} data-basis={BASIS_TAGS[tok]} className="mr-1 inline-block rounded-full bg-sunk px-2 py-[3px] align-[1px] text-[11px] font-medium leading-none text-ink-3">{BASIS_TAGS[tok]}</span>);
+    if (BASIS_TAGS[tok]) out.push(<span key={k++} data-basis={BASIS_ID[tok]} className="mr-1 inline-block rounded-full bg-sunk px-2 py-[3px] align-[1px] text-[11px] font-medium leading-none text-ink-3">{tNow(BASIS_TAGS[tok])}</span>);
     else if (tok.startsWith("==")) out.push(<mark key={k++} className="key">{inline(tok.slice(2, -2), onCite, valid)}</mark>);
     else if (tok.startsWith("**")) out.push(<strong key={k++}>{inline(tok.slice(2, -2), onCite, valid)}</strong>);
     else if (tok.startsWith("`")) out.push(<code key={k++}>{tok.slice(1, -1)}</code>);
@@ -52,7 +58,7 @@ function inline(s: string, onCite: (n: number) => void, valid: Set<number> | nul
       const n = Number(tok.replace(/\D/g, ""));
       if (valid && !valid.has(n)) {
         out.push(
-          <span key={k++} className="cite is-unverified" data-unverified={n} role="img" aria-label={`Paragraph ${n} was not among the paragraphs the model was given, so this citation cannot be checked`} data-tip="Not among the paragraphs the model was given" style={{ textDecoration: "line-through", color: "var(--ink-3)", cursor: "help" }}>
+          <span key={k++} className="cite is-unverified" data-unverified={n} role="img" aria-label={tNow("gloss.unverified", { n })} data-tip={tNow("gloss.unverifiedTip")} style={{ textDecoration: "line-through", color: "var(--ink-3)", cursor: "help" }}>
             ¶{n}
           </span>,
         );
@@ -60,7 +66,7 @@ function inline(s: string, onCite: (n: number) => void, valid: Set<number> | nul
         continue;
       }
       out.push(
-        <button key={k++} type="button" className="cite" aria-label={`Jump to paragraph ${n}`} onClick={() => onCite(n)}>
+        <button key={k++} type="button" className="cite" aria-label={tNow("gloss.jump", { n })} onClick={() => onCite(n)}>
           ¶{n}
         </button>,
       );

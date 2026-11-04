@@ -1,10 +1,19 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { ImportQueue, QUEUE_LIMITS, summaryLine, type QueueItem } from "@/lib/store/importQueue";
+import { ImportQueue, QUEUE_LIMITS, type BatchSummary, type QueueItem } from "@/lib/store/importQueue";
 import { rememberDocument, syncRemoteLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
-import { FORMATS_LABEL, isImportableFile, sendFile } from "./import";
+import { isImportableFile, sendFile } from "./import";
+import { tNow } from "@/i18n/runtime";
+
+function localizedSummary(s: BatchSummary): string {
+  const parts = [tNow("srv.batchDone", { done: s.done, total: s.total })];
+  if (s.duplicate) parts.push(tNow("srv.batchDup", { n: s.duplicate }));
+  if (s.failed) parts.push(tNow("srv.batchFailed", { n: s.failed }));
+  if (s.cancelled) parts.push(tNow("srv.batchCancelled", { n: s.cancelled }));
+  return parts.join(", ") + ".";
+}
 
 /** The batch every file picker and drop feeds. One per page: a file dropped anywhere joins the same line. */
 export const importQueue = new ImportQueue(
@@ -12,12 +21,12 @@ export const importQueue = new ImportQueue(
   {
     onResult: (_item, r) => rememberDocument(r.document, r.persisted),
     onBatchDone: (s) => {
-      toast(summaryLine(s), { ttl: 9000 });
+      toast(localizedSummary(s), { ttl: 9000 });
       void syncRemoteLibrary();
     },
   },
   QUEUE_LIMITS.concurrent,
-  (file) => (isImportableFile(file) ? null : `Only ${FORMATS_LABEL} files can be imported.`),
+  (file) => (isImportableFile(file) ? null : tNow("srv.onlyFormats", { formats: tNow("ingest.formats") })),
 );
 
 const NONE: QueueItem[] = [];
@@ -38,6 +47,6 @@ export function handleFiles(list: FileList | File[], single: (file: File) => voi
     return false;
   }
   const r = importQueue.add(files);
-  if (r.skipped) toast(`A batch holds ${QUEUE_LIMITS.files} files: ${r.skipped} were left out. Add them again when these finish.`, { ttl: 8000 });
+  if (r.skipped) toast(tNow("srv.batchLimit", { files: QUEUE_LIMITS.files, skipped: r.skipped }), { ttl: 8000 });
   return true;
 }

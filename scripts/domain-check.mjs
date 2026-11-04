@@ -58,12 +58,12 @@ const home = await get(`https://${domain}/`);
 ok("the home page answers 200", home.status === 200, `HTTP ${home.status}${home.error ? ` ${home.error}` : ""}`);
 const hsts = home.headers.get("strict-transport-security");
 ok("HSTS is sent", !!hsts, hsts ?? "missing");
-const health = await get(`https://${domain}/api/health?fresh=1`);
+const health = await get(`https://${domain}/api/health`); // liveness: never reads the database
 let j = null;
 try {
   j = await health.json();
 } catch {}
-ok("the health answer says ok", health.status === 200 && j?.status === "ok", `HTTP ${health.status}${j?.status ? `, ${j.status}` : ""}`);
+ok("the liveness answer says ok", health.status === 200 && j?.status === "ok", `HTTP ${health.status}${j?.status ? `, ${j.status}` : ""}`);
 if (j) info("commit live on the new address", j.commit ?? "unknown");
 
 // 4. canonical address and the old address

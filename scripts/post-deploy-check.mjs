@@ -56,15 +56,29 @@ const skipped = (name, why) => {
   console.log(`SKIP  ${name} (${why})`);
 };
 
-// 1. health, and the commit that is live
-const h = await call("GET", "/api/health?fresh=1", { cookie: false }); // fresh: a real reading, not the one reused for 15 minutes
-ok("health answers 200 and says ok", h.status === 200 && h.json?.status === "ok", `status ${h.status}, ${h.json?.status}${h.json?.reasons?.length ? ` ${h.json.reasons}` : ""}`);
-ok("the database answers", h.json?.database === "ok", h.json?.database);
+// 1. liveness, and the commit that is live. Liveness never touches the database, so it can be called as often as needed.
+const h = await call("GET", "/api/health", { cookie: false });
+ok("liveness answers 200 and says ok", h.status === 200 && h.json?.status === "ok" && h.json?.check === "liveness", `status ${h.status}, ${h.json?.status}`);
 if (commit) ok(`the live commit is ${commit}`, !!h.json?.commit && commit.startsWith(h.json.commit), `live: ${h.json?.commit}`);
-if (h.json?.storage) ok(`the database is below 85% of its storage limit (${h.json.storage.usedMb} of ${h.json.storage.limitMb} MB, ${h.json.storage.percent}%)`, h.json.storage.level !== "high", h.json.warnings?.length ? `warning: ${h.json.warnings}` : "");
-else skipped("database storage level", "the answer carries no size (no database, or an older deployment)");
-ok("AI allowances are kept in the database (shared by every instance)", h.json?.database !== "ok" || h.json?.ai?.allowancesShared === true);
-ok("the health answer holds no secret and no money", !/(sk-|tgp_|postgres:|password|spent|usd)/i.test(h.text));
+ok("liveness holds no database, AI or storage reading (it never wakes the database)", !("database" in (h.json ?? {})) && !("storage" in (h.json ?? {})) && !("ai" in (h.json ?? {})));
+ok("the liveness answer holds no secret and no money", !/(sk-|tgp_|postgres:|password|spent|usd)/i.test(h.text));
+
+// 1b. readiness (database, storage, AI ledger): needs the health token, which is read from the environment and never printed or put in a URL.
+// Without it this part is skipped, not failed, and the rest of the checks (which exercise the database through the app) still run.
+const healthToken = process.env.GLOSS_HEALTH_TOKEN ?? "";
+if (healthToken.length >= 32) {
+  const r = await call("GET", "/api/health/ready?fresh=1", { cookie: false, headers: { authorization: `Bearer ${healthToken}` } }); // fresh: a real reading, not the one reused for 15 minutes
+  ok("readiness answers 200 and says ok", r.status === 200 && r.json?.status === "ok", `status ${r.status}, ${r.json?.status}${r.json?.reasons?.length ? ` ${r.json.reasons}` : ""}`);
+  ok("the database answers", r.json?.database === "ok", r.json?.database);
+  if (r.json?.storage) ok(`the database is below 85% of its storage limit (${r.json.storage.usedMb} of ${r.json.storage.limitMb} MB, ${r.json.storage.percent}%)`, r.json.storage.level !== "high", r.json.warnings?.length ? `warning: ${r.json.warnings}` : "");
+  else skipped("database storage level", "the answer carries no size (no database, or an older deployment)");
+  ok("AI allowances are kept in the database (shared by every instance)", r.json?.database !== "ok" || r.json?.ai?.allowancesShared === true);
+  ok("the readiness answer holds no secret and no money", !/(sk-|tgp_|postgres:|password|spent|usd)/i.test(r.text) && !r.text.includes(healthToken));
+} else {
+  skipped("readiness (database, storage, AI ledger)", "GLOSS_HEALTH_TOKEN is not set in this shell; the pages and the app below still exercise the database");
+}
+const anon = await call("GET", "/api/health/ready?fresh=1", { cookie: false });
+ok("readiness refuses a caller without the token (no database work for the public)", [401, 404].includes(anon.status), `HTTP ${anon.status}`);
 
 // 2. pages and headers
 for (const p of ["/", "/library", "/read/on-a-piece-of-chalk"]) {

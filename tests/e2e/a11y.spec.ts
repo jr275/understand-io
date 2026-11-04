@@ -33,7 +33,7 @@ for (const theme of ["paper", "night", "sepia", "snow", "ink"] as const) {
       await page.goto("/library");
       await expect(page.locator("button.bk")).toHaveCount(3);
       expect(await violations(page)).toEqual([]);
-      await page.getByRole("button", { name: /Add articles/ }).click();
+      await page.getByRole("button", { name: /Add a source/ }).click();
       await expect(page.getByRole("dialog", { name: "Add to the library" })).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.keyboard.press("Escape");
@@ -168,7 +168,7 @@ test.describe("modal dialogs manage focus", () => {
 
   test("add panel and the paste dialog opened from it (library): inner dialog traps, outer one resumes, focus returns", async ({ page }) => {
     await page.goto("/library");
-    const opener = page.getByRole("button", { name: /Add articles/ });
+    const opener = page.getByRole("button", { name: /Add a source/ });
     await opener.focus();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog", { name: "Add to the library" })).toBeVisible();

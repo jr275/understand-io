@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { useLibrary } from "@/lib/store/library";
+import { useT } from "@/i18n/client";
 
 /** Bottom of the landing page: your latest highlights, or how it works when there are none. */
 export function Desk() {
+  const t = useT();
   const lib = useLibrary();
   const docsById = new Map(Object.values(lib.docs).map((d) => [d.id, d]));
   const highlights = Object.values(lib.annotations)
@@ -16,12 +18,12 @@ export function Desk() {
   if (highlights.length) {
     const shown = highlights.slice(0, 3);
     return (
-      <section className="desk" aria-label="Your latest highlights">
+      <section className="desk" aria-label={t("landing.latestHighlights")}>
         <header className="desk-head">
-          <h2 className="desk-label">Your latest highlights</h2>
+          <h2 className="desk-label">{t("landing.latestHighlights")}</h2>
           <div className="desk-aside">
             <Link href="/library" className="desk-link">
-              All {highlights.length}
+              {t("landing.all", { n: highlights.length })}
               <ArrowRight size={13} aria-hidden="true" />
             </Link>
           </div>
@@ -38,7 +40,7 @@ export function Desk() {
                     </span>
                   </p>
                   <p className="desk-source">
-                    <span className="truncate">{doc?.title ?? "A text"}</span>
+                    <span className="truncate">{doc?.title ?? t("landing.aText")}</span>
                     <ArrowRight size={13} aria-hidden="true" className="desk-source-go" />
                   </p>
                 </Link>
@@ -47,35 +49,35 @@ export function Desk() {
           })}
           {shown.length < 3 ? (
             <li className="desk-tile is-room" style={{ ["--i" as string]: shown.length, gridColumn: shown.length === 1 ? "span 2" : undefined }}>
-              Select a line in anything you read, and it waits for you here.
+              {t("landing.roomHint")}
             </li>
           ) : null}
         </ol>
-        <p className="desk-foot">{lib.persisted ? "Kept in this browser and in your library on this server." : "These live in this browser only."}</p>
+        <p className="desk-foot">{lib.persisted ? t("landing.keptBoth") : t("landing.keptLocal")}</p>
       </section>
     );
   }
 
   const steps = [
-    ["Paste a link", "An article, a chapter or a PDF."],
-    ["Select any line", "A word, a sentence, a passage."],
-    ["Ask it anything", "The answer lands in the margin, citing the text."],
+    [t("landing.step1"), t("landing.step1Text")],
+    [t("landing.step2"), t("landing.step2Text")],
+    [t("landing.step3"), t("landing.step3Text")],
   ];
   return (
-    <section className="desk" aria-label="How it works">
+    <section className="desk" aria-label={t("landing.howItWorks")}>
       <header className="desk-head">
-        <h2 className="desk-label">How it works</h2>
+        <h2 className="desk-label">{t("landing.howItWorks")}</h2>
       </header>
       <ol className="desk-tiles">
-        {steps.map(([t, d], i) => (
-          <li key={t} className="desk-tile is-step" style={{ ["--i" as string]: i }}>
+        {steps.map(([title, d], i) => (
+          <li key={title} className="desk-tile is-step" style={{ ["--i" as string]: i }}>
             <span className="desk-step-n">{i + 1}</span>
-            <p className="mt-3 text-[14.5px] font-medium text-ink">{t}</p>
+            <p className="mt-3 text-[14.5px] font-medium text-ink">{title}</p>
             <p className="mt-1 text-[13.5px] leading-[1.42] text-ink-3">{d}</p>
           </li>
         ))}
       </ol>
-      <p className="desk-foot">Highlights, notes and answers are kept in this browser{lib.persisted ? " and on this server" : ""}.</p>
+      <p className="desk-foot">{lib.persisted ? t("landing.footBrowserServer") : t("landing.footBrowser")}</p>
     </section>
   );
 }

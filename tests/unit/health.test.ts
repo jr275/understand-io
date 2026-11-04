@@ -1,12 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { GET } from "@/app/api/health/route";
+import { GET } from "@/app/api/health/ready/route";
 import { createMemoryAiStore, setAiStore, type AiStore, type MemoryAiStore } from "@/lib/server/aiStore";
 import { toMicro } from "@/lib/ai/budget";
 import { forgetHealthCache } from "@/lib/server/healthProbe";
+import { resetHealthLimits } from "@/lib/server/readiness";
+
+// The READINESS check (database, AI ledger, storage), behind a token. Liveness is in healthLiveness.test.ts and the abuse cases in healthAbuse.test.ts.
+const TOKEN = "t".repeat(40);
 
 let store: MemoryAiStore;
 beforeEach(() => {
   forgetHealthCache();
+  resetHealthLimits();
+  vi.stubEnv("GLOSS_HEALTH_TOKEN", TOKEN);
+  vi.stubEnv("GLOSS_HEALTH_MIN_PROBE_SECONDS", "0"); // the floor between readings has its own tests; here every reading must be real
   store = createMemoryAiStore();
   setAiStore(store);
   vi.stubEnv("DATABASE_URL", "postgres://placeholder/never-connected"); // only decides that a database is configured; the store above is what answers
@@ -16,10 +23,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-const get = (qs = "") => GET(new Request(`http://x.test/api/health${qs}`));
+const get = (qs = "") => GET(new Request(`http://x.test/api/health/ready${qs}`, { headers: { authorization: `Bearer ${TOKEN}` } }));
 const settle = (n: number, errors: 0 | 1, micro = 100) => Promise.all(Array.from({ length: n }, (_, i) => store.settle(`h${i}${errors}${Math.random()}`, { micro, inputTokens: 10, outputTokens: 10, errors }, Date.now())));
 
-describe("GET /api/health", () => {
+describe("GET /api/health/ready", () => {
   it("says ok, which commit is live and what the AI is set up with, and calls nobody", async () => {
     vi.stubEnv("VERCEL_GIT_COMMIT_SHA", "0123456789abcdef");
     vi.stubEnv("VERCEL_ENV", "production");
@@ -29,7 +36,7 @@ describe("GET /api/health", () => {
     const res = await get();
     expect(res.status).toBe(200);
     const j = await res.json();
-    expect(j).toMatchObject({ status: "ok", reasons: [], commit: "0123456", environment: "production", database: "ok" });
+    expect(j).toMatchObject({ status: "ok", check: "readiness", reasons: [], commit: "0123456", environment: "production", database: "ok" });
     expect(j.ai).toMatchObject({ configured: true, budget: "ok", errorsLastHour: 0 });
     expect(res.headers.get("cache-control")).toBe("no-store");
     expect(upstream).not.toHaveBeenCalled();
@@ -103,7 +110,7 @@ describe("GET /api/health", () => {
   });
 });
 
-describe("GET /api/health, the compute allowance and the storage alerts (Neon Free)", () => {
+describe("GET /api/health/ready, the compute allowance and the storage alerts (Neon Free)", () => {
   const withSize = (bytes: number | null) => setAiStore({ ...(store as AiStore), storageBytes: async () => bytes });
   const MB = 1_048_576;
 

@@ -2,6 +2,7 @@
 
 import type { AiResult, Block, GlossDocument, SummaryVariant } from "@/lib/content/types";
 import { getUserKey } from "@/lib/store/library";
+import { track } from "@/lib/client/analytics";
 
 export interface AiOpRequest {
   op: "summarize" | "concepts" | "questions" | "translate";
@@ -57,6 +58,7 @@ export function blocksAround(blocks: Block[], ids: string[], neighbours = 1): Ai
 
 export async function callAiOp(req: AiOpRequest, signal?: AbortSignal): Promise<AiOpResponse> {
   const key = getUserKey();
+  track("ai_question_asked", { action: req.variant ? `${req.op}:${req.variant}` : req.op, key: key ? "own" : "shared" });
   let res: Response;
   try {
     res = await fetch("/api/ai", { method: "POST", headers: { "content-type": "application/json", ...(key ? { "x-gloss-key": key } : {}) }, body: JSON.stringify(req), signal });

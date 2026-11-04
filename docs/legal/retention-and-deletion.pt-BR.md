@@ -1,4 +1,4 @@
-# Política de retenção e exclusão — Understand.io
+# Política de retenção e exclusão — Keeple
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do código do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
@@ -46,3 +46,7 @@ Para excluir a sua conta ou as cópias dos seus dados no servidor, ou para pergu
 ## 5. Contas inativas
 
 O aplicativo não exclui leitores nem contas inativas. ⚠️ [DECISÃO DO PROPRIETÁRIO: se será definido um prazo após o qual dados inativos são excluídos, e qual]. ⚠️ [REVISÃO JURÍDICA: se um prazo de retenção é exigido]
+
+## 6. Registros de análise de uso (somente se ativada)
+
+Se o operador ativar a análise de uso do produto (política de privacidade, seção 3A), os registros são apagados automaticamente após ⚠️ [DECISÃO DO PROPRIETÁRIO: quantos dias os registros de análise são guardados; o padrão do aplicativo é 120]. Eles não têm texto, título, endereço, nota nem pergunta, e não podem ser ligados a um documento. No modo diário, não podem ser ligados a você depois que o dia termina. Não fazem parte do arquivo de backup que você baixa, e você não pode apagá-los por conta própria.

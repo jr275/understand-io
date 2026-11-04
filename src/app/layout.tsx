@@ -5,6 +5,11 @@ import { ThemeBoot } from "@/components/chrome/ThemeBoot";
 import { TipLayer } from "@/components/ui/Tip";
 import { GlobalImport } from "@/components/chrome/GlobalImport";
 import { ImportQueuePanel } from "@/components/chrome/ImportQueuePanel";
+import { I18nProvider } from "@/i18n/client";
+import { htmlLang, ogLocale } from "@/i18n/config";
+import { getLocale } from "@/i18n/server";
+import { translate } from "@/i18n/translate";
+import { SITE_NAME } from "@/lib/seo/site";
 
 const newsreader = Newsreader({
   subsets: ["latin", "latin-ext"],
@@ -32,9 +37,6 @@ const atkinson = Atkinson_Hyperlegible_Next({
   display: "swap",
 });
 
-const description =
-  "Highlight any line and ask it anything. An open model writes the answer in the margin, beside the words, citing the paragraphs it used.";
-
 /** The public origin, so canonical and social-card addresses follow `APP_URL` when the domain changes (no code change then). Absent in previews and local work. */
 const siteOrigin = (() => {
   try {
@@ -44,15 +46,19 @@ const siteOrigin = (() => {
   }
 })();
 
-export const metadata: Metadata = {
-  metadataBase: siteOrigin,
-  alternates: siteOrigin ? { canonical: "./" } : undefined,
-  title: { default: "Understand.io", template: "%s" },
-  description,
-  applicationName: "Understand.io",
-  openGraph: { title: "Understand.io", description, siteName: "Understand.io", type: "website" },
-  twitter: { card: "summary_large_image", title: "Understand.io", description },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  const description = translate(locale, "meta.siteDescription");
+  return {
+    metadataBase: siteOrigin,
+    alternates: siteOrigin ? { canonical: "./" } : undefined,
+    title: { default: SITE_NAME, template: "%s" },
+    description,
+    applicationName: SITE_NAME,
+    openGraph: { title: SITE_NAME, description, siteName: SITE_NAME, type: "website", locale: ogLocale(locale) },
+    twitter: { card: "summary_large_image", title: SITE_NAME, description },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -63,10 +69,11 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
     <html
-      lang="en"
+      lang={htmlLang(locale)}
       suppressHydrationWarning
       className={`${newsreader.variable} ${schibsted.variable} ${literata.variable} ${atkinson.variable}`}
       data-theme="paper"
@@ -79,10 +86,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeBoot />
       </head>
       <body>
-        {children}
-        <TipLayer />
-        <GlobalImport />
-        <ImportQueuePanel />
+        <I18nProvider locale={locale}>
+          {children}
+          <TipLayer />
+          <GlobalImport />
+          <ImportQueuePanel />
+        </I18nProvider>
       </body>
     </html>
   );

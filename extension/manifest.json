@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Keeple",
+  "version": "0.1.0",
+  "description": "Send the page you are reading to Keeple: read it with a companion, save it to your library, highlight and ask.",
+  "minimum_chrome_version": "116",
+  "action": { "default_title": "Send this page to Keeple", "default_popup": "popup.html" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "contextMenus", "scripting"]
+}

@@ -1,10 +1,10 @@
-# Privacy Policy — Understand.io
+# Privacy Policy — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app's code works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
 **Last updated:** ⚠️ [OWNER DECISION: date at publication]
 
-Understand.io is a reading companion. You import articles, PDFs or text, read them, highlight, write notes, and ask an AI about passages. This policy says what the app stores, where, who else receives data, and what you can do about it. The service is in beta (see the Beta notice).
+Keeple is a reading companion. You import articles, PDFs or text, read them, highlight, write notes, and ask an AI about passages. This policy says what the app stores, where, who else receives data, and what you can do about it. The service is in beta (see the Beta notice).
 
 ## 1. Who runs the service
 
@@ -43,7 +43,18 @@ Cookies are set only when the app saves something for you or you sign in. They a
 | `gloss_session` | Keeps you signed in (only after Google sign-in). Holds your account id. | 90 days |
 | `gloss_oauth` | Temporary state for one sign-in attempt. Sent only to sign-in pages. | 10 minutes |
 
-The app includes no advertising, analytics or tracking service. ⚠️ [LEGAL REVIEW: whether these cookies need a consent banner or other notice in the countries you serve]
+By default the app includes no advertising, analytics or tracking service. If the operator switches on first-party product analytics, section 3A applies. ⚠️ [LEGAL REVIEW: whether these cookies need a consent banner or other notice in the countries you serve]
+
+## 3A. Product analytics (only if the operator switches it on)
+
+By default the app does not measure how it is used. The operator can switch on first-party product analytics: the app records counts of actions itself and sends nothing to an analytics service or any other third party. ⚠️ [OWNER DECISION: whether product analytics is switched on, and in which of the two modes below]
+
+In either mode a record says only that an action happened, never what you read or wrote. A record has the kind of action (for example "a text was opened"), a few fixed choices (for example that the text was a PDF, or that a question used the shared key), the type of page, the time and, if you arrived through a campaign link, the channel it came from. It never has text, a title, a web address, a note, a question to the AI, an answer, or the words you searched for. Nothing is recorded if your browser sends Do Not Track or Global Privacy Control.
+
+- **Daily mode.** A record is tied to a code made from your network address, your browser's description and the date, mixed with a secret kept on the server. The address and the description are not stored, only the code. This is **pseudonymised data, not anonymous data**: during one day the code tells your browser apart from others, and the operator, who holds the secret, could recreate it for a known address and browser. The code is different every day, so it cannot follow you from one day to the next. Nothing is stored on your device.
+- **Full mode.** A record is tied to a code derived from your reader id (the random id in the `gloss_reader` cookie), the same every day, so that the operator can see whether people come back. The reader id itself is not in the record. The campaign link that brought you is kept in your browser's session storage until you close the tab. ⚠️ [LEGAL REVIEW: whether full mode needs prior consent (a banner or a choice) in the countries you serve, and which legal basis applies]
+
+Records are deleted automatically after ⚠️ [OWNER DECISION: how many days analytics records are kept; the app's default is 120]. ⚠️ [LEGAL REVIEW: how a request to delete or access analytics records is answered in full mode, where they are tied to a code and not to a name]
 
 ## 4. Sign-in with Google
 
@@ -102,7 +113,7 @@ In the app you can delete content, download a backup and a Markdown export of yo
 
 ## 13. Children
 
-⚠️ [OWNER DECISION: minimum age for using Understand.io]. ⚠️ [LEGAL REVIEW: rules on children's data in the countries you serve]
+⚠️ [OWNER DECISION: minimum age for using Keeple]. ⚠️ [LEGAL REVIEW: rules on children's data in the countries you serve]
 
 ## 14. Security
 

@@ -1,4 +1,4 @@
-# Retention and deletion policy — Understand.io
+# Retention and deletion policy — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app's code works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
@@ -46,3 +46,7 @@ To delete your account or the server copies of your data, or to ask what we hold
 ## 5. Inactive accounts
 
 The app does not delete inactive readers or accounts. ⚠️ [OWNER DECISION: whether to set a period after which inactive data is deleted, and how long]. ⚠️ [LEGAL REVIEW: whether a retention period is required]
+
+## 6. Product analytics records (only if switched on)
+
+If the operator switches on product analytics (privacy policy, section 3A), its records are deleted automatically after ⚠️ [OWNER DECISION: how many days analytics records are kept; the app's default is 120]. They hold no text, title, address, note or question, and cannot be tied to a document. In daily mode they cannot be tied to you once the day is over. They are not part of the backup file you download, and you cannot delete them yourself.

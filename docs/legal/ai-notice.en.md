@@ -1,4 +1,4 @@
-# Third-party AI notice — Understand.io
+# Third-party AI notice — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app's code works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
@@ -6,7 +6,7 @@
 
 ## 1. Where AI is used
 
-Understand.io does not run an AI model itself. It sends text to a third party, **Together AI**, which runs the models. This happens in these features:
+Keeple does not run an AI model itself. It sends text to a third party, **Together AI**, which runs the models. This happens in these features:
 
 - **Margin answers:** Explain, Ask, Simplify, Define, Fact-check, Related, Counterpoint, and questions about the whole text.
 - **Understand panel:** summaries, key concepts, test questions, and translation.

@@ -5,6 +5,9 @@ import { ArrowUp, ChevronsDownUp, Copy, RotateCcw, Trash2, X } from "lucide-reac
 import { NOTE_MAX_LENGTH, type Anchor, type Annotation, type Block, type Gloss } from "@/lib/content/types";
 import { clampNote, rangeForAnchor } from "@/lib/anchors";
 import { plainAnswer, renderGlossBody } from "./glossMarkdown";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n/translate";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 export interface MarginItem {
   id: string;
@@ -41,10 +44,12 @@ interface Props {
   emptyTop?: number;
 }
 
-const ACTION_LABEL: Record<string, string> = { explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text" };
+const ACTION_LABEL: Record<string, MessageKey> = { explain: "lens.explain", simplify: "lens.simplify", ask: "lens.ask", define: "lens.define", factcheck: "lens.factcheck", related: "lens.related", counterpoint: "lens.counterpoint", overview: "glosses.overview", whole: "glosses.whole" };
+const KIND_KEY: Record<string, MessageKey> = { note: "glosses.note", underline: "glosses.underline", highlight: "glosses.highlight" };
 
 /** Right-margin column: glosses and notes aligned to their anchors, with SVG leaders. */
 export function MarginGlosses(p: Props) {
+  const t = useT();
   const wrap = useRef<HTMLDivElement>(null);
   const refs = useRef(new Map<string, HTMLElement>());
   const [pos, setPos] = useState<Map<string, { y: number; anchorY: number }>>(new Map());
@@ -138,7 +143,7 @@ export function MarginGlosses(p: Props) {
           <div className="relative px-1 pb-1">
             <Card item={active} p={p} bare refCb={() => {}} />
           </div>
-          <button type="button" aria-label="Close" className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-ink-4 hover:bg-sunk hover:text-ink" onClick={() => p.onActivate(null)}>
+          <button type="button" aria-label={t("common.close")} className="absolute right-3 top-3 grid size-7 place-items-center rounded-full text-ink-4 hover:bg-sunk hover:text-ink" onClick={() => p.onActivate(null)}>
             <X size={14} aria-hidden="true" />
           </button>
         </div>
@@ -150,8 +155,8 @@ export function MarginGlosses(p: Props) {
     return (
       <div ref={wrap} className="relative">
         <p className="focus-hide absolute left-0 right-0 border-l border-rule pl-4 text-[13.5px] leading-[1.55] text-ink-3" style={{ top: p.emptyTop ?? 0, animation: "fade .6s .4s var(--ease-out) both" }}>
-          <span className="block text-ink-2">This area is for notes.</span>
-          Select any passage, then just start typing to ask.
+          <span className="block text-ink-2">{t("glosses.emptyTitle")}</span>
+          {t("glosses.emptyHelp")}
         </p>
       </div>
     );
@@ -189,6 +194,7 @@ export function MarginGlosses(p: Props) {
 }
 
 function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Props; y?: number; bare?: boolean; refCb: (el: HTMLElement | null) => void }) {
+  const t = useT();
   const active = item.id === p.activeId;
   const hover = item.id === p.hoverId;
   const style = bare ? { position: "relative" as const } : { transform: `translateY(${y}px)` };
@@ -196,12 +202,12 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
   if (item.kind === "orphan" && item.note) {
     const o = item.note;
     return (
-      <article ref={refCb} data-orphan={o.id} aria-label={`${o.kind === "note" ? "Note" : o.kind === "underline" ? "Underline" : "Highlight"}: couldn't find this passage`} className="mnote is-active" style={{ ...style, ["--note-c" as string]: `var(--mk-${o.color ?? "yellow"})` }}>
-        <p className="mb-1.5 text-[11.5px] font-medium text-ink-3">{o.kind === "note" ? "Note" : o.kind === "underline" ? "Underline" : "Highlight"}</p>
+      <article ref={refCb} data-orphan={o.id} aria-label={t("glosses.orphanLabel", { kind: t(KIND_KEY[o.kind] ?? "glosses.highlight") })} className="mnote is-active" style={{ ...style, ["--note-c" as string]: `var(--mk-${o.color ?? "yellow"})` }}>
+        <p className="mb-1.5 text-[11.5px] font-medium text-ink-3">{t(KIND_KEY[o.kind] ?? "glosses.highlight")}</p>
         <p className="line-clamp-3 border-l-2 border-[var(--rubric-line)] pl-2.5 font-serif text-[14.5px] leading-snug text-ink-3">{o.anchor.quote}</p>
         {o.note ? <p className="mt-2 whitespace-pre-wrap font-serif text-[15px] leading-[1.45]">{o.note}</p> : null}
         <span className="mt-1.5 flex items-center justify-end font-sans text-[11.5px] text-ink-4">
-          <button type="button" aria-label="Delete" className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={() => p.onDeleteNote(o.id)}>
+          <button type="button" aria-label={t("glosses.delete")} className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={() => p.onDeleteNote(o.id)}>
             <Trash2 size={13} aria-hidden="true" />
           </button>
         </span>
@@ -228,7 +234,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
   }
   const g = item.gloss!;
   const n = item.anchor ? p.blocks.find((b) => b.id === item.anchor!.start.b)?.n : undefined;
-  const label = ACTION_LABEL[g.action] ?? "Ask";
+  const label = t(ACTION_LABEL[g.action] ?? "lens.ask");
   const answer = g.turns.filter((t) => t.role === "assistant").slice(-1)[0]?.content ?? "";
   const question = g.action === "ask" || g.action === "whole" ? g.turns.find((t) => t.role === "user")?.content : undefined;
   const streaming = g.status === "streaming";
@@ -254,21 +260,21 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
           </p>
           {n ? <span className="shrink-0 text-[11px] tabular-nums text-ink-4">¶{n}</span> : null}
         </div>
-        <p className="mt-1 line-clamp-2 text-[13px] leading-[1.45] text-ink-3">{g.error ? g.error : plainAnswer(answer) || (streaming ? "Writing…" : "")}</p>
+        <p className="mt-1 line-clamp-2 text-[13px] leading-[1.45] text-ink-3">{g.error ? lm(g.error) : plainAnswer(answer) || (streaming ? t("glosses.writing") : "")}</p>
       </div>
     );
   }
 
   return (
-    <article ref={refCb} data-gloss={g.id} aria-label={`${label} note on paragraph ${n ?? "—"}`} className={`gloss is-active ${g.status === "streaming" ? "is-entering" : ""}`} style={style} onMouseEnter={() => p.onHover(g.id)} onMouseLeave={() => p.onHover(null)}>
+    <article ref={refCb} data-gloss={g.id} aria-label={t("glosses.ariaCard", { label, n: n ?? "—" })} className={`gloss is-active ${g.status === "streaming" ? "is-entering" : ""}`} style={style} onMouseEnter={() => p.onHover(g.id)} onMouseLeave={() => p.onHover(null)}>
       <header className="mb-2 flex h-5 items-center gap-2 text-[12px] leading-none">
         <span className="font-semibold text-rubric-text">{label}</span>
         {n ? (
-          <button type="button" className="cite !text-[11px]" aria-label={`Go to paragraph ${n}`} data-tip="Show in the text" onClick={() => p.onCite(n)}>
+          <button type="button" className="cite !text-[11px]" aria-label={t("glosses.goTo", { n })} data-tip={t("glosses.showInText")} onClick={() => p.onCite(n)}>
             ¶{n}
           </button>
         ) : null}
-        <button type="button" aria-label="Collapse note" data-tip="Collapse" data-tip-kbd="Esc" className="-mr-1.5 ml-auto grid size-6 place-items-center rounded-md text-ink-4 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onActivate(null)}>
+        <button type="button" aria-label={t("glosses.collapse")} data-tip={t("glosses.collapseTip")} data-tip-kbd="Esc" className="-mr-1.5 ml-auto grid size-6 place-items-center rounded-md text-ink-4 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onActivate(null)}>
           <ChevronsDownUp size={14} aria-hidden="true" />
         </button>
       </header>
@@ -276,11 +282,11 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
       {question ? <p className="mb-2 font-serif text-[16px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{question}</p> : null}
       <div className="gloss-body">
         {g.error ? (
-          <p className="text-rubric-text">{g.error}</p>
+          <p className="text-rubric-text">{lm(g.error)}</p>
         ) : answer ? (
           renderGlossBody(answer, p.onCite, streaming, p.citeSet?.(g) ?? null)
         ) : streaming ? (
-          <div className="writing" aria-label="Writing">
+          <div className="writing" aria-label={t("glosses.writingLabel")}>
             <span style={{ width: "92%" }} />
             <span style={{ width: "78%" }} />
             <span style={{ width: "60%" }} />
@@ -291,12 +297,12 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
       <footer className="mt-3 flex items-center gap-0.5 text-ink-3">
         <span className="min-w-0 flex-1 truncate text-[11.5px] tabular-nums text-ink-4">
           {g.model ? (
-            <span data-tip={g.usage ? `${g.usage.input.toLocaleString()} prompt tokens, ${g.usage.output.toLocaleString()} written` : undefined}>
+            <span data-tip={g.usage ? t("glosses.tokens", { input: g.usage.input.toLocaleString(), output: g.usage.output.toLocaleString() }) : undefined}>
               {shortModel(g.model)}
               {g.usage ? (
                 <>
                   <span className="mx-1.5 text-ink-4/70">/</span>
-                  {fmtK(g.usage.input)} in, {fmtK(g.usage.output)} out
+                  {t("glosses.inOut", { input: fmtK(g.usage.input), output: fmtK(g.usage.output) })}
                   {g.usage.cost !== undefined ? (
                     <>
                       <span className="mx-1.5 text-ink-4/70">/</span>~${g.usage.cost.toFixed(4)}
@@ -306,16 +312,16 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
               ) : null}
             </span>
           ) : streaming ? (
-            "Writing…"
+            t("glosses.writing")
           ) : null}
         </span>
-        <button type="button" aria-label="Try again" data-tip="Try again" className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onRetry(g.id)}>
+        <button type="button" aria-label={t("glosses.tryAgain")} data-tip={t("glosses.tryAgain")} className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onRetry(g.id)}>
           <RotateCcw size={14} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Copy" data-tip="Copy" className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => void navigator.clipboard?.writeText(plainAnswer(answer))}>
+        <button type="button" aria-label={t("glosses.copy")} data-tip={t("glosses.copy")} className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => void navigator.clipboard?.writeText(plainAnswer(answer))}>
           <Copy size={14} aria-hidden="true" />
         </button>
-        <button type="button" aria-label="Delete" data-tip="Delete" className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onDeleteGloss(g.id)}>
+        <button type="button" aria-label={t("glosses.delete")} data-tip={t("glosses.delete")} className="grid size-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={() => p.onDeleteGloss(g.id)}>
           <Trash2 size={14} aria-hidden="true" />
         </button>
       </footer>
@@ -325,6 +331,7 @@ function Card({ item, p, y = 0, bare = false, refCb }: { item: MarginItem; p: Pr
 }
 
 function FollowUp({ onSend, disabled }: { onSend: (q: string) => void; disabled: boolean }) {
+  const t = useT();
   const [q, setQ] = useState("");
   return (
     <form
@@ -338,8 +345,8 @@ function FollowUp({ onSend, disabled }: { onSend: (q: string) => void; disabled:
         }
       }}
     >
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask a follow-up" aria-label="Ask a follow-up" disabled={disabled} className="h-9 min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none" />
-      <button type="submit" disabled={!q.trim() || disabled} aria-label="Send follow-up" data-tip="Send" data-tip-kbd="↵" className="grid size-6 place-items-center rounded-md bg-ink text-bg transition-opacity disabled:opacity-20">
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("glosses.followUp")} aria-label={t("glosses.followUp")} disabled={disabled} className="h-9 min-w-0 flex-1 bg-transparent text-[13.5px] text-ink outline-none placeholder:text-ink-4 focus-visible:outline-none" />
+      <button type="submit" disabled={!q.trim() || disabled} aria-label={t("glosses.sendFollowUp")} data-tip={t("glosses.send")} data-tip-kbd="↵" className="grid size-6 place-items-center rounded-md bg-ink text-bg transition-opacity disabled:opacity-20">
         <ArrowUp size={14} strokeWidth={2.4} aria-hidden="true" />
       </button>
     </form>
@@ -347,6 +354,7 @@ function FollowUp({ onSend, disabled }: { onSend: (q: string) => void; disabled:
 }
 
 function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHover, pn }: { n: Annotation; active: boolean; style: React.CSSProperties; refCb: (el: HTMLElement | null) => void; onActivate: () => void; onEdit: (t: string) => void; onDelete: () => void; onHover: (h: boolean) => void; pn?: number }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(n.note ?? "");
   if (editing) {
@@ -361,14 +369,14 @@ function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHov
           setEditing(false);
         }}
       >
-        <textarea autoFocus value={text} maxLength={NOTE_MAX_LENGTH} onChange={(e) => setText(clampNote(e.target.value))} rows={3} aria-label="Edit note" className="w-full resize-none bg-transparent font-serif text-[15px] leading-[1.45] text-ink outline-none" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } if (e.key === "Escape") { e.stopPropagation(); setEditing(false); } }} />
+        <textarea autoFocus value={text} maxLength={NOTE_MAX_LENGTH} onChange={(e) => setText(clampNote(e.target.value))} rows={3} aria-label={t("glosses.editNote")} className="w-full resize-none bg-transparent font-serif text-[15px] leading-[1.45] text-ink outline-none" onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (e.currentTarget.form as HTMLFormElement).requestSubmit(); } if (e.key === "Escape") { e.stopPropagation(); setEditing(false); } }} />
         <div className="mt-1 flex items-center justify-between text-[11.5px] text-ink-4">
           <span>
-            ↵ to keep · <span data-testid="note-counter" className={`tabular-nums ${text.length >= NOTE_MAX_LENGTH - 200 ? "text-[var(--rubric)]" : ""}`}>{text.length}/{NOTE_MAX_LENGTH}</span>
+            {t("glosses.toKeep")} · <span data-testid="note-counter" className={`tabular-nums ${text.length >= NOTE_MAX_LENGTH - 200 ? "text-[var(--rubric)]" : ""}`}>{text.length}/{NOTE_MAX_LENGTH}</span>
           </span>
           <span className="flex gap-1">
-            <button type="button" className="rounded px-2 py-0.5 hover:bg-sunk hover:text-ink" onClick={() => setEditing(false)}>Cancel</button>
-            <button type="submit" className="rounded bg-ink px-2 py-0.5 text-bg">Keep</button>
+            <button type="button" className="rounded px-2 py-0.5 hover:bg-sunk hover:text-ink" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
+            <button type="submit" className="rounded bg-ink px-2 py-0.5 text-bg">{t("glosses.keep")}</button>
           </span>
         </div>
       </form>
@@ -376,13 +384,13 @@ function NoteCard({ n, active, style, refCb, onActivate, onEdit, onDelete, onHov
   }
   return (
     <div ref={refCb} className={`mnote ${active ? "is-active" : ""}`} style={{ ...style, ["--note-c" as string]: `var(--mk-${n.color ?? "yellow"})` }} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
-      <button type="button" aria-label={`Note on paragraph ${pn ?? "—"}`} className="block w-full text-left font-serif text-inherit" onClick={() => (active ? (setText(n.note ?? ""), setEditing(true)) : onActivate())}>
-        <span className="block whitespace-pre-wrap">{n.note || <span className="text-ink-4">Empty note</span>}</span>
+      <button type="button" aria-label={t("glosses.noteOn", { n: pn ?? "—" })} className="block w-full text-left font-serif text-inherit" onClick={() => (active ? (setText(n.note ?? ""), setEditing(true)) : onActivate())}>
+        <span className="block whitespace-pre-wrap">{n.note || <span className="text-ink-4">{t("glosses.emptyNote")}</span>}</span>
       </button>
       {active ? (
         <span className="mt-1.5 flex items-center justify-between font-sans text-[11.5px] text-ink-4">
-          <span>{pn ? `¶${pn} · ` : ""}click to edit</span>
-          <button type="button" aria-label="Delete note" className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={onDelete}>
+          <span>{pn ? `¶${pn} · ` : ""}{t("glosses.clickToEdit")}</span>
+          <button type="button" aria-label={t("glosses.deleteNote")} className="grid size-6 place-items-center rounded-md hover:bg-sunk hover:text-ink" onClick={onDelete}>
             <Trash2 size={13} aria-hidden="true" />
           </button>
         </span>

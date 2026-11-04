@@ -58,7 +58,7 @@ describe("the dictionaries", () => {
 
 /* ------------------------------------------------------------------ hard-coded text */
 
-const BRAND = /^(Understand\.io|Together( AI)?|Google|GOOGLE_CLIENT_\w+|DATABASE_URL|tgp_v1_\.\.\.)$/;
+const BRAND = /^(Keeple\.me|Together( AI)?|Google|GOOGLE_CLIENT_\w+|DATABASE_URL|tgp_v1_\.\.\.)$/;
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : f.endsWith(".tsx") ? [join(dir, f)] : []));
 
 /** Sentences a reader would see, written straight into a component: JSX text and the attributes that screen readers and tooltips read. */

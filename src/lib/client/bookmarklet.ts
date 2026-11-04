@@ -1,4 +1,4 @@
-/** The bookmarklet: opens Understand in a new tab and hands it the page's HTML through postMessage. */
+/** The bookmarklet: opens the app in a new tab and hands it the page's HTML through postMessage. */
 export function bookmarklet(origin: string, kind: "read" | "save") {
   const code =
     `(function(){var o=${JSON.stringify(origin)};` +

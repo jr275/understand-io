@@ -46,7 +46,7 @@ describe("parseBackup", () => {
 
   it.each([
     ["not JSON", "nope{", /not valid JSON/],
-    ["JSON that is not a backup", JSON.stringify({ hello: 1 }), /not an Understand\.io backup/],
+    ["JSON that is not a backup", JSON.stringify({ hello: 1 }), /not a Keeple\.me backup/],
     ["another version", JSON.stringify({ app: "understand-io", version: 2 }), /different version/],
   ])("refuses %s with a plain reason", (_n, raw, reason) => {
     const r = parseBackup(raw as string);

@@ -8,6 +8,8 @@
  * and may not claim). Facts that are numbers (limits, allowances) are the ones in the code; the test compares them.
  */
 
+import { BRAND } from "@/lib/brand";
+
 export interface LearnSection {
   heading: string;
   paragraphs: string[];
@@ -39,7 +41,7 @@ export const LEARN_PAGES: LearnPage[] = [
     description: "Open a PDF, select a passage and ask. The answer is written beside the words and cites the paragraphs it used. PDFs with selectable text only; no OCR.",
     h1: "An AI PDF reader that answers beside the words",
     intro:
-      "Most AI tools for PDFs ask you to leave the page: upload the file, type into a chat box, and read an answer that is detached from the sentence that made you ask. Understand.io keeps the reading where it was. You select the passage that puzzles you, ask, and the answer is written in the margin next to it, with the paragraph numbers it relied on.",
+      `Most AI tools for PDFs ask you to leave the page: upload the file, type into a chat box, and read an answer that is detached from the sentence that made you ask. ${BRAND.name} keeps the reading where it was. You select the passage that puzzles you, ask, and the answer is written in the margin next to it, with the paragraph numbers it relied on.`,
     sections: [
       {
         heading: "What happens when you import a PDF",

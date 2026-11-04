@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Literata, Newsreader, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
+import { BRAND } from "@/lib/brand";
 import { ThemeBoot } from "@/components/chrome/ThemeBoot";
 import { TipLayer } from "@/components/ui/Tip";
 import { GlobalImport } from "@/components/chrome/GlobalImport";
@@ -51,11 +52,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: siteOrigin,
     alternates: siteOrigin ? { canonical: "./" } : undefined,
-    title: { default: "Understand.io", template: "%s" },
+    title: { default: BRAND.name, template: "%s" },
     description,
-    applicationName: "Understand.io",
-    openGraph: { title: "Understand.io", description, siteName: "Understand.io", type: "website", locale: ogLocale(locale) },
-    twitter: { card: "summary_large_image", title: "Understand.io", description },
+    applicationName: BRAND.applicationName,
+    openGraph: { title: BRAND.name, description, siteName: BRAND.name, type: "website", locale: ogLocale(locale) },
+    twitter: { card: "summary_large_image", title: BRAND.name, description },
   };
 }
 
@@ -63,8 +64,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f3ec" },
-    { media: "(prefers-color-scheme: dark)", color: "#151412" },
+    { media: "(prefers-color-scheme: light)", color: BRAND.colors.paper },
+    { media: "(prefers-color-scheme: dark)", color: BRAND.colors.paperDark },
   ],
 };
 

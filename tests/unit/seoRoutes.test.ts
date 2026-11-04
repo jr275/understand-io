@@ -52,18 +52,18 @@ describe("sitemap.xml", () => {
 describe("metadata per route", () => {
   it("the landing page has its own title, description, canonical, hreflang and social card", async () => {
     const m = await landingMeta();
-    expect(m.title).toEqual({ absolute: "Understand.io: highlight any line and ask it anything" });
+    expect(m.title).toEqual({ absolute: "Keeple.me: highlight any line and ask it anything" });
     expect(String(m.description).length).toBeGreaterThan(70);
     expect(m.alternates?.canonical).toBe(abs("/"));
     expect(m.alternates?.languages).toMatchObject({ en: abs("/"), "pt-BR": abs("/pt-BR"), "x-default": abs("/") });
-    expect(m.openGraph).toMatchObject({ url: abs("/"), siteName: "Understand.io", locale: "en_US" });
+    expect(m.openGraph).toMatchObject({ url: abs("/"), siteName: "Keeple.me", locale: "en_US" });
     expect(m.robots).toBeUndefined();
   });
 
   it("the Portuguese landing page is its own address with its own words, canonical and hreflang pointing at both", async () => {
     req.locale = "pt-BR";
     const m = await landingMeta();
-    expect(m.title).toEqual({ absolute: "Understand.io: destaque qualquer trecho e pergunte o que quiser" });
+    expect(m.title).toEqual({ absolute: "Keeple.me: destaque qualquer trecho e pergunte o que quiser" });
     expect(String(m.description)).toMatch(/margem/);
     expect(m.alternates?.canonical).toBe(abs("/pt-BR"));
     expect(m.alternates?.languages).toMatchObject({ en: abs("/"), "pt-BR": abs("/pt-BR"), "x-default": abs("/") });
@@ -99,6 +99,6 @@ describe("metadata per route", () => {
     expect(m.alternates?.canonical).toBe(abs("/learn/ai-pdf-reader"));
     expect((await learnMeta({ params: Promise.resolve({ slug: "nope" }) })).robots).toEqual({ index: false, follow: false, nocache: true });
     vi.stubEnv("NODE_ENV", "production");
-    expect((await learnMeta({ params: Promise.resolve({ slug: "ai-pdf-reader" }) })).title).toBe("Understand.io");
+    expect((await learnMeta({ params: Promise.resolve({ slug: "ai-pdf-reader" }) })).title).toBe("Keeple.me");
   });
 });

@@ -38,7 +38,7 @@ describe("canonical and hreflang", () => {
 describe("social cards and structured data", () => {
   it("carries the page's own title, description and address", () => {
     const s = socialFor({ title: "T", description: "D", path: "/learn/x", type: "article" }, origin);
-    expect(s.openGraph).toMatchObject({ title: "T", description: "D", type: "article", url: "https://understand.example/learn/x", siteName: "Understand.io" });
+    expect(s.openGraph).toMatchObject({ title: "T", description: "D", type: "article", url: "https://understand.example/learn/x", siteName: "Keeple.me" });
     expect(s.twitter).toMatchObject({ card: "summary_large_image", title: "T" });
   });
   it("escapes < in JSON-LD so no string can end the script element", () => {

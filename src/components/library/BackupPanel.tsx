@@ -65,13 +65,13 @@ export function BackupPanel() {
         </span>
       </p>
       <div className="lib-backup-row">
-        <button type="button" className="lib-backup-btn" onClick={() => save(`understand-io-backup-${today()}.json`, JSON.stringify(mine, null, 2), "application/json")}>
+        <button type="button" className="lib-backup-btn" onClick={() => save(`keeple-backup-${today()}.json`, JSON.stringify(mine, null, 2), "application/json")}>
           <Download size={14} aria-hidden="true" /> {t("backup.download")}
         </button>
         <button type="button" className="lib-backup-btn" onClick={() => file.current?.click()}>
           <Upload size={14} aria-hidden="true" /> {t("backup.restore")}
         </button>
-        <button type="button" className="lib-backup-btn" disabled={!notes} onClick={() => save(`understand-io-notes-${today()}.md`, notes, "text/markdown")}>
+        <button type="button" className="lib-backup-btn" disabled={!notes} onClick={() => save(`keeple-notes-${today()}.md`, notes, "text/markdown")}>
           <FileText size={14} aria-hidden="true" /> {t("backup.exportNotes")}
         </button>
         <input ref={file} type="file" accept=".json,application/json" hidden aria-label={t("backup.fileLabel")} onChange={(e) => void onFile(e.target.files?.[0]).finally(() => (e.target.value = ""))} />

@@ -25,7 +25,7 @@ test.describe("landing", () => {
     for (const path of ["/", "/library", "/read/on-a-piece-of-chalk"]) {
       await page.goto(path);
       const banner = page.getByRole("banner");
-      await expect(banner.getByRole("link", { name: /Understand\.io/ })).toBeVisible();
+      await expect(banner.getByRole("link", { name: /Keeple\.me/ })).toBeVisible();
       await expect(banner.locator('a[href*="together.ai"], [aria-label="Together AI"]')).toHaveCount(0);
       await expect(banner.getByText("together.ai")).toHaveCount(0);
     }
@@ -195,7 +195,7 @@ test.describe("landing", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Library" }).click();
     await expect(page).toHaveURL(/\/library$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your library");
-    await page.getByRole("link", { name: "Understand.io, back to your library" }).click();
+    await page.getByRole("link", { name: "Keeple.me, back to your library" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.waitForTimeout(400);
     // Next cancels a superseded <Link> prefetch (`?_rsc=`) when the user navigates away from it; that abort is

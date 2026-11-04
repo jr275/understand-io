@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BRAND } from "@/lib/brand";
 
 /**
  * Everything about how the site presents itself to search engines and social cards, in one place: the public origin, the languages a page
@@ -6,7 +7,7 @@ import type { Metadata } from "next";
  * declared only for a page that exists in that language (`available`), so no `hreflang` ever points at a page that is not there.
  */
 
-export const SITE_NAME = "Understand.io";
+export const SITE_NAME = BRAND.name;
 
 /** The public origin, from `APP_URL` (so the address changes with the domain, never with a code change); undefined in previews and local work. */
 export function siteOrigin(env: Record<string, string | undefined> = process.env): URL | undefined {

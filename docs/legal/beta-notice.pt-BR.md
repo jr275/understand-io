@@ -1,10 +1,10 @@
-# Aviso de limitações da versão beta — Understand.io
+# Aviso de limitações da versão beta — Keeple.me
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
 **Última atualização:** ⚠️ [DECISÃO DO PROPRIETÁRIO: data na publicação]
 
-O Understand.io está em **beta**. Ele funciona, mas ainda está sendo construído. Leia isto antes de depender dele.
+O Keeple.me está em **beta**. Ele funciona, mas ainda está sendo construído. Leia isto antes de depender dele.
 
 - **Coisas podem mudar ou quebrar.** Recursos, limites e a aparência do aplicativo podem mudar. Partes podem ser pausadas ou removidas. Nenhuma disponibilidade nem suporte é prometida.
 - **Faça backup.** A sua biblioteca é salva no seu navegador e, quando o banco de dados do servidor está disponível, no nosso servidor. Ainda assim, dados podem ser perdidos. Use "Download backup" na biblioteca. O backup contém os textos guardados apenas no seu navegador, não os textos guardados apenas no servidor.

@@ -8,6 +8,7 @@ import { AddPanel } from "@/components/library/AddPanel";
 import { syncRemoteLibrary } from "@/lib/store/library";
 import { toast } from "@/lib/store/toast";
 import { GlossMark } from "./marks";
+import { BRAND } from "@/lib/brand";
 import { IconButton } from "@/components/ui/IconButton";
 import { Pop } from "@/components/ui/Pop";
 import { AppearancePanel } from "./AppearancePanel";
@@ -49,7 +50,7 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
         <Link aria-label={t("topbar.home")} className="rounded-md" href={localePath("/", locale)}>
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
-            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[430px]:sr-only"}`}>Understand.io</span>
+            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[430px]:sr-only"}`}>{BRAND.name}</span>
           </span>
         </Link>
       </div>

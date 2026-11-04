@@ -4,9 +4,10 @@ import { resolveAll } from "@/lib/anchors";
 import { AnnotationZ, DocumentIdZ, GlossZ, ProgressZ, isWellFormed } from "@/lib/anchors/schema";
 import { notebookMarkdown } from "@/components/reader/notebookMarkdown";
 import type { LibraryState } from "./library";
+import { BRAND } from "@/lib/brand";
 
 /** What a backup file says it is, so a different JSON file is refused with a clear reason. */
-export const BACKUP_APP = "understand-io";
+export const BACKUP_APP = BRAND.legacy.backupApp;
 export const BACKUP_VERSION = 1;
 /** A backup larger than this is refused before it is parsed (the browser keeps the whole library in a few megabytes). */
 export const MAX_BACKUP_BYTES = 40 * 1024 * 1024;
@@ -111,7 +112,7 @@ export function parseBackup(raw: string): ParseResult {
   } catch {
     return { ok: false, error: "That file is not a backup (it is not valid JSON)." };
   }
-  if (!json || typeof json !== "object" || (json as { app?: unknown }).app !== BACKUP_APP) return { ok: false, error: "That file is not an Understand.io backup." };
+  if (!json || typeof json !== "object" || (json as { app?: unknown }).app !== BACKUP_APP) return { ok: false, error: `That file is not a ${BRAND.name} backup.` };
   if ((json as { version?: unknown }).version !== BACKUP_VERSION) return { ok: false, error: "That backup was made by a different version and cannot be read." };
   const r = BackupZ.safeParse(json);
   if (!r.success) {

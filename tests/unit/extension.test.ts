@@ -33,6 +33,13 @@ describe("Chrome extension (milestone 1)", () => {
     expect(bg).toContain("e.origin !== origin"); // only Keeple's own tab may receive the page
   });
 
+  it("falls back to opening Keeple with the address filled in when the page's window is refused or the page cannot be scripted", () => {
+    const bg = read("background.js");
+    expect(bg).toMatch(/return false;/); // capture reports a refused window
+    expect(bg).toContain("r?.result === true");
+    expect(bg).toContain('chrome.tabs.create({ url: ORIGIN + "/?url=" + encodeURIComponent(tab.url) })');
+  });
+
   it("sends a page only after a click: no automatic listeners on page loads or navigation", () => {
     const bg = read("background.js");
     expect(bg).not.toMatch(/tabs\.onUpdated|webNavigation|onCommitted|onCompleted/);

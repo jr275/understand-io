@@ -6,6 +6,19 @@ The product is **Keeple**, served at **https://www.keeple.me**. The code now sho
 
 The server builds the Google redirect address, the canonical address and the social-card addresses from one variable, `APP_URL` (`src/lib/server/auth.ts`, `src/lib/seo/site.ts`). In Production it still holds the old Vercel address, so after sign-in the reader is sent back there, and Google prints that address on its consent screen ("Continue to …"). Nothing in the code has to change for the new domain; the variable and the Google client do.
 
+## What was observed on 2026-11-04 (read-only, from outside)
+
+| Check | Result |
+| --- | --- |
+| DNS | `keeple.me` and `www.keeple.me` resolve, and the zone's name servers are Vercel's: the domain is delegated to Vercel DNS |
+| Certificate | `www.keeple.me`, Let's Encrypt, valid from 2026-11-03 to 2027-02-01 |
+| Redirects | `http://www.keeple.me` and `https://keeple.me` answer `308` to `https://www.keeple.me/` |
+| Serving | `https://www.keeple.me/` answers `200` with production commit `dd0a0f8` and `database: ok`: it is the same deployment as the old address |
+| Title and canonical | `<title>Understand.io</title>` (this PR changes it) and canonical `https://understand-io.vercel.app` (`APP_URL`) |
+| Sign-in | `GET /api/auth/google` on `www.keeple.me` sets its state cookie on `www.keeple.me` and builds `redirect_uri=https://understand-io.vercel.app/api/auth/google/callback`: the return goes to a host that never received that cookie, so **sign-in started on `www.keeple.me` cannot complete today** |
+| Old address | `https://understand-io.vercel.app/` still answers `200` (no redirect configured) |
+| Google client | which redirect URIs and origins it holds cannot be read without the Console: not verified |
+
 ## What to set (in this order; each step is the owner's)
 
 | # | Where | Exact value |

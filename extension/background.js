@@ -20,18 +20,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 async function send(tab, kind) {
   // Only ordinary web pages: not chrome:// pages, the store, or a file.
   if (!tab?.id || !/^https?:\/\//.test(tab.url ?? "")) return;
-  await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: capture, args: [ORIGIN, kind] });
+  let handedOver = false;
+  try {
+    const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: capture, args: [ORIGIN, kind] });
+    handedOver = r?.result === true;
+  } catch {
+    handedOver = false; // the page cannot be scripted (a protected page, a closed tab)
+  }
+  // A browser may refuse a window that a page opens without its own click (a popup blocker). Keeple then opens from the extension with the address filled in:
+  // nothing is read until the reader presses Read there, and it needs no permission beyond the ones above.
+  if (!handedOver) await chrome.tabs.create({ url: ORIGIN + "/?url=" + encodeURIComponent(tab.url) });
 }
 
 // Runs inside the page (it must be self-contained). The same handshake as the bookmarklet: Keeple answers "understand:ready", the page then posts itself.
 // The two message names are the protocol's identifiers and stay as they are, so the bookmarklet and this extension speak the same language.
 function capture(origin, kind) {
   const w = window.open(origin + "/?capture=" + kind + "&url=" + encodeURIComponent(location.href));
-  if (!w) return;
+  if (!w) return false;
   function onMessage(e) {
     if (e.source !== w || e.origin !== origin || e.data !== "understand:ready") return;
     w.postMessage({ type: "understand:page", url: location.href, title: document.title, html: document.documentElement.outerHTML }, origin);
     removeEventListener("message", onMessage);
   }
   addEventListener("message", onMessage);
+  return true;
 }

@@ -5,7 +5,7 @@
  *
  * What is deliberately NOT here, because it is an internal identifier and renaming it would break data or users who already have it:
  * the `gloss_*` cookie names, the `GLOSS_*` environment variables, the database names and migrations, the package name, the repository name, the backup
- * file's `app` marker (`understand-io`, see `LEGACY`) and the bookmarklet's `understand:*` message types. See `docs/brand/keeple-migration.md`.
+ * file's `app` marker (`understand-io`, see `legacy`) and the bookmarklet's `understand:*` message types. See `docs/brand/keeple-migration.md`.
  *
  * This module has no imports, so server, client and edge code can all use it.
  */

@@ -421,7 +421,7 @@ export function VoiceSearch({ open, onClose, blocks, lang, onJump, onRead, onLis
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="font-serif text-[21px] leading-tight text-ink">{mode === "ask" ? "Ask about this text" : "Where does it talk about…"}</p>
-            <p className="mt-1 text-[13px] text-ink-3">{mode === "ask" ? "Ask aloud, or type. The answer is written from this text, with references you can check, and can be read to you." : "Ask aloud, or type. Understand.io searches this text only, and says so when nothing matches."}</p>
+            <p className="mt-1 text-[13px] text-ink-3">{mode === "ask" ? "Ask aloud, or type. The answer is written from this text, with references you can check, and can be read to you." : "Ask aloud, or type. Keeple searches this text only, and says so when nothing matches."}</p>
           </div>
           <button type="button" aria-label="Close" data-tip="Close" data-tip-kbd="Esc" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={onClose}>
             <X size={17} aria-hidden="true" />

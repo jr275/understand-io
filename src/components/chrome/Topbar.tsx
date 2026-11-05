@@ -42,10 +42,10 @@ export function Topbar({ variant = "landing", tools, center, after, progress, on
   const inner = (
     <>
       <div className="flex h-9 items-center gap-3.5 max-[380px]:gap-2.5">
-        <Link aria-label="Understand.io, back to your library" className="rounded-md" href="/">
+        <Link aria-label="Keeple, back to your library" className="rounded-md" href="/">
           <span className="flex h-9 items-center gap-[7px] text-ink">
             <GlossMark />
-            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[340px]:sr-only"}`}>Understand.io</span>
+            <span className={`block translate-y-[2px] font-serif text-[21px] font-[440] leading-[21px] tracking-[-0.018em] [font-variation-settings:'opsz'_36] ${reader ? "max-[480px]:sr-only" : "max-[340px]:sr-only"}`}>Keeple</span>
           </span>
         </Link>
       </div>

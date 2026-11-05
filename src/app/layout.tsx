@@ -47,11 +47,11 @@ const siteOrigin = (() => {
 export const metadata: Metadata = {
   metadataBase: siteOrigin,
   alternates: siteOrigin ? { canonical: "./" } : undefined,
-  title: { default: "Understand.io", template: "%s" },
+  title: { default: "Keeple", template: "%s" },
   description,
-  applicationName: "Understand.io",
-  openGraph: { title: "Understand.io", description, siteName: "Understand.io", type: "website" },
-  twitter: { card: "summary_large_image", title: "Understand.io", description },
+  applicationName: "Keeple",
+  openGraph: { title: "Keeple", description, siteName: "Keeple", type: "website" },
+  twitter: { card: "summary_large_image", title: "Keeple", description },
 };
 
 export const viewport: Viewport = {

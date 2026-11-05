@@ -104,7 +104,7 @@ export function AddPanel({ onClose, onSaved }: { onClose: () => void; onSaved: (
           <div className="mt-5">
             <p className="font-serif text-[19px] leading-tight text-ink">Save links to your library</p>
             <p className="mt-1 text-[13px] text-ink-3">
-              One or many, a line each. Understand.io reads each page in. PDFs work too. Leaving Pocket, Instapaper or Raindrop?{" "}
+              One or many, a line each. Keeple reads each page in. PDFs work too. Leaving Pocket, Instapaper or Raindrop?{" "}
               <button type="button" className="text-ink-2 underline decoration-rule-strong underline-offset-2 hover:text-ink" onClick={() => fileRef.current?.click()}>
                 Drop its export here
               </button>

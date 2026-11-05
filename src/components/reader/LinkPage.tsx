@@ -78,7 +78,7 @@ export function LinkPage({ doc }: { doc: GlossDocument }) {
         <section aria-label="Ways to read it here" className="mt-10">
           <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-3">To read it here</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-[14.5px] leading-relaxed text-ink-2">
-            <li>Open the page in your browser, select its text, and paste it with ⌘V (Ctrl+V) on any page of Understand.io.</li>
+            <li>Open the page in your browser, select its text, and paste it with ⌘V (Ctrl+V) on any page of Keeple.</li>
             <li>Or use the “Read in Understand” bookmarklet from the Add panel: it hands the page you are looking at to this app, including pages that need your login.</li>
             <li>If the page is a PDF behind a login, save the PDF and drop the file on any page here.</li>
           </ul>

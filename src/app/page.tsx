@@ -7,7 +7,7 @@ import { Desk } from "@/components/landing/Desk";
 import { Notice } from "@/components/chrome/Notice";
 import { LegalLinks } from "@/components/legal/LegalLinks";
 
-export const metadata: Metadata = { title: "Understand.io" };
+export const metadata: Metadata = { title: "Keeple" };
 
 export default async function LandingPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;

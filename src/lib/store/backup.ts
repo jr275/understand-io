@@ -111,7 +111,7 @@ export function parseBackup(raw: string): ParseResult {
   } catch {
     return { ok: false, error: "That file is not a backup (it is not valid JSON)." };
   }
-  if (!json || typeof json !== "object" || (json as { app?: unknown }).app !== BACKUP_APP) return { ok: false, error: "That file is not an Understand.io backup." };
+  if (!json || typeof json !== "object" || (json as { app?: unknown }).app !== BACKUP_APP) return { ok: false, error: "That file is not a Keeple backup." };
   if ((json as { version?: unknown }).version !== BACKUP_VERSION) return { ok: false, error: "That backup was made by a different version and cannot be read." };
   const r = BackupZ.safeParse(json);
   if (!r.success) {

@@ -51,7 +51,7 @@ export function PasteDialog({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-serif text-[19px] leading-tight text-ink">Paste text</p>
-              <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Understand.io will set it like an article.</p>
+              <p className="mt-1 text-[13px] text-ink-3">A chapter, an essay, notes. Keeple will set it like an article.</p>
             </div>
             <button type="button" aria-label="Close" className="grid size-9 place-items-center rounded-full text-ink-3 hover:bg-sunk hover:text-ink" onClick={onClose}>
               <X size={17} aria-hidden="true" />

@@ -420,7 +420,7 @@ export function LibraryPage({ serverDocs }: { serverDocs: Meta[] }) {
                   <Link2 size={20} aria-hidden="true" />
                 </span>
                 <span className="starter-title">Save your own links</span>
-                <span className="starter-body">Paste one or many. Understand.io reads each one in and sets it like an article.</span>
+                <span className="starter-body">Paste one or many. Keeple reads each one in and sets it like an article.</span>
               </button>
               <Link href="/" className="starter-card">
                 <span className="starter-icon is-agent">

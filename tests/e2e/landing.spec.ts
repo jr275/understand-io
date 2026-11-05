@@ -192,7 +192,7 @@ test.describe("landing", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Library" }).click();
     await expect(page).toHaveURL(/\/library$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your library");
-    await page.getByRole("link", { name: "Understand.io, back to your library" }).click();
+    await page.getByRole("link", { name: "Keeple, back to your library" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.waitForTimeout(400);
     // Next cancels a superseded <Link> prefetch (`?_rsc=`) when the user navigates away from it; that abort is

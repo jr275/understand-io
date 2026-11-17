@@ -13,7 +13,7 @@ Data: 2026-11-16 (verificações de produção às 01:28Z de 17/11). Auditor: se
 | `origin/main` | `dd0a0f8` (PR #15, 2026-11-03). Branch desta auditoria: `audit/mission-01-launch-triage` (worktree `~/gloss-reconstruction/gloss-triage`) | `git log` |
 | Checkout principal | está em `feat/keeple-brand-migration` (`697fd3e`), com 6 worktrees de outras sessões; **não foi tocado** | `git worktree list` |
 | Vercel | projeto `understand-io`, equipe `menlo6`; produção Ready, aliases `understand-io.vercel.app`, `understand-io-menlo6`, e domínio `www.keeple.me` (200) | `vercel ls`, curl |
-| Commit em produção | `/api/health` devolve `commit: ""` (campo vazio); o commit em produção é **inferido** de `origin/main` pelo horário do deploy, não provado | curl |
+| Commit em produção | **`0536acf`**, branch `hotfix/keeple-brand`, deploy `dpl_4obqqegCZePkKPK1nH7skKwyh8HD` (05/11), conferido na API de deployments da Vercel em 16/11. **Não é `origin/main`.** (Correção: a primeira versão deste relatório inferiu `dd0a0f8` e errou.) `/api/health` devolve `commit: ""` | `vercel inspect`, `vercel api` |
 
 ## 2. Arquitetura (resumo)
 
@@ -45,14 +45,14 @@ Data: 2026-11-16 (verificações de produção às 01:28Z de 17/11). Auditor: se
 | --- | --- | --- | --- | --- |
 | D1 | **P0** | **O build de produção falha hoje.** O advisory GHSA-mfr8-8qww-v76h (Next.js 16.3.0 a 16.4.4, moderado) faz `next build` terminar com `SecurityFatalError`. Produção segue servindo o deploy anterior, mas **qualquer novo deploy, redeploy ou promoção de código sai com erro** | `cd gloss-triage && pnpm install --frozen-lockfile && pnpm build` → exit 1 (compilação e TypeScript ok, falha na etapa final) | `build.log`; `pnpm audit --prod` → 1 moderada, corrigida em `next >=16.4.5` (16.4.6 existe) |
 | D2 | **P1** | **Login Google quebrado em `www.keeple.me`.** O redirect volta para `understand-io.vercel.app` (estado/cookie em hosts diferentes). Problema já registrado em 04/11 e ainda ativo | `curl -sD- https://www.keeple.me/api/auth/google` → `redirect_uri=https://understand-io.vercel.app/...` | curl hoje; `APP_URL` em produção ainda é o domínio antigo |
-| D3 | **P1** | A produção pública é a build de 03/11 (`dd0a0f8`, nome Understand.io); o trabalho Keeple (#12–#22) está **em PRs/branches não mesclados** e o checkout principal está em outra branch. Qualquer lançamento "Keeple" exige uma sequência de merge que o D1 bloqueia | `git branch -a`, `release/KEEPLE_*` no repo privado | docs de 04/11 |
+| D3 | **P1** | A produção pública é `0536acf` (hotfix de marca e trava `GLOSS_BUILD_MIGRATIONS`, que **não estão em `main`**: um deploy a partir de `main` perderia os dois); o restante do trabalho Keeple (#12–#22) está **em PRs/branches não mesclados** e o checkout principal está em outra branch. O PR #22 contém o conteúdo do `0536acf` (`scripts/vercel-build.mjs` e `tests/unit/vercelBuild.test.ts` idênticos; marca Keeple no lugar do nome antigo). Qualquer lançamento "Keeple" exige uma sequência de merge que o D1 bloqueia | `git branch -a`, `release/KEEPLE_*` no repo privado | docs de 04/11 |
 | D4 | **P1** | Proteção de custo é **parcial**: cotas e orçamento ficam no banco (bom), mas o freio final na Together (limite mensal na conta) é **BLOCKED**: só o dono confirma. Em 1.000 usuários típicos a IA compartilhada esgota o orçamento de US$ 40 no meio do mês (estimativa dos docs, não medição) | `docs/release/LAUNCH_READINESS.md` G4/G5 | — |
 | D5 | **P1** | Textos legais **não publicados** (`/privacy`, `/terms` respondem 404 por desenho) e Google OAuth possivelmente em "Testing": impedem lançamento público, não o beta | `post-deploy-check` SKIP; G8/G9 | docs |
 | D6 | P2 | `/api/health` devolve `commit: ""`, então não dá para provar qual build está no ar | curl | — |
 | D7 | P2 | Alerta detecta em horas (cron do GitHub ~6 h); falta monitor externo | G7 | docs |
 | D8 | P2 | Backup/restauração do Neon: janela de recuperação e ensaio no Neon real não confirmados | G10/G11 | docs |
 
-## 5. Evidência dos gates (esta árvore, `dd0a0f8`)
+## 5. Evidência dos gates (árvore de `origin/main`, `dd0a0f8`, **não** o código em produção; o bump do Next foi depois validado sobre o PR #22: 1428 testes passaram, build e audit verdes)
 
 | Gate | Comando | Resultado |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ Corrigir D1; mesclar apenas o necessário na ordem aprovada; **beta controlado p
 ## 10. Veredito
 
 - **Lançamento público: NO-GO.** Build quebrado (D1), login quebrado no domínio novo (D2), textos legais e consentimento Google pendentes (D5), freio de gasto na Together não confirmado (D4).
-- **Estado atual em produção (build de 03/11): beta controlado: CONDITIONAL GO.** Está saudável: 30 de 30 verificações, IA real respondendo, citações verificadas, banco ok, SSRF bloqueado. Condições: não depender de novo deploy até D1 ser corrigido; limite na Together.
+- **Estado atual em produção (`0536acf`): beta controlado: CONDITIONAL GO.** Está saudável: 30 de 30 verificações, IA real respondendo, citações verificadas, banco ok, SSRF bloqueado. Condições: não depender de novo deploy até D1 ser corrigido; limite na Together.
 - **Missão 02 pode começar?** **Sim, mas só com o escopo D1 primeiro** (bump de dependência, sem mudança de código nem de infraestrutura). Nada além disso antes de os gates ficarem verdes.
 
 ## Não verificado nesta passagem

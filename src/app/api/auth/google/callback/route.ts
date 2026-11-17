@@ -1,5 +1,6 @@
 import { appOrigin, exchangeGoogleCode, googleConfig, readOAuthCookie, redirectUri, safeNext, signInFailure, signInGoogle, writeSession } from "@/lib/server/auth";
 import { getReaderId } from "@/lib/server/reader";
+import { recordServerEvent } from "@/lib/server/analytics";
 
 export async function GET(req: Request) {
   let origin: string;
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
     const profile = await exchangeGoogleCode(cfg, code, saved.verifier, redirectUri(req));
     const account = await signInGoogle(profile, await getReaderId());
     await writeSession(account);
+    // The browser cannot be trusted to say it registered, so this event is recorded here (a no-op unless analytics is in `full` mode).
+    if (account.created) await recordServerEvent("account_registered", { method: "google" }, account.readerId, saved.attr);
     return Response.redirect(`${origin}${safeNext(saved.next)}`, 302);
   } catch (err) {
     return back(signInFailure(err));

@@ -1,6 +1,8 @@
 import type { Annotation, Block, Gloss } from "@/lib/content/types";
 import type { Resolved } from "@/lib/anchors";
 import { plainAnswer } from "./glossMarkdown";
+import { tNow } from "@/i18n/runtime";
+import type { MessageKey } from "@/i18n/translate";
 
 export interface NotebookExportInput {
   doc: { title: string; author?: string | null; sourceUrl?: string | null };
@@ -9,8 +11,8 @@ export interface NotebookExportInput {
   glosses: Resolved<Gloss>[];
 }
 
-const KIND_LABEL: Record<Annotation["kind"], string> = { highlight: "Highlight", underline: "Underline", note: "Note" };
-const GLOSS_LABEL: Record<string, string> = { explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text" };
+const KIND_LABEL: Record<Annotation["kind"], MessageKey> = { highlight: "marks.kindHighlight", underline: "marks.kindUnderline", note: "marks.kindNote" };
+const GLOSS_LABEL: Record<string, MessageKey> = { explain: "lens.explain", simplify: "lens.simplify", ask: "lens.ask", define: "lens.define", factcheck: "lens.factcheck", related: "lens.related", counterpoint: "lens.counterpoint", overview: "glosses.overview", whole: "glosses.whole" };
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
 
 /** Neutralise Markdown block syntax at the start of a line, so a note that begins with "# x" or "- y" stays text. */
@@ -51,15 +53,15 @@ export function notebookMarkdown({ doc, blocks, annotations, glosses }: Notebook
 
   const lines: string[] = [`# ${doc.title.replace(/\n/g, " ")}`];
   if (doc.author) lines.push(`*${doc.author.replace(/\n/g, " ")}*`);
-  if (doc.sourceUrl) lines.push(`Source: ${doc.sourceUrl}`);
+  if (doc.sourceUrl) lines.push(tNow("notebookMd.source", { url: doc.sourceUrl }));
   lines.push("");
 
   for (const g of byDocument(glosses)) {
     const orphan = g.status === "orphaned";
     const n = nOf(g);
-    lines.push(`## ${GLOSS_LABEL[g.item.action] ?? g.item.action}${n ? ` (¶${n})` : ""}${orphan ? " (couldn't find this passage)" : ""}, ${day(g.item.createdAt)}`);
+    lines.push(`## ${GLOSS_LABEL[g.item.action] ? tNow(GLOSS_LABEL[g.item.action]) : g.item.action}${n ? ` (¶${n})` : ""}${orphan ? tNow("notebookMd.notFoundSuffix") : ""}, ${day(g.item.createdAt)}`);
     if (g.item.anchor) lines.push(...quoteLines(g.item.anchor.quote), "");
-    for (const t of g.item.turns) lines.push(...labelled(`**${t.role === "user" ? "Q" : "A"}:**`, plainAnswer(t.content)), "");
+    for (const t of g.item.turns) lines.push(...labelled(`**${t.role === "user" ? tNow("notebookMd.q") : tNow("notebookMd.a")}:**`, plainAnswer(t.content)), "");
   }
 
   const live = byDocument(annotations.filter((r) => r.status !== "orphaned"));
@@ -68,17 +70,17 @@ export function notebookMarkdown({ doc, blocks, annotations, glosses }: Notebook
     const a = r.item;
     const n = nOf(r);
     const meta = [n ? `¶${n}` : "", a.kind === "underline" ? "" : (a.color ?? "yellow"), day(a.createdAt)].filter(Boolean).join(", ");
-    lines.push(`- **${KIND_LABEL[a.kind]}** (${meta})${orphan ? " (couldn't find this passage)" : ""}`);
+    lines.push(`- **${tNow(KIND_LABEL[a.kind])}** (${meta})${orphan ? tNow("notebookMd.notFoundSuffix") : ""}`);
     lines.push(...quoteLines(a.anchor.quote, "  "));
     if (a.note) lines.push("", ...block(a.note, "  "));
     lines.push("");
   };
   if (live.length) {
-    lines.push("## Highlights and notes", "");
+    lines.push(`## ${tNow("notebookMd.highlightsAndNotes")}`, "");
     live.forEach((r) => item(r, false));
   }
   if (lost.length) {
-    lines.push("## Passages that could not be found in the text any more", "");
+    lines.push(`## ${tNow("notebookMd.lost")}`, "");
     lost.forEach((r) => item(r, true));
   }
   return `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;

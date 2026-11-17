@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AiItem, AiResult, Block, Coverage, SummaryVariant } from "@/lib/content/types";
 import { checkItems, type ProposedItem } from "./evidence";
-import { languageName } from "./languages";
+import { INTERFACE_LANGUAGE_NAME, languageName } from "./languages";
 import { UNTRUSTED_RULE, fenceDocument } from "./prompts";
 
 /**
@@ -33,6 +33,8 @@ export interface AiOpInput {
   targetLang?: string;
   /** Language of the output for summaries, concepts and questions; default: the text's own language. */
   outputLang?: string;
+  /** The language of the reader's interface (`en` or `pt-BR`): the default for what is written when no `outputLang` is chosen. */
+  uiLang?: string;
 }
 
 export type Generate = (a: { system: string; prompt: string; maxOutputTokens: number; signal?: AbortSignal }) => Promise<{ text: string; inputTokens: number; outputTokens: number }>;
@@ -62,8 +64,10 @@ const RULES = [
 
 const SHAPE = '{"items":[{"label":"optional short label","text":"…","basis":"text","evidence":[{"id":"p3","quote":"…"}]}],"caveats":["optional short notes on limits of the text"]}';
 
-function langLine(outputLang?: string) {
-  return outputLang ? `Write all text you produce (not the quotes) in ${languageName(outputLang)}.` : "Write in the language of the text.";
+function langLine(outputLang?: string, uiLang?: string) {
+  if (outputLang) return `Write all text you produce (not the quotes) in ${languageName(outputLang)}.`;
+  const ui = uiLang ? INTERFACE_LANGUAGE_NAME[uiLang] : undefined;
+  return ui ? `Write all text you produce (not the quotes) in ${ui}, the language the reader's interface is set to, whatever language the text is in.` : "Write in the language of the text.";
 }
 
 const VARIANT_TASK: Record<SummaryVariant, string> = {
@@ -297,7 +301,7 @@ export async function runAiOp(input: AiOpInput, generate: Generate, signal?: Abo
 
   const task = input.op === "summarize" ? VARIANT_TASK[variant] : input.op === "concepts" ? "List the key concepts and technical terms a reader needs for this text. One item per term: put the term in label and explain it as this text uses it." : "Write five comprehension questions that check whether the reader understood the text, mixing questions answered directly by the text with ones that need inference. Put the question in text and the answer, grounded in the text, in answer.";
   const maxOutputTokens = input.op === "summarize" ? VARIANT_TOKENS[variant] : 1300;
-  const system = [...RULES, task, `Shape: ${SHAPE}`, langLine(input.outputLang), isPassage ? "" : coverageLine(coverage)].filter(Boolean).join(" ");
+  const system = [...RULES, task, `Shape: ${SHAPE}`, langLine(input.outputLang, input.uiLang), isPassage ? "" : coverageLine(coverage)].filter(Boolean).join(" ");
   const body = digest
     ? `${head(input)}\n\nThe text is long, so it was read section by section. Combine these notes into your answer; quote ids and quotes only from the notes' evidence.\n\n${fenceDocument(`${outline(read)}${digest}`)}`
     : isPassage

@@ -6,6 +6,10 @@ import type { Anchor, Annotation, Block, Gloss, GlossDocument } from "@/lib/cont
 import type { Resolved } from "@/lib/anchors";
 import { renderGlossBody } from "./glossMarkdown";
 import { notebookMarkdown } from "./notebookMarkdown";
+import { tNow } from "@/i18n/runtime";
+import { useT } from "@/i18n/client";
+import type { MessageKey } from "@/i18n/translate";
+import { localizeServerMessage as lm } from "@/i18n/serverMessages";
 
 interface Props {
   open: boolean;
@@ -27,6 +31,7 @@ interface Props {
 type Tab = "all" | "questions" | "highlights";
 
 export function Notebook(p: Props) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>("all");
   if (!p.open) return null;
   // Paragraph numbers come from where the passage is now, not from the stored (possibly stale) anchor.
@@ -44,23 +49,23 @@ export function Notebook(p: Props) {
   const markdown = () => notebookMarkdown({ doc: p.doc, blocks: p.blocks, annotations: p.annotations, glosses: p.glosses.filter((r) => r.item.status !== "streaming") });
 
   return (
-    <aside aria-label="Notebook" className="fixed bottom-2.5 left-2.5 right-2.5 top-[calc(var(--topbar-h)+6px)] z-[45] max-sm:top-[14vh] flex flex-col overflow-hidden rounded-[18px] border border-rule bg-raised shadow-pop sm:left-auto sm:w-[420px]" style={{ animation: "sheet-in 0.38s var(--ease-out)" }}>
+    <aside aria-label={t("notebook.panel")} className="fixed bottom-2.5 left-2.5 right-2.5 top-[calc(var(--topbar-h)+6px)] z-[45] max-sm:top-[14vh] flex flex-col overflow-hidden rounded-[18px] border border-rule bg-raised shadow-pop sm:left-auto sm:w-[420px]" style={{ animation: "sheet-in 0.38s var(--ease-out)" }}>
       <header className="shrink-0 border-b border-transparent px-5 pb-3.5 pt-4">
         <div className="flex items-center gap-1">
           <div className="min-w-0 flex-1">
-            <h2 className="font-serif text-[23px] font-[420] leading-none tracking-[-0.015em] text-ink [font-variation-settings:'opsz'_36]">Notebook</h2>
+            <h2 className="font-serif text-[23px] font-[420] leading-none tracking-[-0.015em] text-ink [font-variation-settings:'opsz'_36]">{t("notebook.panel")}</h2>
             <p className="mt-1.5 text-[12.5px] leading-none text-ink-3">
-              {qCount} question{qCount === 1 ? "" : "s"}, {hCount} highlight{hCount === 1 ? "" : "s"}
-              {lostCount ? <span className="text-rubric-text">, {lostCount} not found in the text</span> : null}
+              {t("notebook.summary", { questions: t("notebook.nQuestions", { n: qCount }), highlights: t("notebook.nHighlights", { n: hCount }) })}
+              {lostCount ? <span className="text-rubric-text">{t("notebook.lost", { n: lostCount })}</span> : null}
             </p>
           </div>
-          <button type="button" aria-label="Copy as Markdown" data-tip="Copy as Markdown" disabled={!items.length} className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink disabled:pointer-events-none disabled:opacity-35" onClick={() => void navigator.clipboard?.writeText(markdown())}>
+          <button type="button" aria-label={t("notebook.copyMd")} data-tip={t("notebook.copyMd")} disabled={!items.length} className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink disabled:pointer-events-none disabled:opacity-35" onClick={() => void navigator.clipboard?.writeText(markdown())}>
             <Copy size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
-            aria-label="Download Markdown"
-            data-tip="Download Markdown"
+            aria-label={t("notebook.downloadMd")}
+            data-tip={t("notebook.downloadMd")}
             disabled={!items.length}
             className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink disabled:pointer-events-none disabled:opacity-35"
             onClick={() => {
@@ -75,16 +80,16 @@ export function Notebook(p: Props) {
             <Download size={16} aria-hidden="true" />
           </button>
           <span aria-hidden="true" className="mx-1 h-4 w-px bg-rule" />
-          <button type="button" aria-label="Close notebook" data-tip="Close notebook" className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={p.onClose}>
+          <button type="button" aria-label={t("notebook.close")} data-tip={t("notebook.close")} className="grid size-9 place-items-center rounded-full text-ink-3 transition-colors hover:bg-sunk hover:text-ink" onClick={p.onClose}>
             <X size={17} aria-hidden="true" />
           </button>
         </div>
-        <div role="tablist" aria-label="Show" className="mt-4 grid grid-cols-3 rounded-[10px] bg-sunk p-[3px]">
+        <div role="tablist" aria-label={t("notebook.show")} className="mt-4 grid grid-cols-3 rounded-[10px] bg-sunk p-[3px]">
           {(
             [
-              ["all", "All", qCount + hCount],
-              ["questions", "Questions", qCount],
-              ["highlights", "Highlights", hCount],
+              ["all", t("notebook.tabAll"), qCount + hCount],
+              ["questions", t("notebook.tabQuestions"), qCount],
+              ["highlights", t("notebook.tabHighlights"), hCount],
             ] as const
           ).map(([id, label, count]) => (
             <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)} className={`flex h-7 items-center justify-center gap-1.5 rounded-[8px] text-[12.5px] font-medium transition-colors ${tab === id ? "bg-pill text-ink shadow-[0_1px_2px_rgb(0_0_0/0.1)]" : "text-ink-3 hover:text-ink"}`}>
@@ -96,7 +101,7 @@ export function Notebook(p: Props) {
       </header>
       <div className="scroll-thin flex-1 overflow-y-auto px-3.5 pb-4 pt-0.5">
         {items.length === 0 ? (
-          <p className="px-2 pt-10 text-center text-[13.5px] leading-relaxed text-ink-3">Nothing here yet. Select a line in the text to ask about it, highlight it or leave a note.</p>
+          <p className="px-2 pt-10 text-center text-[13.5px] leading-relaxed text-ink-3">{t("notebook.empty")}</p>
         ) : (
           <ol className="space-y-2.5">
             {items.map((it, i) =>
@@ -110,9 +115,9 @@ export function Notebook(p: Props) {
                     <button type="button" className="block w-full pr-7 text-left" disabled={it.orphaned} onClick={() => it.anchor && p.onJump(it.anchor)}>
                       <span className="flex items-center gap-2 text-[11.5px] leading-none text-ink-3">
                         {nOf(it.anchor) ? <span className="cite pointer-events-none !m-0 !text-[11px]">¶{nOf(it.anchor)}</span> : null}
-                        <span className="font-medium text-ink-2">{it.a.kind === "note" ? "Note" : it.a.kind === "underline" ? "Underline" : "Highlight"}</span>
+                        <span className="font-medium text-ink-2">{it.a.kind === "note" ? t("marks.kindNote") : it.a.kind === "underline" ? t("marks.kindUnderline") : t("marks.kindHighlight")}</span>
                         <span className="text-ink-4">{ago(it.a.createdAt)}</span>
-                        {it.orphaned ? <span className="rounded-full bg-sunk px-2 py-1 font-medium text-rubric-text">Couldn&rsquo;t find this passage</span> : null}
+                        {it.orphaned ? <span className="rounded-full bg-sunk px-2 py-1 font-medium text-rubric-text">{t("notebook.notFound")}</span> : null}
                       </span>
                       <span className="mt-2.5 block font-serif text-[15.5px] leading-[1.5] text-ink">
                         {it.orphaned ? (
@@ -125,7 +130,7 @@ export function Notebook(p: Props) {
                       </span>
                       {it.a.note ? <span className="mt-2 block text-[13.5px] leading-[1.5] text-ink-2">{it.a.note}</span> : null}
                     </button>
-                    <button type="button" aria-label="Remove" data-tip="Remove" className={`absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 ${it.orphaned ? "opacity-100" : "opacity-0"}`} onClick={() => p.onRemoveAnnotation(it.a.id)}>
+                    <button type="button" aria-label={t("notebook.remove")} data-tip={t("notebook.remove")} className={`absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 ${it.orphaned ? "opacity-100" : "opacity-0"}`} onClick={() => p.onRemoveAnnotation(it.a.id)}>
                       <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </article>
@@ -134,17 +139,18 @@ export function Notebook(p: Props) {
             )}
           </ol>
         )}
-        <p className="px-1 pb-1 pt-4 text-center text-[12.5px] leading-relaxed text-ink-3">{p.persisted ? "Kept in this browser and in your library on this server." : "These live in this browser only."}</p>
+        <p className="px-1 pb-1 pt-4 text-center text-[12.5px] leading-relaxed text-ink-3">{p.persisted ? t("landing.keptBoth") : t("landing.keptLocal")}</p>
       </div>
     </aside>
   );
 }
 
 function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: number; onOpen: () => void; onDelete: () => void; onCite: (n: number) => void; valid: Set<number> | null }) {
+  const t = useT();
   const [full, setFull] = useState(false);
-  const q = g.turns.find((t) => t.role === "user")?.content ?? "What does this mean here?";
+  const q = g.turns.find((t) => t.role === "user")?.content ?? t("notebook.defaultQuestion");
   const a = g.turns.filter((t) => t.role === "assistant").slice(-1)[0]?.content ?? "";
-  const label = ({ explain: "Explain", simplify: "Simplify", ask: "Ask", define: "Define", factcheck: "Fact-check", related: "Related", counterpoint: "Counterpoint", overview: "Gloss", whole: "Whole text", summarize: "Summary", translate: "Translation", concepts: "Concepts", questions: "Questions" } as Record<string, string>)[g.action] ?? "Ask";
+  const label = t(({ explain: "lens.explain", simplify: "lens.simplify", ask: "lens.ask", define: "lens.define", factcheck: "lens.factcheck", related: "lens.related", counterpoint: "lens.counterpoint", overview: "glosses.overview", whole: "glosses.whole", summarize: "notebook.labelSummary", translate: "notebook.labelTranslation", concepts: "notebook.labelConcepts", questions: "notebook.labelQuestions" } as Record<string, MessageKey>)[g.action] ?? "lens.ask");
   return (
     <article className="group relative rounded-[14px] border border-rule bg-bg px-4 pb-4 pt-3.5 transition-colors hover:border-rule-strong">
       <button type="button" className="block w-full pr-7 text-left" onClick={onOpen}>
@@ -159,22 +165,22 @@ function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: nu
         <div>
           <div className="grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-rubric-text">Q</span>
-            <p className="font-serif text-[16.5px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{g.action === "ask" || g.action === "whole" ? q : ({ explain: "What does this mean here?", simplify: "Say it plainly.", define: "Define this.", factcheck: "Does this hold up?", related: "Where else is this taken up?", counterpoint: "What is the strongest objection?", overview: "What is the gist?" } as Record<string, string>)[g.action]}</p>
+            <p className="font-serif text-[16.5px] leading-[1.35] text-ink [font-variation-settings:'opsz'_24]">{g.action === "ask" || g.action === "whole" ? q : t(({ explain: "notebook.qExplain", simplify: "notebook.qSimplify", define: "notebook.qDefine", factcheck: "notebook.qFactcheck", related: "notebook.qRelated", counterpoint: "notebook.qCounterpoint", overview: "notebook.qOverview" } as Record<string, MessageKey>)[g.action] ?? "notebook.defaultQuestion")}</p>
           </div>
           <div className="mt-2 grid grid-cols-[16px_minmax(0,1fr)] items-baseline gap-x-2">
             <span aria-hidden="true" className="text-[11.5px] font-semibold leading-none text-ink-4">A</span>
             <div className="min-w-0">
-              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{g.error}</p> : renderGlossBody(a, onCite, false, valid)}</div>
+              <div className={`gloss-body !text-[14px] !leading-[1.55] text-ink-2 ${full ? "" : "nb-clamp is-over"}`}>{g.error ? <p className="text-rubric-text">{lm(g.error)}</p> : renderGlossBody(a, onCite, false, valid)}</div>
               {!full && a.length > 240 ? (
                 <button type="button" className="mt-1.5 text-[12.5px] font-medium text-ink-3 transition-colors hover:text-ink" onClick={() => setFull(true)}>
-                  Read the whole answer
+                  {t("notebook.readWhole")}
                 </button>
               ) : null}
             </div>
           </div>
         </div>
       </div>
-      <button type="button" aria-label="Delete this question" data-tip="Delete" className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100" onClick={onDelete}>
+      <button type="button" aria-label={t("notebook.deleteQuestion")} data-tip={t("notebook.delete")} className="absolute right-2.5 top-2.5 grid size-7 place-items-center rounded-full text-ink-4 opacity-0 transition-opacity hover:bg-sunk hover:text-ink focus-visible:opacity-100 group-hover:opacity-100" onClick={onDelete}>
         <Trash2 size={14} aria-hidden="true" />
       </button>
     </article>
@@ -183,11 +189,11 @@ function GlossItem({ g, n, onOpen, onDelete, onCite, valid }: { g: Gloss; n?: nu
 
 export function ago(t: number) {
   const s = Math.max(1, Math.round((Date.now() - t) / 1000));
-  if (s < 60) return "just now";
+  if (s < 60) return tNow("time.justNow");
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return tNow("time.minAgo", { n: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return tNow("time.hAgo", { n: h });
   const d = Math.round(h / 24);
-  return `${d} d ago`;
+  return tNow("time.dAgo", { n: d });
 }

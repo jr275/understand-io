@@ -5,6 +5,7 @@ import { getDb, type Db } from "@/lib/db/client";
 import { accounts, annotations, documents, glosses, readers, readingProgress, settings } from "@/lib/db/schema";
 import { describeDbError } from "./dbErrors";
 import { newReaderId, setReaderCookie, signToken, verifyToken } from "./reader";
+import { cleanAttribution, hasAttribution, type Attribution } from "@/lib/analytics/attribution";
 
 export const SESSION_COOKIE = "gloss_session";
 export const OAUTH_COOKIE = "gloss_oauth";
@@ -44,6 +45,8 @@ export interface OAuthState {
   state: string;
   verifier: string;
   next: string;
+  /** Where the visit came from, carried through the sign-in so a registration can be credited to a channel. Present only when the browser sent it (analytics mode `full`). */
+  attr?: Attribution;
 }
 
 /** A same-site path only: one leading slash (never `//` or `/\`), no scheme, no control characters. Anything else becomes the library. */
@@ -51,8 +54,9 @@ export function safeNext(next: string): string {
   return next.length <= 512 && /^\/(?![/\\])[\w\-./?=&%#]*$/.test(next) ? next : "/library";
 }
 
-export function newOAuthState(next: string): OAuthState {
-  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: safeNext(next) };
+export function newOAuthState(next: string, attr?: unknown): OAuthState {
+  const clean = attr ? cleanAttribution(attr) : null;
+  return { state: randomBytes(16).toString("base64url"), verifier: randomBytes(32).toString("base64url"), next: safeNext(next), ...(clean && hasAttribution(clean) ? { attr: clean } : {}) };
 }
 
 export function codeChallenge(verifier: string) {
@@ -125,6 +129,8 @@ export async function exchangeGoogleCode(cfg: GoogleConfig, code: string, verifi
 /* ------------------------------------------------------------------ accounts & sessions */
 
 export interface Account {
+  /** True only on the sign-in that created the account. */
+  created?: boolean;
   id: string;
   readerId: string;
   email: string | null;
@@ -178,7 +184,7 @@ export async function signInGoogle(profile: GoogleProfile, currentReaderId: stri
     await db.insert(readers).values({ id: readerId }).onConflictDoNothing();
     try {
       await db.insert(accounts).values({ id, provider: "google", subject: profile.sub, readerId, ...patch });
-      return { id, readerId, ...patch };
+      return { id, readerId, ...patch, created: true };
     } catch (err) {
       if (attempt >= 2 || !isUniqueViolation(err)) throw err;
       readerId = newReaderId();

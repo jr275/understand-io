@@ -1,4 +1,4 @@
-# Contributing to Understand.io
+# Contributing to Keeple
 
 ## Branches
 

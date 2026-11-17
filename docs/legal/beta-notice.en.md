@@ -1,10 +1,10 @@
-# Beta limitations notice — Understand.io
+# Beta limitations notice — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
 **Last updated:** ⚠️ [OWNER DECISION: date at publication]
 
-Understand.io is in **beta**. It works, but it is still being built. Please read this before you rely on it.
+Keeple is in **beta**. It works, but it is still being built. Please read this before you rely on it.
 
 - **Things can change or break.** Features, limits and the look of the app may change. Parts may be paused or removed. No uptime or support is promised.
 - **Keep a backup.** Your library is saved in your browser and, when the server database is available, on our server. Data can still be lost. Use "Download backup" in the library. The backup holds the texts kept only in your browser, not texts kept only on the server.

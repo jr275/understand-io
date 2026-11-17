@@ -1,3 +1,4 @@
+import { analyticsMode } from "@/lib/server/analytics";
 import { codeChallenge, googleConfig, newOAuthState, redirectUri, writeOAuthCookie } from "@/lib/server/auth";
 
 /** Start Google sign-in. Answers 503 with a clear message when the server has no credentials. */
@@ -10,8 +11,17 @@ export async function GET(req: Request) {
   } catch (err) {
     return Response.json({ error: "not-configured", message: err instanceof Error ? err.message : "APP_URL is not set." }, { status: 503 });
   }
-  const next = new URL(req.url).searchParams.get("next") ?? "/library";
-  const s = newOAuthState(next);
+  const params = new URL(req.url).searchParams;
+  const next = params.get("next") ?? "/library";
+  // First-touch attribution from the tab (only sent when analytics is in `full` mode); untrusted, so it is re-validated inside.
+  let attr: unknown;
+  try {
+    const raw = params.get("attr");
+    attr = raw && raw.length < 600 && analyticsMode() === "full" ? JSON.parse(raw) : undefined;
+  } catch {
+    attr = undefined;
+  }
+  const s = newOAuthState(next, attr);
   await writeOAuthCookie(s);
   const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   u.searchParams.set("client_id", cfg.clientId);

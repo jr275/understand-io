@@ -132,7 +132,7 @@ test.describe("reader", () => {
     await page.getByRole("button", { name: "Add a link, PDF or text" }).click();
     const dialog = page.getByRole("dialog", { name: "Add to the library" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "Open files" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Upload files" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
 

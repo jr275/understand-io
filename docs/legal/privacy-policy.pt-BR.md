@@ -1,10 +1,10 @@
-# Política de Privacidade — Understand.io
+# Política de Privacidade — Keeple
 
 > **RASCUNHO. NÃO É ACONSELHAMENTO JURÍDICO.** Este texto foi escrito a partir do funcionamento do código do aplicativo. Ele não foi revisado por um advogado. **Não o publique** até que o proprietário preencha todos os campos marcados com ⚠️ e que uma revisão jurídica seja feita.
 
 **Última atualização:** ⚠️ [DECISÃO DO PROPRIETÁRIO: data na publicação]
 
-O Understand.io é um companheiro de leitura. Você importa artigos, PDFs ou textos, lê, destaca, escreve notas e faz perguntas a uma IA sobre trechos. Esta política diz o que o aplicativo guarda, onde guarda, quem mais recebe dados e o que você pode fazer a respeito. O serviço está em versão beta (veja o Aviso de limitações da versão beta).
+O Keeple é um companheiro de leitura. Você importa artigos, PDFs ou textos, lê, destaca, escreve notas e faz perguntas a uma IA sobre trechos. Esta política diz o que o aplicativo guarda, onde guarda, quem mais recebe dados e o que você pode fazer a respeito. O serviço está em versão beta (veja o Aviso de limitações da versão beta).
 
 ## 1. Quem opera o serviço
 
@@ -43,7 +43,18 @@ Os cookies só são definidos quando o aplicativo salva algo para você ou quand
 | `gloss_session` | Mantém você conectado (somente depois do login com o Google). Contém o identificador da sua conta. | 90 dias |
 | `gloss_oauth` | Estado temporário de uma tentativa de login. Enviado somente às páginas de login. | 10 minutos |
 
-O aplicativo não inclui serviço de publicidade, de análise (analytics) nem de rastreamento. ⚠️ [REVISÃO JURÍDICA: se esses cookies exigem banner de consentimento ou outro aviso nos países que você atende]
+Por padrão, o aplicativo não inclui serviço de publicidade, de análise (analytics) nem de rastreamento. Se o operador ativar a análise de uso própria do produto, vale a seção 3A. ⚠️ [REVISÃO JURÍDICA: se esses cookies exigem banner de consentimento ou outro aviso nos países que você atende]
+
+## 3A. Análise de uso do produto (somente se o operador ativar)
+
+Por padrão, o aplicativo não mede como é usado. O operador pode ativar uma análise de uso própria: o aplicativo registra contagens de ações por conta própria e não envia nada a serviço de análise nem a qualquer terceiro. ⚠️ [DECISÃO DO PROPRIETÁRIO: se a análise de uso é ativada e em qual dos dois modos abaixo]
+
+Em qualquer dos modos, um registro diz apenas que uma ação aconteceu, nunca o que você leu ou escreveu. Um registro tem o tipo da ação (por exemplo, "um texto foi aberto"), poucas escolhas fixas (por exemplo, que o texto era um PDF, ou que uma pergunta usou a chave compartilhada), o tipo de página, a hora e, se você chegou por um link de campanha, o canal de origem. Nunca tem texto, título, endereço web, nota, pergunta à IA, resposta, nem as palavras que você buscou. Nada é registrado se o seu navegador enviar Do Not Track ou Global Privacy Control.
+
+- **Modo diário.** Um registro é ligado a um código feito com o seu endereço de rede, a descrição do seu navegador e a data, misturados com um segredo guardado no servidor. O endereço e a descrição não são guardados, só o código. Isto é **dado pseudonimizado, não anônimo**: durante um dia o código distingue o seu navegador dos demais, e o operador, que tem o segredo, poderia recriá-lo para um endereço e um navegador conhecidos. O código muda todo dia, então não acompanha você de um dia para o outro. Nada é guardado no seu dispositivo.
+- **Modo completo.** Um registro é ligado a um código derivado do seu identificador de leitor (o id aleatório do cookie `gloss_reader`), o mesmo todos os dias, para que o operador veja se as pessoas voltam. O identificador de leitor em si não está no registro. O link de campanha que trouxe você fica no armazenamento de sessão do navegador até você fechar a aba. ⚠️ [REVISÃO JURÍDICA: se o modo completo exige consentimento prévio (banner ou escolha) nos países atendidos, e qual base legal se aplica]
+
+Os registros são apagados automaticamente após ⚠️ [DECISÃO DO PROPRIETÁRIO: quantos dias os registros de análise são guardados; o padrão do aplicativo é 120]. ⚠️ [REVISÃO JURÍDICA: como um pedido de exclusão ou de acesso a registros de análise é atendido no modo completo, em que ficam ligados a um código e não a um nome]
 
 ## 4. Login com o Google
 
@@ -101,7 +112,7 @@ No aplicativo você pode excluir conteúdo, baixar um backup e uma exportação 
 
 ## 13. Crianças e adolescentes
 
-⚠️ [DECISÃO DO PROPRIETÁRIO: idade mínima para usar o Understand.io]. ⚠️ [REVISÃO JURÍDICA: regras sobre dados de crianças e adolescentes nos países que você atende]
+⚠️ [DECISÃO DO PROPRIETÁRIO: idade mínima para usar o Keeple]. ⚠️ [REVISÃO JURÍDICA: regras sobre dados de crianças e adolescentes nos países que você atende]
 
 ## 14. Segurança
 

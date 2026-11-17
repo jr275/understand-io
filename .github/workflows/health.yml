@@ -21,18 +21,35 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check the live site (database, AI, budget)
+      - name: Check the live site (liveness always; database, AI and budget when a token is set)
         env:
-          URL: ${{ inputs.url || vars.HEALTH_URL || 'https://understand-io.vercel.app' }}
+          URL: ${{ inputs.url || vars.HEALTH_URL || 'https://www.keeple.me' }}
+          HEALTH_TOKEN: ${{ secrets.GLOSS_HEALTH_TOKEN }}
         run: |
+          # Liveness never touches the database. Readiness (database, AI ledger, storage) needs the token; the token is sent as a header, never in the URL.
           code=000
           for i in 1 2 3; do
-            code=$(curl -s -o health.json -w '%{http_code}' --max-time 20 "$URL/api/health?strict=1" || true)
+            code=$(curl -s -o health.json -w '%{http_code}' --max-time 20 "$URL/api/health" || true)
             [ "$code" = "200" ] && break
             sleep 20
           done
           cat health.json 2>/dev/null; echo
           if [ "$code" != "200" ]; then
-            echo "::error::The health check of $URL answered $code (503 means the database is down, or the AI is failing or paused by its budget; see the reasons in the body)."
+            echo "::error::The liveness check of $URL answered $code: the site is not answering."
+            exit 1
+          fi
+          if [ -z "$HEALTH_TOKEN" ]; then
+            echo "::warning::GLOSS_HEALTH_TOKEN is not set as a repository secret: only liveness was checked, not the database, the AI or the budget."
+            exit 0
+          fi
+          code=000
+          for i in 1 2 3; do
+            code=$(curl -s -o ready.json -w '%{http_code}' --max-time 20 -H "Authorization: Bearer $HEALTH_TOKEN" "$URL/api/health/ready?strict=1" || true)
+            [ "$code" = "200" ] && break
+            sleep 20
+          done
+          cat ready.json 2>/dev/null; echo
+          if [ "$code" != "200" ]; then
+            echo "::error::The readiness check of $URL answered $code (503 means the database is down, or the AI is failing or paused by its budget, or storage is at 85%; see the reasons in the body above; 401 or 404 means the token does not match the one in the deployment)."
             exit 1
           fi

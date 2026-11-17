@@ -5,6 +5,7 @@ import type { Annotation, Gloss, GlossDocument, ReadingProgress } from "@/lib/co
 import { clampNote } from "@/lib/anchors";
 import { toast } from "./toast";
 import type { RestorePlan } from "./backup";
+import { tNow } from "@/i18n/runtime";
 
 /**
  * Local-first store. Everything is kept in localStorage under `gloss:v1` so the app works
@@ -126,7 +127,7 @@ async function call<T>(path: string, init?: RequestInit, quiet: number[] = []): 
     if (!res.ok) {
       if (mutating && res.status >= 400 && !quiet.includes(res.status) && Date.now() - warned > 8000) {
         warned = Date.now();
-        toast(res.status === 400 ? "That could not be saved to your library (invalid data). It is kept in this browser." : "Could not sync to your library. Kept in this browser.", { ttl: 5000 });
+        toast(res.status === 400 ? tNow("srv.invalidData") : tNow("srv.syncFailed"), { ttl: 5000 });
       }
       return { status: res.status, data: null };
     }
@@ -134,7 +135,7 @@ async function call<T>(path: string, init?: RequestInit, quiet: number[] = []): 
   } catch {
     if (mutating && Date.now() - warned > 8000) {
       warned = Date.now();
-      toast("You seem to be offline. Changes are kept in this browser and sync when you reload.", { ttl: 5000 });
+      toast(tNow("srv.offline"), { ttl: 5000 });
     }
     return null;
   }

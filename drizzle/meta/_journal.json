@@ -50,6 +50,13 @@
       "when": 1793069341895,
       "tag": "0006_ai_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793589095932,
+      "tag": "0007_analytics_events",
+      "breakpoints": true
     }
   ]
 }

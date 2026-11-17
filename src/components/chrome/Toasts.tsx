@@ -2,8 +2,10 @@
 
 import { X } from "lucide-react";
 import { dismissToast, useToasts } from "@/lib/store/toast";
+import { useT } from "@/i18n/client";
 
 export function Toasts({ bottom = 84 }: { bottom?: number }) {
+  const tr = useT();
   const toasts = useToasts();
   if (!toasts.length) return null;
   const t = toasts[toasts.length - 1];
@@ -19,7 +21,7 @@ export function Toasts({ bottom = 84 }: { bottom?: number }) {
           {t.action.label}
         </button>
       ) : null}
-      <button type="button" aria-label="Dismiss" className="grid size-7 place-items-center rounded-full text-lens-mute hover:bg-lens-hover hover:text-lens-fg" onClick={() => dismissToast(t.id)}>
+      <button type="button" aria-label={tr("common.dismiss")} className="grid size-7 place-items-center rounded-full text-lens-mute hover:bg-lens-hover hover:text-lens-fg" onClick={() => dismissToast(t.id)}>
         <X size={14} aria-hidden="true" />
       </button>
     </div>

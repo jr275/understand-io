@@ -1,5 +1,6 @@
 "use client";
 
+import { tNow } from "@/i18n/runtime";
 /* Minimal typings for the Web Speech recognition API (not in lib.dom for all targets). */
 interface RecognitionResultLike {
   isFinal: boolean;
@@ -88,7 +89,7 @@ export function startRecognition(lang: string, h: RecognitionHandlers): Recognit
     rec.start();
   } catch (err) {
     detach();
-    h.onError(err instanceof Error && err.name === "InvalidStateError" ? "The microphone is already in use by this page. Try again in a moment." : "Could not start listening.", "start-failed");
+    h.onError(err instanceof Error && err.name === "InvalidStateError" ? tNow("srv.micInUse") : tNow("srv.micStartFailed"), "start-failed");
     return null;
   }
   return {
@@ -119,7 +120,7 @@ export function describeRecognitionError(code: string) {
     case "no-speech":
       return "No speech was heard. Try again, a little closer to the microphone.";
     case "audio-capture":
-      return "No microphone was found.";
+      return tNow("srv.micNotFound");
     case "network":
       return "Speech recognition needs a network connection in this browser.";
     case "language-not-supported":
@@ -147,12 +148,12 @@ export function describeMicError(e: unknown) {
   // By name, not by class: a DOMException from another realm (an iframe, a test environment) is not `instanceof Error` here.
   const name = typeof (e as { name?: unknown } | null)?.name === "string" ? (e as { name: string }).name : "";
   if (e instanceof MicError) {
-    return e.kind === "insecure" ? "The microphone only works on a secure (https) page or on localhost." : "This browser cannot record audio. Type your question instead.";
+    return e.kind === "insecure" ? tNow("srv.micInsecure") : tNow("srv.micNoRecord");
   }
-  if (name === "NotAllowedError" || name === "SecurityError") return "The microphone was blocked or the permission prompt was dismissed. Allow the microphone for this site and try again.";
-  if (name === "NotFoundError" || name === "OverconstrainedError") return "No microphone was found.";
-  if (name === "NotReadableError" || name === "AbortError") return "The microphone is busy in another app or tab.";
-  return "Could not start the microphone.";
+  if (name === "NotAllowedError" || name === "SecurityError") return tNow("srv.micBlocked");
+  if (name === "NotFoundError" || name === "OverconstrainedError") return tNow("srv.micNotFound");
+  if (name === "NotReadableError" || name === "AbortError") return tNow("srv.micBusy");
+  return tNow("srv.micGeneric");
 }
 
 export interface Recording {

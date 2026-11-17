@@ -9,6 +9,8 @@ import { TOPICS, topicInfo } from "@/lib/content/types";
 import { Spine } from "./Spine";
 import { TopicArt, TopicGlyph } from "./TopicGlyph";
 import { spineFor } from "./shelf";
+import { useT } from "@/i18n/client";
+import { topicName } from "@/i18n/topics";
 
 interface Props {
   doc: Omit<GlossDocument, "blocks">;
@@ -26,7 +28,8 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
   const router = useRouter();
   const [phase, setPhase] = useState<"in" | "open" | "leaving">("in");
   const spec = spineFor(doc);
-  const t = topicInfo(doc.topic);
+  const topic = topicInfo(doc.topic);
+  const t = useT();
   const W = 340;
   const H = 483;
   const D = 117;
@@ -61,14 +64,14 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
     : `translate3d(-420px, 120px, 0) scale3d(.45,.45,.45) translateZ(-170px) rotateY(90deg)`;
   const centre = `translate3d(60px, 0, 0) rotateY(0deg)`;
   const pct = Math.round((progress?.ratio ?? 0) * 100);
-  const status = progress?.finished ? "Finished" : pct > 2 ? `${pct}% read` : "Not started";
+  const status = progress?.finished ? t("book.finished") : pct > 2 ? t("library.percentRead", { n: pct }) : t("book.notStarted");
 
   return (
     <div ref={stageRef} className="ob-stage" data-phase={phase === "in" ? "in" : phase} role="dialog" aria-modal="true" aria-label={doc.title}>
       <div className="ob-backdrop" onClick={close} />
       <div className="ob-world">
         <div className="ob-shift">
-          <div className="ob-book" style={{ width: W, height: H, marginLeft: -W / 2, marginTop: -H / 2, transform: phase === "in" ? start : centre, ["--c" as string]: t.deep }}>
+          <div className="ob-book" style={{ width: W, height: H, marginLeft: -W / 2, marginTop: -H / 2, transform: phase === "in" ? start : centre, ["--c" as string]: topic.deep }}>
             <div className="ob-face ob-back" style={{ transform: `rotateY(180deg) translateZ(${D / 2}px)`, background: spec.bg }} />
             <div className="ob-face ob-spine" style={{ width: D, left: (W - D) / 2, transform: `rotateY(-90deg) translateZ(${W / 2}px)` }}>
               <div style={{ transform: `scale(${H / spec.height})`, transformOrigin: "0 0", width: spec.width, height: spec.height }}>
@@ -82,38 +85,38 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
             <div className="ob-face ob-page" style={{ width: W - 9, height: H - 12, top: 6, left: 1, transform: `translateZ(${D / 2 - 2}px)` }}>
               <div className="ob-page-in scroll-thin">
                 <div className="ob-kicker">
-                  <label className="ob-chip" data-tip="Move to another topic" style={{ ["--c" as string]: t.color }}>
+                  <label className="ob-chip" data-tip={t("book.moveTopic")} style={{ ["--c" as string]: topic.color }}>
                     <TopicGlyph topic={doc.topic} size={15} />
-                    <span>{t.label}</span>
+                    <span>{topicName(t, doc.topic)}</span>
                     <ChevronDown size={13} strokeWidth={2.2} aria-hidden="true" className="ob-chip-caret" />
-                    <select aria-label="Topic" value={doc.topic} onChange={(e) => onTopic(e.target.value)}>
+                    <select aria-label={t("book.topic")} value={doc.topic} onChange={(e) => onTopic(e.target.value)}>
                       {TOPICS.map((x) => (
                         <option key={x.id} value={x.id}>
-                          {x.label}
+                          {topicName(t, x.id)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <span className="ob-tools">
-                    <button type="button" className="ob-icon" aria-pressed={!!doc.favourite} aria-label={doc.favourite ? "Remove from favourites" : "Add to favourites"} data-tip={doc.favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => onFavourite(!doc.favourite)}>
+                    <button type="button" className="ob-icon" aria-pressed={!!doc.favourite} aria-label={doc.favourite ? t("book.removeFavourite") : t("book.addFavourite")} data-tip={doc.favourite ? t("book.removeFavourite") : t("book.addFavourite")} onClick={() => onFavourite(!doc.favourite)}>
                       <Star size={15} aria-hidden="true" fill={doc.favourite ? "currentColor" : "none"} />
                     </button>
-                    <button type="button" className="ob-icon" aria-label={doc.kind === "sample" ? "Remove this sample" : "Remove from the library"} data-tip={doc.kind === "sample" ? "Remove this sample" : "Remove from the library"} onClick={onRemove}>
+                    <button type="button" className="ob-icon" aria-label={doc.kind === "sample" ? t("book.removeSample") : t("book.removeFromLibrary")} data-tip={doc.kind === "sample" ? t("book.removeSample") : t("book.removeFromLibrary")} onClick={onRemove}>
                       <Trash2 size={14} aria-hidden="true" />
                     </button>
                   </span>
                 </div>
                 <h2 className="ob-title">{doc.title}</h2>
                 <p className="ob-author">
-                  {doc.author || doc.sourceLabel || "Unknown author"}
+                  {doc.author || doc.sourceLabel || t("book.unknownAuthor")}
                   <span className="ob-meta">
                     {doc.year ? `${doc.year} · ` : ""}
-                    {doc.kind === "link" ? "saved link" : `${doc.minutes} min`}
+                    {doc.kind === "link" ? t("library.savedLink") : t("library.minutes", { n: doc.minutes })}
                   </span>
                 </p>
                 {doc.dek ? <p className="ob-dek">{doc.dek}</p> : null}
                 <p className="ob-tags">
-                  <span className="is-word">{doc.kind === "sample" ? "a sample from Understand.io" : doc.kind === "pdf" ? "a PDF" : doc.kind === "text" ? "pasted text" : doc.kind === "link" ? "a saved link, not read yet" : doc.sourceLabel || "a link"}</span>
+                  <span className="is-word">{doc.kind === "sample" ? t("book.kindSample") : doc.kind === "pdf" ? t("book.kindPdf") : doc.kind === "text" ? t("book.kindText") : doc.kind === "link" ? t("book.kindLink") : doc.sourceLabel || t("book.kindOther")}</span>
                 </p>
                 <div className="ob-progress">
                   <span className="ob-bar" aria-hidden="true">
@@ -123,13 +126,13 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                 </div>
                 <div className="ob-actions">
                   <button type="button" className="ob-read" onClick={() => router.push(`/read/${doc.slug}`)}>
-                    {doc.kind === "link" ? "Open the link" : pct > 2 && !progress?.finished ? "Continue" : progress?.finished ? "Read again" : "Start reading"}
+                    {doc.kind === "link" ? t("book.openLink") : pct > 2 && !progress?.finished ? t("book.continue") : progress?.finished ? t("book.readAgain") : t("book.start")}
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
                   <div className="ob-sub">
                     <span />
                     <button type="button" className="ob-link" onClick={close}>
-                      Put it back <kbd>Esc</kbd>
+                      {t("book.putBack")} <kbd>Esc</kbd>
                     </button>
                   </div>
                 </div>
@@ -146,7 +149,7 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                   <div className="cover-type">
                     <p className="cover-kicker">
                       <TopicGlyph topic={doc.topic} size={14} className="cover-glyph" />
-                      <span>{t.label}</span>
+                      <span>{topicName(t, doc.topic)}</span>
                       {doc.year ? <span className="tabular-nums">{doc.year}</span> : null}
                     </p>
                     <p className="cover-title">{doc.title}</p>
@@ -155,15 +158,15 @@ export function OpenBook({ doc, progress, origin, onClose, onTopic, onFavourite,
                   <span className="cover-hinge" aria-hidden="true" />
                 </div>
               </div>
-              <div className="ob-face ob-cover-inside" style={{ ["--c" as string]: t.deep, ["--c2" as string]: t.color }}>
+              <div className="ob-face ob-cover-inside" style={{ ["--c" as string]: topic.deep, ["--c2" as string]: topic.color }}>
                 <div className="ex-libris">
                   <div className="ex-art">
                     <TopicGlyph topic={doc.topic} size={60} />
                   </div>
-                  <p className="ex-head">From the library of</p>
-                  <p className="ex-name">An Understand.io reader</p>
+                  <p className="ex-head">{t("book.fromLibraryOf")}</p>
+                  <p className="ex-name">{t("book.aReader")}</p>
                   <span className="ex-rule" aria-hidden="true" />
-                  <p className="ex-meta">No. {readerNo}</p>
+                  <p className="ex-meta">{t("book.number", { n: readerNo })}</p>
                 </div>
               </div>
             </div>

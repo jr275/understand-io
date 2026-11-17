@@ -7,6 +7,8 @@ import { LogIn, LogOut } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { Pop } from "@/components/ui/Pop";
 import { resetLocalLibrary } from "@/lib/store/library";
+import { signInHref } from "@/lib/client/analytics";
+import { useT } from "@/i18n/client";
 
 export interface Me {
   configured: boolean;
@@ -29,6 +31,7 @@ export function fetchMe(force = false): Promise<Me> {
  * is not configured the button explains what is missing instead of pretending to work.
  */
 export function AccountControl({ compact = false }: { compact?: boolean }) {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -51,7 +54,7 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
     const initial = (a.name || a.email || "?").trim().charAt(0).toUpperCase();
     return (
       <div className="relative ml-1">
-        <IconButton ref={ref} className="!min-w-9 !px-0" aria-label={`Signed in as ${a.name || a.email || "you"}`} data-tip="Your account" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
+        <IconButton ref={ref} className="!min-w-9 !px-0" aria-label={t("account.signedInAs", { name: a.name || a.email || t("account.you") })} data-tip={t("account.tip")} aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
           {a.picture ? (
             // eslint-disable-next-line @next/next/no-img-element -- remote avatar; next/image would need the Google host allow-listed
             <img src={a.picture} alt="" referrerPolicy="no-referrer" className="size-7 rounded-full object-cover ring-1 ring-rule" />
@@ -59,13 +62,13 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
             <span className="grid size-7 place-items-center rounded-full bg-[var(--rubric)] text-[12.5px] font-semibold text-white">{initial}</span>
           )}
         </IconButton>
-        <Pop open={open} onClose={() => setOpen(false)} label="Your account" width={280} anchorRef={ref}>
-          <p className="truncate text-[13.5px] font-medium text-ink">{a.name || "Signed in"}</p>
+        <Pop open={open} onClose={() => setOpen(false)} label={t("account.label")} width={280} anchorRef={ref}>
+          <p className="truncate text-[13.5px] font-medium text-ink">{a.name || t("account.signedIn")}</p>
           {a.email ? <p className="mt-0.5 truncate text-[12.5px] text-ink-3">{a.email}</p> : null}
-          <p className="mt-2 text-[12px] leading-snug text-ink-4">Your library, highlights and notes follow this account on any browser you sign in to.</p>
+          <p className="mt-2 text-[12px] leading-snug text-ink-4">{t("account.follows")}</p>
           <div className="mt-3 flex items-center justify-between gap-2">
             <Link href="/library" className="inline-flex h-8 items-center rounded-full border border-rule px-3 text-[12.5px] font-medium text-ink-2 hover:border-rule-strong hover:text-ink" onClick={() => setOpen(false)}>
-              Your library
+              {t("account.yourLibrary")}
             </Link>
             <button
               type="button"
@@ -86,7 +89,7 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
                 }
               }}
             >
-              <LogOut size={13} aria-hidden="true" /> Sign out
+              <LogOut size={13} aria-hidden="true" /> {t("account.signOut")}
             </button>
           </div>
         </Pop>
@@ -98,8 +101,8 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
 
   if (me.configured) {
     return (
-      <a href={`/api/auth/google?next=${encodeURIComponent(pathname === "/" ? "/library" : pathname)}`} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] max-[480px]:w-9 max-[480px]:justify-center max-[480px]:px-0">
-        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">Sign in</span>
+      <a href={signInHref(pathname === "/" ? "/library" : pathname)} className="ml-1 inline-flex h-9 items-center gap-2 rounded-full bg-ink px-3.5 text-[13.5px] font-medium text-bg transition-[transform,opacity] hover:opacity-90 active:scale-[0.97] max-[480px]:w-9 max-[480px]:justify-center max-[480px]:px-0">
+        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">{t("account.signIn")}</span>
       </a>
     );
   }
@@ -107,12 +110,12 @@ export function AccountControl({ compact = false }: { compact?: boolean }) {
   return (
     <div className="relative ml-1">
       <IconButton ref={ref} className="!px-3.5 max-[480px]:w-9 max-[480px]:!px-0" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((v) => !v)}>
-        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">Sign in</span>
+        <LogIn size={15} aria-hidden="true" /> <span className="max-[480px]:sr-only">{t("account.signIn")}</span>
       </IconButton>
-      <Pop open={open} onClose={() => setOpen(false)} label="Sign in" width={320} anchorRef={ref}>
-        <p className="text-[13.5px] font-medium text-ink">Sign-in is not set up on this server yet</p>
+      <Pop open={open} onClose={() => setOpen(false)} label={t("account.signIn")} width={320} anchorRef={ref}>
+        <p className="text-[13.5px] font-medium text-ink">{t("account.notSetUp")}</p>
         <p className="mt-1 text-[12.5px] leading-snug text-ink-3">
-          Your library is kept for this browser already. Signing in with Google makes it follow you to other devices. To turn it on, the server needs <code className="rounded bg-sunk px-1 text-[11.5px]">GOOGLE_CLIENT_ID</code>, <code className="rounded bg-sunk px-1 text-[11.5px]">GOOGLE_CLIENT_SECRET</code> and a database.
+          {t("account.notSetUpHelp")} <code className="rounded bg-sunk px-1 text-[11.5px]">GOOGLE_CLIENT_ID</code>, <code className="rounded bg-sunk px-1 text-[11.5px]">GOOGLE_CLIENT_SECRET</code> {t("account.and")} {t("account.aDatabase")}.
         </p>
       </Pop>
     </div>

@@ -105,7 +105,7 @@ test.describe("backup and restore", () => {
     await page.goto("/library");
     await expect(page.getByTestId("backup")).toContainText("1 text, 1 mark, 0 questions to back up.");
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download backup" }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^understand-io-backup-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(download.suggestedFilename()).toMatch(/^keeple-backup-\d{4}-\d{2}-\d{2}\.json$/);
     const path = await download.path();
     const json = JSON.parse(readFileSync(path, "utf8"));
     expect(json).toMatchObject({ app: "understand-io", version: 1 });
@@ -143,7 +143,7 @@ test.describe("backup and restore", () => {
     await seed(page);
     await page.goto("/library");
     for (const [name, body, reason] of [
-      ["notes.json", JSON.stringify({ hello: "world" }), /not an Understand\.io backup/],
+      ["notes.json", JSON.stringify({ hello: "world" }), /not a Keeple backup/],
       ["broken.json", "{not json", /not valid JSON/],
       ["evil.json", JSON.stringify({ app: "understand-io", version: 1, exportedAt: "x", docs: [{ slug: "x", kind: "text", title: "x", topic: "t", minutes: 1, paragraphs: 1, blocks: [{ id: "p1", type: "p", text: "t", runs: [{ text: "t", href: "javascript:alert(1)" }] }] }], progress: {}, annotations: {}, glosses: {} }), /damaged/],
     ] as const) {
@@ -160,7 +160,7 @@ test.describe("backup and restore", () => {
     await seed(page);
     await page.goto("/library");
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Export all notes/ }).click()]);
-    expect(download.suggestedFilename()).toMatch(/^understand-io-notes-.*\.md$/);
+    expect(download.suggestedFilename()).toMatch(/^keeple-notes-.*\.md$/);
     const md = readFileSync(await download.path(), "utf8");
     expect(md).toContain("# My kites");
     expect(md).toContain("Kites");

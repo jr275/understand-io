@@ -117,9 +117,16 @@ describe.skipIf(!READY)("the legal pages (production build)", () => {
 
   it("each page offers the other language and the other texts, and an unknown text is a 404", async () => {
     const { text } = await get(published, "/privacy");
-    expect(text).toContain('href="/privacy?lang=pt"');
+    expect(text).toContain('href="/pt-BR/privacy"'); // the Portuguese text has its own address
     expect(text).toContain('aria-label="Other legal texts"');
-    expect(text).toContain("/terms?lang=en");
+    expect(text).toContain('href="/terms"');
+    const pt = await get(published, "/pt-BR/privacy");
+    expect(pt.status).toBe(200);
+    expect(pt.text).toMatch(/<html[^>]*lang="pt-BR"/);
+    expect(pt.text).toMatch(/<article[^>]*lang="pt-BR"/);
+    expect(pt.text).toContain('aria-label="Outros textos jurídicos"');
+    expect(pt.text).toContain('href="/privacy"'); // and links back to the English one
+    expect(pt.text).toContain('href="/pt-BR/terms"');
     expect((await get(published, "/legal/not-a-text")).status).toBe(404);
     expect((await get(published, "/legal/..%2Fpackage")).status).toBe(404);
   });

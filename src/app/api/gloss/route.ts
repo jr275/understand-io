@@ -8,6 +8,7 @@ import { limitServerKey } from "@/lib/server/rateLimit";
 import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
 import { estimateStreamedUsage, worstCaseGloss } from "@/lib/ai/budget";
 import { DEADLINE_MS, NO_ROOM_MESSAGE, PROVIDER_RETRIES, TIMEOUT_MESSAGE, busyResponse, deadlineSignal, logUsage, providerOptions, timedOut, tryAcquire, withHeadroom } from "@/lib/ai/guard";
+import { requestLocale } from "@/i18n/server";
 
 export const maxDuration = 60;
 
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
     let providerError: unknown;
     const result = streamText({
       model: provider(key).chatModel(CHAT_MODEL),
-      system: systemPrompt(b.length ?? "normal"),
+      system: systemPrompt(b.length ?? "normal", requestLocale(req)),
       messages,
       temperature: 0.4,
       maxOutputTokens,

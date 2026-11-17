@@ -1,4 +1,4 @@
-# Understand.io — a from-scratch reconstruction of Gloss
+# Keeple — a from-scratch reconstruction of Gloss
 
 An independent reading app that reproduces the publicly observable [Gloss](https://www.usegloss.io)
 experience and adds three features: **read-aloud (text-to-speech)**, **voice semantic passage
@@ -7,7 +7,7 @@ search**, and **text annotations** (highlights, underlines, notes).
 Paste a link (every link is saved: a page that cannot be read is kept as a link card with its title and a way to open it), a PDF or some text → a clean numbered reading view → select any line and ask about
 it; the answer lands in the margin, citing paragraphs. Texts live on a shelf grouped by topic.
 
-**Understand.io reads with you:** summaries in five kinds (quick, executive, detailed, key ideas, a single passage), key concepts and questions that test your understanding, translation of a selection or of the text a page at a time (the original stays beside it), search inside the text with a section menu, read-aloud, and questions asked aloud or typed with answers in text and speech. Every AI result says which paragraphs it read, quotes the text where it can and checks those quotes against it, and labels what is the model's own reading. The AI features need a Together AI key (yours, in the key panel); reading, highlighting, notes, search and read-aloud need nothing. What is sent where: [`docs/privacy-and-providers.md`](docs/privacy-and-providers.md).
+**Keeple reads with you:** summaries in five kinds (quick, executive, detailed, key ideas, a single passage), key concepts and questions that test your understanding, translation of a selection or of the text a page at a time (the original stays beside it), search inside the text with a section menu, read-aloud, and questions asked aloud or typed with answers in text and speech. Every AI result says which paragraphs it read, quotes the text where it can and checks those quotes against it, and labels what is the model's own reading. The AI features need a Together AI key (yours, in the key panel); reading, highlighting, notes, search and read-aloud need nothing. What is sent where: [`docs/privacy-and-providers.md`](docs/privacy-and-providers.md).
 
 ## Prerequisites
 

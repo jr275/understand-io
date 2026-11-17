@@ -3,8 +3,10 @@ import { getReaderId } from "@/lib/server/reader";
 import { listDocuments } from "@/lib/server/documents";
 import { LibraryPage } from "@/components/library/LibraryPage";
 import { LegalLinks } from "@/components/legal/LegalLinks";
+import { NOINDEX } from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Library" };
+// A person's own shelf: never for a search engine.
+export const metadata: Metadata = { title: "Library", robots: NOINDEX };
 
 export default async function Page() {
   const readerId = await getReaderId();

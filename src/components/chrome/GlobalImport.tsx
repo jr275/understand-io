@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { FileDown } from "lucide-react";
-import { FORMATS_LABEL, isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
+import { isImportableFile, looksLikeUrl, normaliseUrl, useImport } from "@/lib/client/import";
 import { handleFiles } from "@/lib/client/importQueue";
 import { toast } from "@/lib/store/toast";
+import { useT } from "@/i18n/client";
+import { splitLocalePath } from "@/i18n/config";
 
 /**
  * Two app-wide ways in: drop a PDF, text file or link anywhere, and ⌘V a link or text on any page
@@ -13,12 +15,15 @@ import { toast } from "@/lib/store/toast";
  * stray ⌘V never navigates away mid-read.
  */
 export function GlobalImport() {
+  const t = useT();
   const pathname = usePathname();
   const { importFile, importUrl, importText } = useImport();
   const [over, setOver] = useState(false);
   const depth = useRef(0);
   const internal = useRef(false);
-  const inReader = pathname.startsWith("/read/");
+  // The same page has two addresses (/ and /pt-BR): what matters is the page, not the language prefix.
+  const page = splitLocalePath(pathname).path;
+  const inReader = page.startsWith("/read/");
 
   useEffect(() => {
     const accepts = (dt: DataTransfer | null) => {
@@ -62,7 +67,7 @@ export function GlobalImport() {
         return;
       }
       if (files.length) {
-        toast(`Only ${FORMATS_LABEL} files can be read.`);
+        toast(t("drop.onlyFormats", { formats: t("ingest.formats") }));
         return;
       }
       const uri = (dt.getData("text/uri-list") || dt.getData("text/plain")).split(/\r?\n/).find((l) => l && !l.startsWith("#"));
@@ -82,26 +87,26 @@ export function GlobalImport() {
       window.removeEventListener("dragleave", onLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, [importFile, importUrl]);
+  }, [importFile, importUrl, t]);
 
   useEffect(() => {
-    if (pathname === "/") return; // the landing import bar owns paste there
+    if (page === "/") return; // the landing import bar owns paste there, in either language
     const onPaste = (e: ClipboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
       if (document.querySelector("[role=dialog]")) return;
       const file = Array.from(e.clipboardData?.files ?? []).find(isImportableFile);
       const text = e.clipboardData?.getData("text/plain")?.trim() ?? "";
       const run = file ? () => void importFile(file) : looksLikeUrl(text) ? () => void importUrl(normaliseUrl(text)) : text.length > 40 ? () => void importText(text) : null;
       if (!run) return;
       e.preventDefault();
-      const what = file ? `Read “${file.name}”?` : looksLikeUrl(text) ? "Open the pasted link?" : "Read the pasted text?";
-      if (inReader) toast(what, { ttl: 8000, action: { label: "Open", onClick: run } });
+      const what = file ? t("drop.readFile", { name: file.name }) : looksLikeUrl(text) ? t("drop.openLink") : t("drop.readText");
+      if (inReader) toast(what, { ttl: 8000, action: { label: t("common.open"), onClick: run } });
       else run();
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [pathname, inReader, importFile, importText, importUrl]);
+  }, [page, inReader, importFile, importText, importUrl, t]);
 
   if (!over) return null;
   return (
@@ -109,8 +114,8 @@ export function GlobalImport() {
       <div className="flex items-center gap-3 rounded-[20px] border-2 border-dashed border-rule-strong bg-raised px-7 py-5 text-ink shadow-pop">
         <FileDown size={22} aria-hidden="true" className="text-[var(--rubric)]" />
         <div>
-          <p className="font-serif text-[20px] leading-tight">Drop to read</p>
-          <p className="mt-0.5 text-[13px] text-ink-3">A PDF, a text file or a link</p>
+          <p className="font-serif text-[20px] leading-tight">{t("drop.title")}</p>
+          <p className="mt-0.5 text-[13px] text-ink-3">{t("drop.help")}</p>
         </div>
       </div>
     </div>

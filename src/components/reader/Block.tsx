@@ -2,6 +2,7 @@
 
 import { Fragment, memo, type ReactNode } from "react";
 import { MessageCirclePlus } from "lucide-react";
+import { useT } from "@/i18n/client";
 import type { Block as BlockT, Run } from "@/lib/content/types";
 import type { Segment } from "@/lib/anchors";
 
@@ -51,6 +52,7 @@ function runsBetween(runs: Run[], start: number, end: number): ReactNode[] {
 }
 
 export const Block = memo(function Block({ block, first, cursor, speaking, flash, read, segments, onAsk, onMarkClick, onMarkHover, hasNote }: Props) {
+  const t = useT();
   const runs = block.runs?.length ? block.runs : [{ text: block.text }];
   const Tag = block.type === "h2" ? "h2" : block.type === "h3" ? "h3" : "div";
   const cls = ["blk", first ? "is-first" : "", cursor ? "is-cursor" : "", speaking ? "is-speaking" : "", flash ? "is-flash" : ""].filter(Boolean).join(" ");
@@ -86,7 +88,7 @@ export const Block = memo(function Block({ block, first, cursor, speaking, flash
   return (
     <Tag className={cls} data-block={block.id} data-type={block.type} data-n={block.n} data-read={read ? "" : undefined}>
       {block.n ? (
-        <button type="button" className="pnum" aria-label={`Ask about paragraph ${block.n}`} data-tip={`Ask about ¶${block.n}`} data-tip-side="left" onClick={() => onAsk(block.id)}>
+        <button type="button" className="pnum" aria-label={t("reader.askParaLabel", { n: block.n })} data-tip={t("reader.askParaTip", { n: block.n })} data-tip-side="left" onClick={() => onAsk(block.id)}>
           <span className="pnum-ask" aria-hidden="true">
             <MessageCirclePlus size={12} aria-hidden="true" />
           </span>

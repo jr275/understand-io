@@ -9,7 +9,9 @@ test.describe("landing", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Highlight any line");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Ask it anything.");
     await expect(page.getByLabel("Article link")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Read" })).toBeDisabled();
+    // The button is never greyed out: with nothing typed it takes the reader to the field instead.
+    await page.getByRole("button", { name: "Read" }).click();
+    await expect(page.getByLabel("Article link")).toBeFocused();
     await expect(page.getByRole("link", { name: "Huxley" })).toHaveAttribute("href", "/read/on-a-piece-of-chalk");
     await expect(page.getByRole("link", { name: "Schopenhauer" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Thoreau" })).toBeVisible();
@@ -23,7 +25,7 @@ test.describe("landing", () => {
     for (const path of ["/", "/library", "/read/on-a-piece-of-chalk"]) {
       await page.goto(path);
       const banner = page.getByRole("banner");
-      await expect(banner.getByRole("link", { name: /Understand\.io/ })).toBeVisible();
+      await expect(banner.getByRole("link", { name: /Keeple/ })).toBeVisible();
       await expect(banner.locator('a[href*="together.ai"], [aria-label="Together AI"]')).toHaveCount(0);
       await expect(banner.getByText("together.ai")).toHaveCount(0);
     }
@@ -178,10 +180,11 @@ test.describe("landing", () => {
     });
     await page.goto("/");
     // The paint entry is added when the browser paints, which on a fast production build can be just after the load event.
-    await page.waitForFunction(() => performance.getEntriesByType("paint").some((p) => p.name === "first-paint"));
+    // Firefox and WebKit do not report "first-paint", only "first-contentful-paint", which is never earlier: the order checked below holds for either.
+    await page.waitForFunction(() => performance.getEntriesByType("paint").some((p) => p.name === "first-paint" || p.name === "first-contentful-paint"));
     const timing = await page.evaluate(() => ({
       themeAt: (window as unknown as { __themeAt?: number }).__themeAt,
-      firstPaint: performance.getEntriesByType("paint").find((p) => p.name === "first-paint")?.startTime,
+      firstPaint: (performance.getEntriesByType("paint").find((p) => p.name === "first-paint") ?? performance.getEntriesByType("paint").find((p) => p.name === "first-contentful-paint"))?.startTime,
     }));
     // The inline boot script runs while the HTML is parsed, so the dark theme is in place before anything is painted.
     expect(timing.themeAt).toBeDefined();
@@ -192,7 +195,7 @@ test.describe("landing", () => {
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Library" }).click();
     await expect(page).toHaveURL(/\/library$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your library");
-    await page.getByRole("link", { name: "Understand.io, back to your library" }).click();
+    await page.getByRole("link", { name: "Keeple, back to your library" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.waitForTimeout(400);
     // Next cancels a superseded <Link> prefetch (`?_rsc=`) when the user navigates away from it; that abort is

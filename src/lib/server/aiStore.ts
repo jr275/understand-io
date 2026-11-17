@@ -40,6 +40,14 @@ export interface AiStore {
   quotaHit(key: string, windowMs: number, now: number): Promise<number>;
   /** Gives one use back (a request that was refused after being counted, or that failed before the provider charged anything). */
   quotaRefund(key: string, windowMs: number, now: number): Promise<void>;
+  /**
+   * Sets up to `n` uses of `key` aside in the window `now` falls in, without ever letting that window's count pass `cap`, and answers how many were
+   * granted (0 to `n`). Atomic across instances: the total granted in one window cannot exceed `cap`, however many requests race for it and however
+   * they are batched. A window that is already past `cap` (the operator lowered it) grants 0 and is left as it is.
+   */
+  quotaReserve(key: string, windowMs: number, now: number, n: number, cap: number): Promise<number>;
+  /** Gives back `n` uses set aside by `quotaReserve` that were not used (the events were not stored). Never goes below zero. */
+  quotaRelease(key: string, windowMs: number, now: number, n: number): Promise<void>;
   /** True when `key` was free (or its previous holder's lease had expired) and is now held by `token`. */
   acquireLease(key: string, token: string, ttlMs: number, now: number): Promise<boolean>;
   releaseLease(key: string, token: string): Promise<void>;
@@ -98,6 +106,17 @@ export function createMemoryAiStore(): MemoryAiStore {
     async quotaRefund(key, windowMs, now) {
       const k = `${key}@${windowStart(now, windowMs)}`;
       quota.set(k, Math.max(0, (quota.get(k) ?? 0) - 1));
+    },
+    async quotaReserve(key, windowMs, now, n, cap) {
+      const k = `${key}@${windowStart(now, windowMs)}`;
+      const have = quota.get(k) ?? 0;
+      const granted = Math.max(0, Math.min(Math.floor(n), cap - have));
+      if (granted > 0) quota.set(k, have + granted);
+      return granted;
+    },
+    async quotaRelease(key, windowMs, now, n) {
+      const k = `${key}@${windowStart(now, windowMs)}`;
+      quota.set(k, Math.max(0, (quota.get(k) ?? 0) - Math.max(0, Math.floor(n))));
     },
     async acquireLease(key, token, ttlMs, now) {
       const held = leases.get(key);
@@ -166,6 +185,33 @@ export const databaseAiStore: AiStore = {
     const db = getDb();
     if (!db) throw new Error("no database");
     await db.execute(sql`UPDATE rate_hits SET count = GREATEST(count - 1, 0) WHERE key = ${hashKey(key)} AND window_start = ${windowStart(now, windowMs)}`);
+  },
+
+  async quotaReserve(key, windowMs, now, n, cap) {
+    const db = getDb();
+    if (!db) throw new Error("no database");
+    const want = Math.floor(n);
+    if (!(want > 0) || !(cap > 0)) return 0;
+    const ws = windowStart(now, windowMs);
+    const k = hashKey(key);
+    // Make sure the window's row exists (count 0). Idempotent; a row left behind by a crash between the two statements is harmless.
+    await db.execute(sql`INSERT INTO rate_hits (key, window_start, count, expires_at) VALUES (${k}, ${ws}, 0, ${ws + 2 * windowMs}) ON CONFLICT (key, window_start) DO NOTHING`);
+    // One statement: the sub-select locks the row, so concurrent reservations (from any instance) take turns and each sees the count the previous one left
+    // (READ COMMITTED re-reads a locked row). The new count never passes `cap`, and never goes down if `cap` was lowered: the grant is the difference.
+    const rows = await db.execute<{ granted: number }>(sql`
+      UPDATE rate_hits r SET count = GREATEST(r.count, LEAST(r.count + ${want}, ${cap}))
+      FROM (SELECT key, window_start, count AS before FROM rate_hits WHERE key = ${k} AND window_start = ${ws} FOR UPDATE) o
+      WHERE r.key = o.key AND r.window_start = o.window_start
+      RETURNING r.count - o.before AS granted`);
+    return num(rows[0]?.granted);
+  },
+
+  async quotaRelease(key, windowMs, now, n) {
+    const db = getDb();
+    if (!db) throw new Error("no database");
+    const back = Math.max(0, Math.floor(n));
+    if (back === 0) return;
+    await db.execute(sql`UPDATE rate_hits SET count = GREATEST(count - ${back}, 0) WHERE key = ${hashKey(key)} AND window_start = ${windowStart(now, windowMs)}`);
   },
 
   async acquireLease(key, token, ttlMs, now) {

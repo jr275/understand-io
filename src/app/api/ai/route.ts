@@ -9,6 +9,7 @@ import { readJsonLimited } from "@/lib/server/body";
 import { limitServerKey } from "@/lib/server/rateLimit";
 import { admitAi, type Outcome } from "@/lib/server/aiAdmission";
 import { estimateStreamedUsage, worstCaseOp } from "@/lib/ai/budget";
+import { requestLocale } from "@/i18n/server";
 
 /** Long texts are read section by section and then combined (two rounds of provider calls); the deadline in `lib/ai/guard.ts` fires before this. */
 export const maxDuration = 300;
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
     return { text: r.text, inputTokens, outputTokens };
   };
   try {
-    const { result, usage: reported } = await runAiOp(parsed.data, generate, signal);
+    const { result, usage: reported } = await runAiOp({ ...parsed.data, uiLang: requestLocale(req) }, generate, signal);
     // A provider that reports no usage must not make the answer free: charge an estimate from what was sent and received.
     const sentChars = parsed.data.title.length + (parsed.data.selection?.length ?? 0) + parsed.data.blocks.reduce((n, b) => n + b.text.length, 0);
     const guess = estimateStreamedUsage(sentChars, JSON.stringify(result).length);

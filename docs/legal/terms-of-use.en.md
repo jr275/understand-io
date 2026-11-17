@@ -1,4 +1,4 @@
-# Terms of Use — Understand.io
+# Terms of Use — Keeple
 
 > **DRAFT. NOT LEGAL ADVICE.** This text was written from how the app works. It has not been reviewed by a lawyer. **Do not publish it** until the owner has filled in every field marked with ⚠️ and a legal review has been done.
 
@@ -6,7 +6,7 @@
 
 ## 1. Who we are and what you agree to
 
-Understand.io ("the service") is run by Menlo Software AIP. ⚠️ [OWNER DECISION: address and registration number of Menlo Software AIP, if any; its legal form is deliberately not stated here]. By using the service you agree to these terms and to the Privacy Policy. If you do not agree, do not use it. The service is in **beta** (see the Beta notice).
+Keeple ("the service") is run by Menlo Software AIP. ⚠️ [OWNER DECISION: address and registration number of Menlo Software AIP, if any; its legal form is deliberately not stated here]. By using the service you agree to these terms and to the Privacy Policy. If you do not agree, do not use it. The service is in **beta** (see the Beta notice).
 
 ## 2. What the service does
 
@@ -64,7 +64,7 @@ The service is provided "as is" during the beta. We do not promise that it will 
 
 ## 12. Price
 
-Understand.io is offered free of charge, with limited daily use of its AI features (a freemium service; see the usage limits above). The app has no payment feature today. ⚠️ [OWNER DECISION: whether paid plans will exist, and how users will be told before any charge]
+Keeple is offered free of charge, with limited daily use of its AI features (a freemium service; see the usage limits above). The app has no payment feature today. ⚠️ [OWNER DECISION: whether paid plans will exist, and how users will be told before any charge]
 
 ## 13. Ending
 

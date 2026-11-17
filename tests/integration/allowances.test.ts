@@ -18,6 +18,7 @@ const READY = !!DB && existsSync(".next/BUILD_ID");
 
 const SECRET = randomBytes(32).toString("hex");
 const KEY = `test-key-${randomBytes(6).toString("hex")}`;
+const HEALTH_TOKEN = randomBytes(24).toString("hex"); // the readiness check exists only with a token of 32+ characters
 const MARKER = `PRIVATE-MARKER-${randomBytes(6).toString("hex")}`;
 const hmac = (s: string) => createHmac("sha256", SECRET).update(s).digest("base64url").slice(0, 22);
 const readerCookie = (id: string) => `gloss_reader=${id}.${hmac(id)}`;
@@ -93,6 +94,7 @@ async function start(port: number, env: Record<string, string> = {}): Promise<In
       GLOSS_CHAT_MODEL: "test/model",
       GLOSS_RATE_GLOSS: "off",
       GLOSS_RATE_IMPORT: "off",
+      GLOSS_HEALTH_TOKEN: HEALTH_TOKEN,
       GLOSS_AI_MAX_CONCURRENT: "50",
       ...env,
     },
@@ -272,16 +274,21 @@ describe.skipIf(!READY)("the AI allowances across separate server instances (pro
     expect(refused.message).not.toMatch(/postgres|127\.0\.0\.1|ECONN/i);
     expect(providerCalls.n).toBe(before);
     expect((await ask(dead, "ai", { account: `acc_${run}_dead`, key: "their-own-key" })).status).toBe(200);
-    const health = await fetch(`http://127.0.0.1:${dead.port}/api/health`);
+    const live = await fetch(`http://127.0.0.1:${dead.port}/api/health`); // liveness does not look at the database at all
+    expect(live.status).toBe(200);
+    expect(await live.json()).toMatchObject({ status: "ok", check: "liveness" });
+    expect((await fetch(`http://127.0.0.1:${dead.port}/api/health/ready`)).status).toBe(401); // the public cannot ask for a reading
+    const health = await fetch(`http://127.0.0.1:${dead.port}/api/health/ready`, { headers: { authorization: `Bearer ${HEALTH_TOKEN}` } });
     expect(health.status).toBe(503);
     expect(await health.json()).toMatchObject({ status: "down", database: "down" });
   }, 180_000);
 
   it("the health check of a working instance says ok and holds no secret", async () => {
-    const res = await fetch(`http://127.0.0.1:${a.port}/api/health`);
+    const res = await fetch(`http://127.0.0.1:${a.port}/api/health/ready?fresh=1`, { headers: { authorization: `Bearer ${HEALTH_TOKEN}` } });
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(JSON.parse(text)).toMatchObject({ status: "ok", database: "ok", ai: { configured: true, allowancesShared: true } });
+    expect(text).not.toContain(HEALTH_TOKEN);
     expect(text).not.toContain(KEY);
     expect(text).not.toContain(SECRET);
     expect(text).not.toContain(new URL(DB).password || "no-password-in-url");

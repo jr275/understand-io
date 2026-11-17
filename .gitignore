@@ -35,6 +35,7 @@ yarn-error.log*
 # local data: database dumps and backups never belong in the repository
 *.dump
 /backups/
+neon-rehearsal-*.txt
 
 # infrastructure state and variables
 *.tfstate

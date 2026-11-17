@@ -64,7 +64,8 @@ test.describe("a link is always saved", () => {
 
   test("several links at once: each is saved, and the unreadable ones say so", async ({ page }) => {
     await page.goto("/library");
-    await page.getByRole("button", { name: /Add articles/ }).click();
+    await page.getByRole("button", { name: /Add a source/ }).click();
+    await page.getByText("Several links at once").click();
     await page.getByLabel("Links to save").fill("http://127.0.0.1/one\nhttp://127.0.0.1/two");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     const rows = page.locator(".add-rows li");
